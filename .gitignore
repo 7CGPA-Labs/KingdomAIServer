@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# Build & Dist
+build/kingdom/
+dist/
+release/
+*.spec.bak
+
+# Pytest / Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Local Data & Logs
+vault.db
+vault.db-wal
+vault.db-shm
+*.log
+models/*.gguf
+models/*.onnx
+!models/README.txt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

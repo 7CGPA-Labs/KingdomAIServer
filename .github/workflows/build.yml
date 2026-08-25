@@ -1,0 +1,48 @@
+name: Build & Package Kingdom AI Server
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Standalone Windows Executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e .
+          python -m pip install pytest pyinstaller pillow pystray
+
+      - name: Run Verification & Test Suite
+        run: |
+          pytest -v --tb=short
+
+      - name: Compile Executable Binary via PyInstaller
+        run: |
+          pyinstaller --noconfirm build/kingdom.spec
+
+      - name: Package Release ZIP
+        run: |
+          python build/package_release.py
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KingdomServer-win64-full
+          path: release/KingdomServer-win64-full.zip
+          retention-days: 30
