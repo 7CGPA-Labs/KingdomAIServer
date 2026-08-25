@@ -71,7 +71,9 @@ kingdom serve --tray
 
 | Command | Description |
 | :--- | :--- |
-| `kingdom serve` / `kingdom start` | Starts the server in foreground with live telemetry dashboard (`--daemon`, `--tray`, `--port 58420`). |
+| `kingdom serve` / `kingdom start` | Starts the server in foreground with live telemetry dashboard (`--daemon`, `--tray`, `--port 58420`, `--auto-download`). |
+| `kingdom ask "prompt"` / `kingdom chat` | Runs a prompt directly from the CLI or launches interactive terminal REPL chat session. |
+| `kingdom download` | Automatically downloads missing GGUF and ONNX model binaries from HuggingFace (`--all`, `--model filename`). |
 | `kingdom status` | Queries `/health` and prints hardware metrics and active silicon tiers. |
 | `kingdom doctor` | Runs pre-flight diagnostics for 9 model files, hardware drivers, port 58420, and Continue.dev config. |
 | `kingdom stop` | Gracefully stops any active background daemon on port 58420. |

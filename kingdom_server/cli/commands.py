@@ -8,6 +8,7 @@ import json
 import socket
 import subprocess
 import signal
+import asyncio
 from pathlib import Path
 from typing import Optional
 import typer
@@ -18,6 +19,7 @@ from rich.table import Table
 from rich.live import Live
 from rich.text import Text
 from rich.layout import Layout
+from rich.markdown import Markdown
 
 from kingdom_server import __version__
 from kingdom_server.utils import get_base_dir, get_log_path, get_models_dir
@@ -78,8 +80,14 @@ def serve(
     port: int = typer.Option(58420, "--port", "-p", help="Loopback port to listen on"),
     daemon: bool = typer.Option(False, "--daemon", "-d", help="Run server in background daemon mode"),
     tray: bool = typer.Option(False, "--tray", "-t", help="Spawn Windows System Tray icon"),
+    auto_download: bool = typer.Option(False, "--auto-download", help="Auto-download missing model binaries on startup"),
 ):
     """Starts the Kingdom AI Server in foreground or background with live telemetry dashboard."""
+    if auto_download:
+        from kingdom_server.utils.downloader import ModelDownloader
+        downloader = ModelDownloader()
+        downloader.download_missing()
+
     if is_port_in_use(port):
         console.print(f"[bold red]Error:[/bold red] Port {port} is already in use by another process.")
         try:
@@ -136,6 +144,93 @@ def serve(
     finally:
         if PID_FILE.exists():
             PID_FILE.unlink(missing_ok=True)
+
+
+@app.command("download")
+def download(
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Specific model filename to download"),
+    all_models: bool = typer.Option(True, "--all", "-a", help="Download all missing GGUF/ONNX models")
+):
+    """Automatically downloads missing GGUF/ONNX model binary files from HuggingFace hub."""
+    from kingdom_server.utils.downloader import ModelDownloader, MODEL_DOWNLOAD_URLS
+    downloader = ModelDownloader()
+    if model:
+        url = MODEL_DOWNLOAD_URLS.get(model)
+        if not url:
+            console.print(f"[bold red]Unknown model filename: '{model}'[/bold red]")
+            console.print("Available model filenames:")
+            for k in MODEL_DOWNLOAD_URLS.keys():
+                console.print(f" - {k}")
+            raise typer.Exit(code=1)
+        downloader.download_file(model, url)
+    else:
+        downloader.download_missing()
+
+
+@app.command("ask")
+@app.command("prompt")
+@app.command("chat")
+def ask(
+    prompt: Optional[str] = typer.Argument(None, help="Prompt text to query directly from CLI"),
+    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name")
+):
+    """Runs a prompt directly in the CLI terminal or launches interactive terminal chat mode."""
+    from kingdom_server.core.orchestrator import KingdomOrchestrator
+
+    orchestrator = KingdomOrchestrator()
+
+    if prompt:
+        console.print(Panel(f"[bold white]User Query:[/bold white] {prompt}", style="bold blue"))
+        console.print("\n[bold gold1]👑 Kingdom AI Server Response:[/bold gold1]\n")
+        
+        async def _stream_cli():
+            full_text = ""
+            messages = [{"role": "user", "content": prompt}]
+            async for chunk in orchestrator.generate_chat_stream(messages, model=model):
+                if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
+                    try:
+                        data = json.loads(chunk[6:])
+                        delta = data["choices"][0]["delta"].get("content", "")
+                        console.print(delta, end="")
+                        full_text += delta
+                    except Exception:
+                        pass
+            console.print("\n")
+
+        asyncio.run(_stream_cli())
+    else:
+        # Interactive REPL terminal session
+        console.clear()
+        console.print(Panel("[bold gold1]👑 KINGDOM AI SERVER - INTERACTIVE CLI CHAT SESSION[/bold gold1]\nType 'exit', 'quit', or press Ctrl+C to stop.", style="bold blue"))
+        session_id = f"cli-session-{int(time.time())}"
+
+        while True:
+            try:
+                user_input = console.input("\n[bold cyan]kingdom > [/bold cyan]").strip()
+                if not user_input:
+                    continue
+                if user_input.lower() in ("exit", "quit", "q"):
+                    console.print("[yellow]Exiting interactive CLI chat session.[/yellow]")
+                    break
+                
+                console.print("\n[bold gold1]👑 Kingdom AI Server:[/bold gold1]\n")
+
+                async def _stream_repl(u_input: str):
+                    messages = [{"role": "user", "content": u_input}]
+                    async for chunk in orchestrator.generate_chat_stream(messages, model=model, session_id=session_id):
+                        if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
+                            try:
+                                data = json.loads(chunk[6:])
+                                delta = data["choices"][0]["delta"].get("content", "")
+                                console.print(delta, end="")
+                            except Exception:
+                                pass
+                    console.print("\n")
+
+                asyncio.run(_stream_repl(user_input))
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[yellow]Session ended.[/yellow]")
+                break
 
 
 @app.command("stop")
