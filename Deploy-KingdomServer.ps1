@@ -7,9 +7,9 @@
 
 $ErrorActionPreference = "Continue"
 
-Write-Host "======================================================================" -ForegroundColor Gold
+Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " 👑 KINGDOM AI SERVER - ZERO-ADMIN ENTERPRISE DEPLOYMENT" -ForegroundColor Yellow
-Write-Host "======================================================================" -ForegroundColor Gold
+Write-Host "======================================================================" -ForegroundColor Yellow
 
 # Target user-space installation path
 $InstallDir = "$env:LOCALAPPDATA\KingdomAIServer"
@@ -151,9 +151,9 @@ if ($UserPath -notlike "*$BinDir*") {
 }
 
 Write-Host ""
-Write-Host "======================================================================" -ForegroundColor Gold
+Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " 🚀 KINGDOM AI SERVER DEPLOYMENT COMPLETE!" -ForegroundColor Green
-Write-Host "======================================================================" -ForegroundColor Gold
+Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
 Write-Host " Loopback Endpoint      : http://127.0.0.1:58420" -ForegroundColor White
@@ -167,4 +167,4 @@ Write-Host "   If Windows Defender blocks launch of kingdom.exe / KingdomTray.ex
 Write-Host "   1. Open File Explorer to: $BinDir" -ForegroundColor White
 Write-Host "   2. Right-click 'kingdom.exe' > Properties" -ForegroundColor White
 Write-Host "   3. Check 'Unblock' checkbox at the bottom > Click Apply > OK" -ForegroundColor White
-Write-Host "======================================================================" -ForegroundColor Gold
+Write-Host "======================================================================" -ForegroundColor Yellow
