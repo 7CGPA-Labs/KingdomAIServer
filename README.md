@@ -117,6 +117,26 @@ pytest -v
 
 ---
 
+## 🛡️ Corporate Proxies (Zscaler) & SmartScreen Troubleshooting
+
+### 1. Zscaler Proxy Blocking `.zip` Asset Downloads
+If your enterprise network proxy (e.g. Zscaler) blocks downloading release archives (`KingdomServer-win64-full.zip`), `Deploy-KingdomServer.ps1` will automatically fall back to deploying via local source / git clone:
+
+```powershell
+# Run zero-admin installer with automatic Zscaler fallback
+irm https://raw.githubusercontent.com/7CGPA-Labs/KingdomAIServer/main/Deploy-KingdomServer.ps1 | iex
+```
+
+### 2. Windows Defender SmartScreen / Antivirus Unblocking
+If Windows Defender or SmartScreen flags `kingdom.exe` or `KingdomTray.exe` as un-signed / untrusted:
+1. Open PowerShell and run:
+   ```powershell
+   Unblock-File -Path "$env:LOCALAPPDATA\KingdomAIServer\bin\*"
+   ```
+2. Or open File Explorer to `%LocalAppData%\KingdomAIServer\bin\`, right-click `kingdom.exe` > **Properties** > check **Unblock** at the bottom > click **Apply**.
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
