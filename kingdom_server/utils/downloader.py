@@ -106,6 +106,15 @@ class ModelDownloader:
         repo_id = spec["repo_id"]
         hf_filename = spec["filename"]
         target_path = self.models_dir / target_filename
+        min_bytes = int(manifest_spec.get("approx_size_mb", 10) * 1024 * 1024 * 0.4)
+
+        # Unlink dummy/placeholder file before downloading full binary
+        if target_path.exists() and target_path.stat().st_size < min_bytes:
+            try:
+                target_path.unlink()
+            except Exception:
+                pass
+
         download_url = hf_hub_url(repo_id=repo_id, filename=hf_filename)
 
         headers = {
@@ -119,7 +128,7 @@ class ModelDownloader:
                 if response.status_code == 200:
                     total_bytes = int(response.headers.get("content-length", 0))
                     if progress and task_id is not None and total_bytes > 0:
-                        progress.update(task_id, total=total_bytes)
+                        progress.update(task_id, total=total_bytes, completed=0)
 
                     temp_target = target_path.with_suffix(".tmp")
                     with open(temp_target, "wb") as f:
@@ -133,19 +142,21 @@ class ModelDownloader:
                             target_path.unlink()
                         shutil.move(temp_target, target_path)
 
-                        if progress and task_id is not None:
-                            size = target_path.stat().st_size
-                            progress.update(task_id, total=size, completed=size)
-                        return True
+                        if target_path.exists() and target_path.stat().st_size >= min_bytes:
+                            if progress and task_id is not None:
+                                size = target_path.stat().st_size
+                                progress.update(task_id, total=size, completed=size)
+                            return True
         except Exception:
             pass
 
-        # Secondary fallback via hf_hub_download
+        # Secondary fallback via hf_hub_download with force_download=True
         try:
             downloaded_file = hf_hub_download(
                 repo_id=repo_id,
                 filename=hf_filename,
-                local_dir=str(self.models_dir)
+                local_dir=str(self.models_dir),
+                force_download=True
             )
             downloaded_path = Path(downloaded_file)
 
@@ -154,7 +165,7 @@ class ModelDownloader:
                     target_path.unlink()
                 shutil.move(downloaded_path, target_path)
 
-            if target_path.exists() and target_path.stat().st_size > 0:
+            if target_path.exists() and target_path.stat().st_size >= min_bytes:
                 if progress and task_id is not None:
                     size = target_path.stat().st_size
                     progress.update(task_id, total=size, completed=size)
