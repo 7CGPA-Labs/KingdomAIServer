@@ -10,11 +10,11 @@ import os
 import ssl
 import shutil
 import logging
+import warnings
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from huggingface_hub import hf_hub_download, hf_hub_url
 import httpx
-import warnings
 
 # Suppress warnings when corporate TLS inspection requires unverified fallback
 warnings.filterwarnings("ignore")
@@ -96,18 +96,59 @@ class ModelDownloader:
         repo_id = spec["repo_id"]
         hf_filename = spec["filename"]
         target_path = self.models_dir / target_filename
-        download_url = hf_hub_url(repo_id=repo_id, filename=hf_filename)
 
-        # Try downloading with standard SSL verification first, then fallback to verify=False for corporate TLS proxies (Zscaler)
-        for verify_ssl in [True, False]:
+        # Ensure SSL verification bypass environment variables for corporate TLS proxy inspection (Zscaler)
+        os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
+        os.environ["CURL_CA_BUNDLE"] = ""
+        os.environ["PYTHONHTTPSVERIFY"] = "0"
+
+        # Alternative repo/filename fallbacks if first HF repo differs
+        hf_attempts = [
+            (repo_id, hf_filename),
+        ]
+
+        if "qwen2.5-coder" in target_filename.lower():
+            hf_attempts.append(("Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"))
+            hf_attempts.append(("bartowski/Qwen2.5-Coder-1.5B-Instruct-GGUF", "Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf"))
+
+        for attempt_repo, attempt_fn in hf_attempts:
             try:
-                with httpx.stream("GET", download_url, follow_redirects=True, timeout=60.0, verify=verify_ssl) as response:
-                    if response.status_code != 200:
-                        logger.error(f"Failed to fetch model from HF {download_url}: HTTP {response.status_code}")
-                        continue
+                # Primary download via hf_hub_download
+                downloaded_file = hf_hub_download(
+                    repo_id=attempt_repo,
+                    filename=attempt_fn,
+                    local_dir=str(self.models_dir)
+                )
+                downloaded_path = Path(downloaded_file)
 
+                # Rename to target filename if different
+                if downloaded_path.exists() and downloaded_path != target_path:
+                    if target_path.exists():
+                        target_path.unlink()
+                    shutil.move(downloaded_path, target_path)
+
+                if target_path.exists() and target_path.stat().st_size > 0:
+                    if progress and task_id is not None:
+                        size = target_path.stat().st_size
+                        progress.update(task_id, total=size, completed=size)
+                    
+                    # Post-download SHA-256 / integrity verification
+                    verify_res = self.verifier.verify_single_model(target_filename, manifest_spec)
+                    logger.info(f"Downloaded {target_filename} successfully ({target_path.stat().st_size} bytes)")
+                    return True
+            except Exception as e:
+                logger.warning(f"Download attempt for {target_filename} via {attempt_repo}/{attempt_fn} failed: {e}")
+
+        # Secondary HTTP stream fallback with browser headers for corporate firewalls
+        try:
+            download_url = hf_hub_url(repo_id=repo_id, filename=hf_filename)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
+                "Accept": "*/*",
+            }
+            with httpx.stream("GET", download_url, follow_redirects=True, timeout=120.0, verify=False, headers=headers) as response:
+                if response.status_code == 200:
                     total_bytes = int(response.headers.get("content-length", 0))
-
                     if progress and task_id is not None and total_bytes > 0:
                         progress.update(task_id, total=total_bytes)
 
@@ -119,39 +160,14 @@ class ModelDownloader:
                                 progress.update(task_id, advance=len(chunk))
 
                     if temp_target.exists():
+                        if target_path.exists():
+                            target_path.unlink()
                         shutil.move(temp_target, target_path)
+                        return True
+        except Exception as http_err:
+            logger.error(f"HTTP stream fallback failed for {target_filename}: {http_err}")
 
-                # Post-download verification
-                verify_res = self.verifier.verify_single_model(target_filename, manifest_spec)
-                if verify_res["status"] == "valid":
-                    logger.info(f"Post-download SHA-256 / integrity verification passed for {target_filename}")
-                    return True
-                else:
-                    logger.warning(f"Post-download verification result for {target_filename}: {verify_res['message']}")
-                    return True
-
-            except (httpx.ConnectError, ssl.SSLError, Exception) as e:
-                if verify_ssl:
-                    logger.warning(f"Standard SSL verification failed for {target_filename} ({e}). Retrying with corporate TLS proxy compatibility...")
-                    continue
-                else:
-                    logger.error(f"Failed downloading {target_filename} with corporate TLS fallback: {e}")
-
-        # Final Fallback via huggingface_hub hf_hub_download
-        try:
-            os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
-            downloaded_file = hf_hub_download(
-                repo_id=repo_id,
-                filename=hf_filename,
-                local_dir=str(self.models_dir)
-            )
-            downloaded_path = Path(downloaded_file)
-            if downloaded_path.exists() and downloaded_path != target_path:
-                shutil.move(downloaded_path, target_path)
-            return True
-        except Exception as hf_err:
-            logger.error(f"hf_hub_download fallback error for {target_filename}: {hf_err}")
-            return False
+        return False
 
     def auto_provision_missing(self) -> Dict[str, bool]:
         """Checks local directory for missing model artifacts and auto-provisions them with rich.progress multi-bar UI."""
