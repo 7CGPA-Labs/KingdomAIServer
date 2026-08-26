@@ -1,17 +1,19 @@
 """
-Thin-Client Model Auto-Provisioning module using standalone huggingface_hub and urllib/httpx streaming.
+Thin-Client Model Auto-Provisioning module using standalone huggingface_hub, urllib, and curl.exe streaming.
 Zero heavy dependencies (no torch, transformers, or large ML frameworks).
 Downloads GGUF and ONNX models directly into %LocalAppData%\\KingdomAIServer\\models\\
 with rich.progress multi-bar UI (displaying transfer speed MB/s, ETA, progress),
 followed by post-download SHA-256 integrity verification.
-Supports corporate TLS proxy inspection (Zscaler) and custom SSL Root CAs via urllib/httpx.
+Supports corporate TLS proxy inspection (Zscaler) and custom SSL Root CAs via urllib/curl.exe.
 """
 import sys
 import os
 import ssl
+import time
 import shutil
 import logging
 import warnings
+import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -89,15 +91,28 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
 }
 
 class ModelDownloader:
-    """Thin-client model auto-provisioning engine using urllib/huggingface_hub with corporate TLS fallback."""
+    """Thin-client model auto-provisioning engine using urllib/curl.exe/huggingface_hub with Zscaler proxy fallback."""
 
     def __init__(self, models_dir: Optional[Path] = None):
         self.models_dir = Path(models_dir) if models_dir else get_models_dir()
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.verifier = ModelVerifier(self.models_dir)
 
+    def is_html_block_page(self, filepath: Path) -> bool:
+        """Checks if a downloaded file is an HTML proxy block page (e.g. Zscaler Access Blocked)."""
+        if not filepath.exists() or filepath.stat().st_size == 0:
+            return True
+        try:
+            with open(filepath, "rb") as f:
+                header = f.read(512).lower()
+                if b"<!doctype html" in header or b"<html" in header or b"zscaler" in header or b"internet security" in header:
+                    return True
+        except Exception:
+            pass
+        return False
+
     def download_model_via_hf(self, target_filename: str, progress: Optional[Progress] = None, task_id: Optional[Any] = None) -> bool:
-        """Downloads a single model file using urllib chunk streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
+        """Downloads a single model file using urllib/curl.exe streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
         spec = MODEL_HF_SPECS.get(target_filename)
         manifest_spec = MODEL_MANIFEST.get(target_filename, {})
 
@@ -109,8 +124,8 @@ class ModelDownloader:
         target_path = self.models_dir / target_filename
         min_bytes = int(manifest_spec.get("approx_size_mb", 10) * 1024 * 1024 * 0.4)
 
-        # Remove dummy/placeholder file before downloading full binary
-        if target_path.exists() and target_path.stat().st_size < min_bytes:
+        # Unlink dummy/placeholder/Zscaler HTML block file before downloading full binary
+        if target_path.exists() and (target_path.stat().st_size < min_bytes or self.is_html_block_page(target_path)):
             try:
                 target_path.unlink(missing_ok=True)
             except Exception:
@@ -122,7 +137,14 @@ class ModelDownloader:
             "Accept": "*/*",
         }
 
-        # Primary: urllib.request streaming (uses Windows System Proxy & bypasses Zscaler TLS restrictions)
+        temp_target = target_path.with_suffix(".tmp")
+        if temp_target.exists():
+            try:
+                temp_target.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # Strategy 1: urllib.request streaming
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -132,87 +154,117 @@ class ModelDownloader:
             with urllib.request.urlopen(req, context=ctx, timeout=600) as response:
                 if response.status == 200:
                     total_bytes = int(response.headers.get("Content-Length", 0))
-                    if progress and task_id is not None and total_bytes > 0:
-                        progress.update(task_id, total=total_bytes, completed=0)
+                    if total_bytes >= min_bytes:
+                        if progress and task_id is not None:
+                            progress.update(task_id, total=total_bytes, completed=0)
 
-                    temp_target = target_path.with_suffix(".tmp")
-                    with open(temp_target, "wb") as f:
-                        while True:
-                            chunk = response.read(1024 * 128)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            if progress and task_id is not None:
-                                progress.update(task_id, advance=len(chunk))
+                        first_chunk = True
+                        with open(temp_target, "wb") as f:
+                            while True:
+                                chunk = response.read(1024 * 128)
+                                if not chunk:
+                                    break
+                                if first_chunk:
+                                    first_chunk = False
+                                    header_lower = chunk[:512].lower()
+                                    if b"<!doctype html" in header_lower or b"<html" in header_lower or b"zscaler" in header_lower:
+                                        raise ValueError("Response is HTML Zscaler proxy block page")
+                                f.write(chunk)
+                                if progress and task_id is not None:
+                                    progress.update(task_id, advance=len(chunk))
 
-                    if temp_target.exists():
-                        if target_path.exists():
-                            target_path.unlink(missing_ok=True)
-                        shutil.move(temp_target, target_path)
+                        if temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                            if target_path.exists():
+                                target_path.unlink(missing_ok=True)
+                            shutil.move(temp_target, target_path)
 
-                        if target_path.exists() and target_path.stat().st_size >= min_bytes:
                             if progress and task_id is not None:
                                 size = target_path.stat().st_size
                                 progress.update(task_id, total=size, completed=size)
                             return True
         except Exception as e:
             logger.debug(f"urllib download attempt for {target_filename} failed: {e}")
+            if temp_target.exists():
+                temp_target.unlink(missing_ok=True)
 
-        # Secondary: httpx chunk streaming with trust_env=True
+        # Strategy 2: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
         try:
-            with httpx.stream("GET", download_url, follow_redirects=True, timeout=600.0, verify=False, headers=headers, trust_env=True) as response:
-                if response.status_code == 200:
-                    total_bytes = int(response.headers.get("content-length", 0))
-                    if progress and task_id is not None and total_bytes > 0:
-                        progress.update(task_id, total=total_bytes, completed=0)
+            curl_cmd = [
+                "curl.exe", "-L", "-k", "-s",
+                "-A", headers["User-Agent"],
+                "-o", str(temp_target),
+                download_url
+            ]
+            proc = subprocess.Popen(curl_cmd)
 
-                    temp_target = target_path.with_suffix(".tmp")
-                    with open(temp_target, "wb") as f:
-                        for chunk in response.iter_bytes(chunk_size=1024 * 128):
-                            f.write(chunk)
-                            if progress and task_id is not None:
-                                progress.update(task_id, advance=len(chunk))
+            expected_bytes = manifest_spec.get("approx_size_mb", 10) * 1024 * 1024
+            if progress and task_id is not None:
+                progress.update(task_id, total=expected_bytes, completed=0)
 
-                    if temp_target.exists():
-                        if target_path.exists():
-                            target_path.unlink(missing_ok=True)
-                        shutil.move(temp_target, target_path)
+            last_size = 0
+            while proc.poll() is None:
+                time.sleep(0.2)
+                if temp_target.exists():
+                    curr_size = temp_target.stat().st_size
+                    delta = curr_size - last_size
+                    if delta > 0 and progress and task_id is not None:
+                        progress.update(task_id, advance=delta)
+                        last_size = curr_size
 
-                        if target_path.exists() and target_path.stat().st_size >= min_bytes:
-                            if progress and task_id is not None:
-                                size = target_path.stat().st_size
-                                progress.update(task_id, total=size, completed=size)
-                            return True
-        except Exception as e:
-            logger.debug(f"httpx download attempt for {target_filename} failed: {e}")
-
-        # Tertiary fallback via hf_hub_download
-        try:
-            downloaded_file = hf_hub_download(
-                repo_id=repo_id,
-                filename=hf_filename,
-                local_dir=str(self.models_dir),
-                force_download=True
-            )
-            downloaded_path = Path(downloaded_file)
-
-            if downloaded_path.exists() and downloaded_path != target_path:
+            if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
                 if target_path.exists():
                     target_path.unlink(missing_ok=True)
-                shutil.move(downloaded_path, target_path)
+                shutil.move(temp_target, target_path)
 
-            if target_path.exists() and target_path.stat().st_size >= min_bytes:
                 if progress and task_id is not None:
                     size = target_path.stat().st_size
                     progress.update(task_id, total=size, completed=size)
                 return True
         except Exception as e:
-            logger.debug(f"hf_hub_download for {target_filename} failed: {e}")
+            logger.debug(f"curl.exe download attempt for {target_filename} failed: {e}")
+            if temp_target.exists():
+                temp_target.unlink(missing_ok=True)
+
+        # Strategy 3: PowerShell Invoke-WebRequest / Start-BitsTransfer fallback
+        try:
+            ps_script = f"""
+            $ProgressPreference = 'SilentlyContinue'
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri "{download_url}" -OutFile "{temp_target}" -UseBasicParsing -Headers @{{"User-Agent"="{headers['User-Agent']}"}}
+            """
+            proc = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script])
+            while proc.poll() is None:
+                time.sleep(0.5)
+
+            if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                if target_path.exists():
+                    target_path.unlink(missing_ok=True)
+                shutil.move(temp_target, target_path)
+
+                if progress and task_id is not None:
+                    size = target_path.stat().st_size
+                    progress.update(task_id, total=size, completed=size)
+                return True
+        except Exception as e:
+            logger.debug(f"PowerShell download attempt for {target_filename} failed: {e}")
+            if temp_target.exists():
+                temp_target.unlink(missing_ok=True)
 
         return False
 
     def auto_provision_missing(self) -> Dict[str, bool]:
-        """Checks local directory for missing or dummy model artifacts and auto-provisions full binaries with rich.progress multi-bar UI."""
+        """Checks local directory for missing, dummy, or Zscaler blocked model artifacts and auto-provisions full binaries with rich.progress multi-bar UI."""
+        # Clean up any leftover Zscaler HTML block files before verifying
+        for filename in MODEL_HF_SPECS.keys():
+            target_path = self.models_dir / filename
+            manifest_spec = MODEL_MANIFEST.get(filename, {})
+            min_bytes = int(manifest_spec.get("approx_size_mb", 10) * 1024 * 1024 * 0.4)
+            if target_path.exists() and (target_path.stat().st_size < min_bytes or self.is_html_block_page(target_path)):
+                try:
+                    target_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
         summary = self.verifier.get_summary()
         missing_models = [m for m in summary["details"] if m["status"] != "valid"]
 
@@ -220,7 +272,7 @@ class ModelDownloader:
             console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models\\[/bold green]")
             return {}
 
-        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (huggingface_hub)[/bold gold1]")
+        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (huggingface_hub & curl.exe)[/bold gold1]")
         console.print(f"[bold cyan]Auto-provisioning {len(missing_models)} missing model artifacts into {self.models_dir}...[/bold cyan]\n")
 
         results = {}
@@ -250,6 +302,10 @@ class ModelDownloader:
                 results[fn] = success
                 if not success:
                     progress.update(t_id, description=f"[red]Failed ({m['name']})[/red]")
+
+        # Clean up temporary .cache and onnx subfolders
+        shutil.rmtree(self.models_dir / ".cache", ignore_errors=True)
+        shutil.rmtree(self.models_dir / "onnx", ignore_errors=True)
 
         post_summary = self.verifier.get_summary()
         console.print(f"\n[bold green]✔ Auto-provisioning complete! {post_summary['valid']}/{post_summary['total']} models verified online.[/bold green]\n")
