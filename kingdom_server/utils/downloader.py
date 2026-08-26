@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from huggingface_hub import hf_hub_download, hf_hub_url
+import httpx
 import warnings
 
 # Suppress warnings when corporate TLS inspection requires unverified fallback
