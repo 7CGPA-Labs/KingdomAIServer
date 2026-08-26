@@ -80,13 +80,13 @@ def serve(
     port: int = typer.Option(58420, "--port", "-p", help="Loopback port to listen on"),
     daemon: bool = typer.Option(False, "--daemon", "-d", help="Run server in background daemon mode"),
     tray: bool = typer.Option(False, "--tray", "-t", help="Spawn Windows System Tray icon"),
-    auto_download: bool = typer.Option(False, "--auto-download", help="Auto-download missing model binaries on startup"),
+    auto_provision: bool = typer.Option(True, "--auto-provision", help="Auto-provision missing GGUF/ONNX model artifacts using huggingface_hub"),
 ):
     """Starts the Kingdom AI Server in foreground or background with live telemetry dashboard."""
-    if auto_download:
+    if auto_provision:
         from kingdom_server.utils.downloader import ModelDownloader
         downloader = ModelDownloader()
-        downloader.download_missing()
+        downloader.auto_provision_missing()
 
     if is_port_in_use(port):
         console.print(f"[bold red]Error:[/bold red] Port {port} is already in use by another process.")
@@ -149,22 +149,22 @@ def serve(
 @app.command("download")
 def download(
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Specific model filename to download"),
-    all_models: bool = typer.Option(True, "--all", "-a", help="Download all missing GGUF/ONNX models")
+    all_models: bool = typer.Option(True, "--all", "-a", help="Download all missing GGUF/ONNX models using huggingface_hub")
 ):
-    """Automatically downloads missing GGUF/ONNX model binary files from HuggingFace hub."""
-    from kingdom_server.utils.downloader import ModelDownloader, MODEL_DOWNLOAD_URLS
+    """Thin-client model auto-provisioning using huggingface_hub into %LocalAppData%\\KingdomAIServer\\models\\."""
+    from kingdom_server.utils.downloader import ModelDownloader, MODEL_HF_SPECS
     downloader = ModelDownloader()
     if model:
-        url = MODEL_DOWNLOAD_URLS.get(model)
-        if not url:
+        spec = MODEL_HF_SPECS.get(model)
+        if not spec:
             console.print(f"[bold red]Unknown model filename: '{model}'[/bold red]")
             console.print("Available model filenames:")
-            for k in MODEL_DOWNLOAD_URLS.keys():
+            for k in MODEL_HF_SPECS.keys():
                 console.print(f" - {k}")
             raise typer.Exit(code=1)
-        downloader.download_file(model, url)
+        downloader.download_model_via_hf(model)
     else:
-        downloader.download_missing()
+        downloader.auto_provision_missing()
 
 
 @app.command("ask")
@@ -172,11 +172,16 @@ def download(
 @app.command("chat")
 def ask(
     prompt: Optional[str] = typer.Argument(None, help="Prompt text to query directly from CLI"),
-    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name")
+    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name"),
+    auto_provision: bool = typer.Option(True, "--auto-provision/--no-auto-provision", help="Auto-provision missing model artifacts")
 ):
     """Runs a prompt directly in the CLI terminal or launches interactive terminal chat mode."""
-    from kingdom_server.core.orchestrator import KingdomOrchestrator
+    if auto_provision:
+        from kingdom_server.utils.downloader import ModelDownloader
+        downloader = ModelDownloader()
+        downloader.auto_provision_missing()
 
+    from kingdom_server.core.orchestrator import KingdomOrchestrator
     orchestrator = KingdomOrchestrator()
 
     if prompt:
@@ -291,6 +296,11 @@ def status():
 def doctor():
     """Runs pre-flight diagnostics: verifies model integrity, hardware drivers, port 58420, and Continue.dev config."""
     console.print(Panel("[bold gold1]👑 KINGDOM AI SERVER DOCTOR & DIAGNOSTICS[/bold gold1]", style="bold blue"))
+
+    # Auto-provision check on doctor execution if missing
+    from kingdom_server.utils.downloader import ModelDownloader
+    downloader = ModelDownloader()
+    downloader.auto_provision_missing()
 
     # 1. Model Verification Table
     verifier = ModelVerifier()

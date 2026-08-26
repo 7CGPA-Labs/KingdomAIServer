@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.24.0",
     "pystray>=0.19.4",
     "Pillow>=9.0.0",
+    "huggingface_hub>=0.20.0",
 ]
 
 [project.scripts]

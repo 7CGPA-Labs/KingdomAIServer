@@ -41,6 +41,19 @@ graph TD
 
 ---
 
+## 📦 Thin-Client Model Auto-Provisioning (`huggingface_hub`)
+
+Kingdom AI Server features a zero-dependency, thin-client model auto-provisioning engine powered by `huggingface_hub` (`hf_hub_download`):
+
+- **Storage Path:** `%LocalAppData%\KingdomAIServer\models\`
+- **Zero Heavy Dependencies:** Uses standalone `huggingface_hub` without importing `torch` or `transformers`.
+- **Workflow:**
+  1. On command execution (`kingdom serve`, `kingdom doctor`, or `kingdom chat`), checks local directory `%LocalAppData%\KingdomAIServer\models\` for model artifacts.
+  2. If any model is missing, renders a `rich.progress` multi-bar terminal UI displaying download progress, transfer speed (MB/s), and ETA.
+  3. Validates file checksums (SHA-256) post-download before initializing inference sessions.
+
+---
+
 ## 🚀 Quick Start & Installation
 
 ### Option 1: Automated Non-Admin PowerShell Deployment
