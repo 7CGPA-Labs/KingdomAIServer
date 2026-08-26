@@ -45,6 +45,16 @@ class KingdomOrchestrator:
         else:
             self.llama_llm = None
 
+    @property
+    def is_boss_loaded(self) -> bool:
+        return self.llama_llm is not None
+
+    def get_model_status(self) -> Dict[str, bool]:
+        status = {"boss_qwen2.5": self.is_boss_loaded}
+        for k, m in self.ministers.items():
+            status[m.model_filename] = m.is_onnx_loaded
+        return status
+
     def route_request(self, user_prompt: str) -> str:
         minister_1 = self.ministers["minister_1"]
         return minister_1.route_intent(user_prompt)

@@ -194,6 +194,8 @@ async def health_check():
 
     tiers = orch.hardware_engine.get_active_tiers()
 
+    model_status = orch.get_model_status() if orch else {}
+
     return {
         "status": "active",
         "version": "1.0.0",
@@ -203,7 +205,8 @@ async def health_check():
         "models": {
             "total": summary["total"],
             "online": summary["valid"],
-            "all_healthy": summary["all_healthy"]
+            "all_healthy": summary["all_healthy"],
+            "loaded_status": model_status
         },
-        "vault": orch.memory_vault.get_stats()
+        "vault": orch.memory_vault.get_stats() if orch else {}
     }
