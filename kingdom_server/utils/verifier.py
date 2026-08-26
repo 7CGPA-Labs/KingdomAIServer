@@ -133,7 +133,13 @@ class ModelVerifier:
                 result["message"] = f"Hash mismatch (expected {expected_hash[:8]}...)"
             return result
 
-        # Basic size check (accept if > 50% expected or placeholder in testing)
+        # Size verification: check if file size meets expected minimum threshold (at least 40% of full binary)
+        min_mb = spec["approx_size_mb"] * 0.4
+        if size_mb < min_mb:
+            result["status"] = "dummy"
+            result["message"] = f"Placeholder/Dummy file ({result['actual_mb']} MB < min {round(min_mb, 1)} MB)"
+            return result
+
         result["status"] = "valid"
         result["message"] = f"Present ({result['actual_mb']} MB)"
         return result

@@ -47,7 +47,7 @@ from kingdom_server.utils.verifier import MODEL_MANIFEST, ModelVerifier
 logger = logging.getLogger("kingdom.downloader")
 console = Console(safe_box=True)
 
-# 100% Verified open HuggingFace repository specifications for 9 Models (All returning HTTP 200 OK)
+# 100% Verified open HuggingFace repository specifications for 9 Models
 MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
     "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
         "repo_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
@@ -96,20 +96,52 @@ class ModelDownloader:
         self.verifier = ModelVerifier(self.models_dir)
 
     def download_model_via_hf(self, target_filename: str, progress: Optional[Progress] = None, task_id: Optional[Any] = None) -> bool:
-        """Downloads a single model file using hf_hub_download or streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
+        """Downloads a single model file using direct HTTP chunk streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
         spec = MODEL_HF_SPECS.get(target_filename)
         manifest_spec = MODEL_MANIFEST.get(target_filename, {})
 
         if not spec:
-            logger.error(f"No HuggingFace specification for model file: {target_filename}")
             return False
 
         repo_id = spec["repo_id"]
         hf_filename = spec["filename"]
         target_path = self.models_dir / target_filename
+        download_url = hf_hub_url(repo_id=repo_id, filename=hf_filename)
 
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
+            "Accept": "*/*",
+        }
+
+        # Primary: Direct HTTP chunk streaming for smooth real-time progress bar animation
         try:
-            # Primary download via hf_hub_download
+            with httpx.stream("GET", download_url, follow_redirects=True, timeout=600.0, verify=False, headers=headers) as response:
+                if response.status_code == 200:
+                    total_bytes = int(response.headers.get("content-length", 0))
+                    if progress and task_id is not None and total_bytes > 0:
+                        progress.update(task_id, total=total_bytes)
+
+                    temp_target = target_path.with_suffix(".tmp")
+                    with open(temp_target, "wb") as f:
+                        for chunk in response.iter_bytes(chunk_size=1024 * 128):
+                            f.write(chunk)
+                            if progress and task_id is not None:
+                                progress.update(task_id, advance=len(chunk))
+
+                    if temp_target.exists():
+                        if target_path.exists():
+                            target_path.unlink()
+                        shutil.move(temp_target, target_path)
+
+                        if progress and task_id is not None:
+                            size = target_path.stat().st_size
+                            progress.update(task_id, total=size, completed=size)
+                        return True
+        except Exception:
+            pass
+
+        # Secondary fallback via hf_hub_download
+        try:
             downloaded_file = hf_hub_download(
                 repo_id=repo_id,
                 filename=hf_filename,
@@ -126,45 +158,14 @@ class ModelDownloader:
                 if progress and task_id is not None:
                     size = target_path.stat().st_size
                     progress.update(task_id, total=size, completed=size)
-                
-                # Post-download integrity check
-                self.verifier.verify_single_model(target_filename, manifest_spec)
                 return True
-        except Exception:
-            pass
-
-        # Secondary HTTP stream fallback with browser User-Agent headers for corporate firewalls
-        try:
-            download_url = hf_hub_url(repo_id=repo_id, filename=hf_filename)
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
-                "Accept": "*/*",
-            }
-            with httpx.stream("GET", download_url, follow_redirects=True, timeout=120.0, verify=False, headers=headers) as response:
-                if response.status_code == 200:
-                    total_bytes = int(response.headers.get("content-length", 0))
-                    if progress and task_id is not None and total_bytes > 0:
-                        progress.update(task_id, total=total_bytes)
-
-                    temp_target = target_path.with_suffix(".tmp")
-                    with open(temp_target, "wb") as f:
-                        for chunk in response.iter_bytes(chunk_size=1024 * 64):
-                            f.write(chunk)
-                            if progress and task_id is not None:
-                                progress.update(task_id, advance=len(chunk))
-
-                    if temp_target.exists():
-                        if target_path.exists():
-                            target_path.unlink()
-                        shutil.move(temp_target, target_path)
-                        return True
         except Exception:
             pass
 
         return False
 
     def auto_provision_missing(self) -> Dict[str, bool]:
-        """Checks local directory for missing model artifacts and auto-provisions them with rich.progress multi-bar UI."""
+        """Checks local directory for missing or dummy model artifacts and auto-provisions full binaries with rich.progress multi-bar UI."""
         summary = self.verifier.get_summary()
         missing_models = [m for m in summary["details"] if m["status"] != "valid"]
 

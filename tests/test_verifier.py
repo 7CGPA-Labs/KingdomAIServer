@@ -40,12 +40,13 @@ def test_model_verifier_corrupt_file(tmp_path):
     assert "0 bytes" in res["message"]
 
 def test_model_verifier_valid_file(tmp_path):
-    """Test model verifier marks non-empty model files as present."""
+    """Test model verifier marks model files meeting size requirements as valid."""
     dummy_file = tmp_path / "all-MiniLM-L6-v2.onnx"
     dummy_file.write_bytes(b"dummy model binary data content")
 
     verifier = ModelVerifier(models_dir=tmp_path)
-    spec = MODEL_MANIFEST["all-MiniLM-L6-v2.onnx"]
+    spec = MODEL_MANIFEST["all-MiniLM-L6-v2.onnx"].copy()
+    spec["approx_size_mb"] = 0.00001
     res = verifier.verify_single_model("all-MiniLM-L6-v2.onnx", spec)
     
     assert res["status"] == "valid"
