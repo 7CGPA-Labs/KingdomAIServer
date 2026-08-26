@@ -6,6 +6,7 @@ with rich.progress multi-bar UI (displaying transfer speed MB/s, ETA, progress),
 followed by post-download SHA-256 integrity verification.
 Supports corporate TLS proxy inspection (Zscaler) and custom SSL Root CAs.
 """
+import sys
 import os
 import ssl
 import shutil
@@ -15,6 +16,16 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from huggingface_hub import hf_hub_download, hf_hub_url
 import httpx
+
+# Enable VT100 / Virtual Terminal processing on Windows console host to prevent duplicate line refreshes
+if sys.platform == "win32":
+    os.system("")
+
+# Disable internal tqdm progress bars from huggingface_hub to prevent terminal stream collision with Rich
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
+os.environ["CURL_CA_BUNDLE"] = ""
+os.environ["PYTHONHTTPSVERIFY"] = "0"
 
 # Suppress warnings when corporate TLS inspection requires unverified fallback
 warnings.filterwarnings("ignore")
@@ -96,11 +107,6 @@ class ModelDownloader:
         repo_id = spec["repo_id"]
         hf_filename = spec["filename"]
         target_path = self.models_dir / target_filename
-
-        # Ensure SSL verification bypass environment variables for corporate TLS proxy inspection (Zscaler)
-        os.environ["HF_HUB_DISABLE_SSL_VERIFY"] = "1"
-        os.environ["CURL_CA_BUNDLE"] = ""
-        os.environ["PYTHONHTTPSVERIFY"] = "0"
 
         # Alternative repo/filename fallbacks if first HF repo differs
         hf_attempts = [
@@ -190,7 +196,8 @@ class ModelDownloader:
             DownloadColumn(),
             TransferSpeedColumn(),
             TimeRemainingColumn(),
-            console=console
+            console=console,
+            refresh_per_second=10
         ) as progress:
 
             tasks = {}
