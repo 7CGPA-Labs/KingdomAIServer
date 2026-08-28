@@ -12,6 +12,7 @@ env/
 # Build & Dist
 build/kingdom/
 dist/
+dist_models/
 release/
 *.spec.bak
 
