@@ -106,8 +106,9 @@ if (-not $Deployed) {
         python -m venv "$InstallDir\venv"
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools
         if (Test-Path "$SourceDir\pyproject.toml") {
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install -e $SourceDir
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install llama-cpp-python truststore
+            $env:TMP = "$env:LOCALAPPDATA\T"
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e $SourceDir
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python truststore
         }
         
         # Create kingdom.cmd launcher wrapper in bin
