@@ -1,10 +1,10 @@
 """
-Thin-Client Model Auto-Provisioning module using standalone huggingface_hub, truststore, urllib, and curl.exe streaming.
+Thin-Client Model Auto-Provisioning module using PowerShell WebClient, truststore, huggingface_hub, urllib, and curl.exe streaming.
 Zero heavy dependencies (no torch, transformers, or large ML frameworks).
 Downloads GGUF and ONNX models directly into %LocalAppData%\\KingdomAIServer\\models\\
 with rich.progress multi-bar UI (displaying transfer speed MB/s, ETA, progress),
 followed by post-download SHA-256 integrity verification.
-Supports enterprise Zscaler proxy inspection (using Windows Native Trust Store via truststore and custom CAs).
+Supports company-issued corporate laptops with Zscaler proxy inspection, PAC auto-discovery, and NTLM/Kerberos SSO authentication.
 """
 import sys
 import os
@@ -105,7 +105,7 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
 }
 
 class ModelDownloader:
-    """Thin-client model auto-provisioning engine using truststore/huggingface_hub/urllib/curl.exe with Zscaler proxy fallback."""
+    """Thin-client model auto-provisioning engine using PowerShell WebClient/truststore/huggingface_hub/urllib/curl.exe for corporate laptops."""
 
     def __init__(self, models_dir: Optional[Path] = None):
         self.models_dir = Path(models_dir) if models_dir else get_models_dir()
@@ -126,7 +126,7 @@ class ModelDownloader:
         return False
 
     def download_model_via_hf(self, target_filename: str, progress: Optional[Progress] = None, task_id: Optional[Any] = None) -> bool:
-        """Downloads a single model file using truststore/hf_hub_download/urllib/curl.exe streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
+        """Downloads a single model file using corporate-resilient strategies into %LocalAppData%\\KingdomAIServer\\models\\."""
         spec = MODEL_HF_SPECS.get(target_filename)
         manifest_spec = MODEL_MANIFEST.get(target_filename, {})
 
@@ -159,8 +159,56 @@ class ModelDownloader:
                 pass
 
         errors = []
+        expected_bytes = manifest_spec.get("approx_size_mb", 10) * 1024 * 1024
 
-        # Strategy 1: huggingface_hub with truststore Windows OS Root CA injection
+        # Strategy 1: PowerShell System.Net.WebClient with DefaultWebProxy & DefaultNetworkCredentials (Best for Corporate Laptops)
+        if sys.platform == "win32":
+            try:
+                ps_script = f"""
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                $wc = New-Object System.Net.WebClient
+                $wc.Headers.Add("User-Agent", "{headers['User-Agent']}")
+                $wc.Proxy = [System.Net.WebRequest]::DefaultWebProxy
+                $wc.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+                $wc.DownloadFile("{download_url}", "{temp_target}")
+                """
+                script_path = self.models_dir / f"_down_{int(time.time())}.ps1"
+                script_path.write_text(ps_script, encoding="utf-8")
+
+                proc = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)])
+
+                if progress and task_id is not None:
+                    progress.update(task_id, total=expected_bytes, completed=0)
+
+                last_size = 0
+                while proc.poll() is None:
+                    time.sleep(0.2)
+                    if temp_target.exists():
+                        curr_size = temp_target.stat().st_size
+                        delta = curr_size - last_size
+                        if delta > 0 and progress and task_id is not None:
+                            progress.update(task_id, advance=delta)
+                            last_size = curr_size
+
+                script_path.unlink(missing_ok=True)
+
+                if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                    if target_path.exists():
+                        target_path.unlink(missing_ok=True)
+                    shutil.move(temp_target, target_path)
+
+                    if progress and task_id is not None:
+                        size = target_path.stat().st_size
+                        progress.update(task_id, total=size, completed=size)
+                    return True
+                else:
+                    errors.append(f"PowerShell WebClient code {proc.returncode}")
+            except Exception as e:
+                errors.append(f"PowerShell WebClient: {e}")
+                if temp_target.exists():
+                    temp_target.unlink(missing_ok=True)
+
+        # Strategy 2: huggingface_hub with truststore Windows OS Root CA injection
         try:
             proxy_dict = {"https": os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")} if (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")) else None
             downloaded_file = hf_hub_download(
@@ -187,7 +235,7 @@ class ModelDownloader:
             errors.append(f"hf_hub_download: {e}")
             logger.debug(f"hf_hub_download with truststore for {target_filename} failed: {e}")
 
-        # Strategy 2: urllib.request streaming with SSL bypass & proxy inheritance
+        # Strategy 3: urllib.request streaming with SSL bypass & proxy inheritance
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -230,7 +278,7 @@ class ModelDownloader:
             if temp_target.exists():
                 temp_target.unlink(missing_ok=True)
 
-        # Strategy 3: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
+        # Strategy 4: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
         try:
             curl_cmd = [
                 "curl.exe", "-L", "-k", "-s",
@@ -244,7 +292,6 @@ class ModelDownloader:
 
             proc = subprocess.Popen(curl_cmd)
 
-            expected_bytes = manifest_spec.get("approx_size_mb", 10) * 1024 * 1024
             if progress and task_id is not None:
                 progress.update(task_id, total=expected_bytes, completed=0)
 
@@ -300,7 +347,7 @@ class ModelDownloader:
             console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models\\[/bold green]")
             return {}
 
-        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (truststore & huggingface_hub)[/bold gold1]")
+        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (Corporate Laptop Resilient)[/bold gold1]")
         console.print(f"[bold cyan]Auto-provisioning {len(missing_models)} missing model artifacts into {self.models_dir}...[/bold cyan]\n")
 
         results = {}
