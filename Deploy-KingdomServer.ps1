@@ -106,9 +106,13 @@ if (-not $Deployed) {
         python -m venv "$InstallDir\venv"
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools
         if (Test-Path "$SourceDir\pyproject.toml") {
-            $env:TMP = "$env:LOCALAPPDATA\T"
             & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e $SourceDir
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python truststore
+            try {
+                & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore
+                & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python -ErrorAction SilentlyContinue
+            } catch {
+                Write-Host "⚠ Note: Pre-compiled llama-cpp-python wheel not available for this Python version. System running on ONNX Minister Council." -ForegroundColor Yellow
+            }
         }
         
         # Create kingdom.cmd launcher wrapper in bin
@@ -121,7 +125,12 @@ if (-not $Deployed) {
 
 # Unblock files against Windows Defender Zone.Identifier
 Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundColor Cyan
-Get-ChildItem -Path $BinDir -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+Get-ChildItem -Path $BinDir -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+    Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
+}
+if (Test-Path "$BinDir\kingdom.exe") {
+    Unblock-File -Path "$BinDir\kingdom.exe" -ErrorAction SilentlyContinue
+}
 
 # Create Desktop Shortcut
 Write-Host "[5/5] Creating user desktop shortcut & updating PATH..." -ForegroundColor Cyan
