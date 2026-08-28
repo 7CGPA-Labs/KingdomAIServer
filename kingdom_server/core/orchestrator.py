@@ -1,6 +1,6 @@
 """
 The Kingdom Orchestrator: Master Boss (Qwen2.5-Coder-1.5B-Instruct) + 8-Minister Council router & inference manager.
-Zero mock policy: Integrates all 9 models (8 ONNX Ministers + 1 GGUF Boss) to process queries dynamically.
+Zero ready-made / zero mock policy: All responses are processed and generated dynamically by the active models.
 """
 import time
 import json
@@ -15,7 +15,7 @@ from kingdom_server.utils import get_models_dir
 logger = logging.getLogger("kingdom.orchestrator")
 
 class KingdomOrchestrator:
-    """Master Orchestrator coordinating Master Boss (Qwen2.5-Coder) and 8 Ministers."""
+    """Master Orchestrator coordinating Master Boss (Qwen2.5-Coder GGUF) and 8 ONNX Ministers."""
 
     def __init__(self, models_dir: Optional[Any] = None, db_path: Optional[Any] = None):
         self.models_dir = models_dir or get_models_dir()
@@ -81,17 +81,17 @@ class KingdomOrchestrator:
 
         user_content = messages[-1].get("content", "") if messages else ""
 
-        # Minister 1: Intent Classification
+        # Minister 1: Intent Classification (ONNX Runtime)
         intent = self.route_request(user_content)
         
-        # Minister 7: Security Audit
+        # Minister 7: Security Vulnerability Audit
         audit_res = self.audit_security(user_content)
         security_warning = ""
         if not audit_res["safe"]:
             warning_details = ", ".join([v["detail"] for v in audit_res["vulnerabilities"]])
             security_warning = f"\n\n[Security Alert by Minister 7]: Potential vulnerabilities detected ({warning_details})."
 
-        # Minister 2 & Minister 3: Semantic Embeddings & RAG Re-Ranking
+        # Minister 2 & Minister 3: Dense Semantic Vector Embedding & RAG Re-Ranking
         query_vec = self.get_context_embeddings(user_content)
         vector_matches = self.memory_vault.search_similar(query_vec, k=3)
         retrieved_context = ""
@@ -101,10 +101,10 @@ class KingdomOrchestrator:
             if ranked_docs:
                 retrieved_context = "\n\n[Cognitive Memory Context by Minister 3 Re-Ranker]:\n" + "\n".join([doc[0] for doc in ranked_docs])
 
-        # Minister 4: Code Structure Analysis
+        # Minister 4: Code AST Parsing
         code_structure = self.ministers["minister_4"].parse_code(user_content)
 
-        # Execute GGUF LLM generation if loaded
+        # 1. Main Boss Model Execution (Dynamic GGUF LLM Generation)
         if self.llama_llm is not None:
             prompt_input = user_content + retrieved_context
             try:
@@ -143,10 +143,10 @@ class KingdomOrchestrator:
             except Exception as e:
                 logger.error(f"Error during llama-cpp generation: {e}")
 
-        # Minister Council synthesis output when GGUF LLM is uninitialized
+        # 2. Dynamic Minister Council Execution (when GGUF model binary is omitted)
         response_text = self._synthesize_council_response(user_content, intent, code_structure, retrieved_context, security_warning)
 
-        # Stream words as delta chunks for real-time SSE feel
+        # Stream delta chunks dynamically
         words = response_text.split(" ")
         for i, word in enumerate(words):
             delta = word + (" " if i < len(words) - 1 else "")
@@ -182,69 +182,34 @@ class KingdomOrchestrator:
         self.memory_vault.add_session_message(session_id, "assistant", response_text)
 
     def _synthesize_council_response(self, user_content: str, intent: str, code_structure: Dict[str, Any], retrieved_context: str, security_warning: str) -> str:
-        """Synthesizes real, domain-specific responses using the 8-Minister Council when LLM GGUF is loading."""
+        """Synthesizes dynamic model responses using the 8-Minister Council when LLM GGUF model binary is un-downloaded."""
         text_lower = user_content.lower()
 
         if intent == "diagram" or "diagram" in text_lower or "architecture" in text_lower:
             minister_8 = self.ministers["minister_8"]
-            return f"Here is the architecture diagram synthesized by Minister 8:\n\n" + minister_8.generate_diagram(user_content)
-
-        if "go" in text_lower and "sort" in text_lower:
-            return """Here is the Quick Sort algorithm implemented in Go:
-
-```go
-package main
-
-import (
-	"fmt"
-)
-
-// QuickSort sorts an array of integers using the divide-and-conquer strategy.
-func QuickSort(arr []int) []int {
-	if len(arr) <= 1 {
-		return arr
-	}
-
-	pivot := arr[len(arr)/2]
-	var left, mid, right []int
-
-	for _, v := range arr {
-		switch {
-		case v < pivot:
-			left = append(left, v)
-		case v == pivot:
-			mid = append(mid, v)
-		default:
-			right = append(right, v)
-		}
-	}
-
-	return append(append(QuickSort(left), mid...), QuickSort(right)...)
-}
-
-func main() {
-	numbers := []int{38, 27, 43, 3, 9, 82, 10}
-	fmt.Println("Original array:", numbers)
-	sortedNumbers := QuickSort(numbers)
-	fmt.Println("Sorted array:  ", sortedNumbers)
-}
-```
-
-### Key Performance Characteristics:
-- **Time Complexity:** Average O(n log n), Worst case O(n^2).
-- **Space Complexity:** O(log n) call stack recursion.
-- **Memory Safety:** Idiomatic slice appends without in-place mutation errors."""
+            return minister_8.generate_diagram(user_content)
 
         if intent == "code_parse":
             minister_4 = self.ministers["minister_4"]
             ast_res = minister_4.parse_code(user_content)
             return f"Code structure analyzed by Minister 4 (Code Parser):\n```json\n{json.dumps(ast_res, indent=2)}\n```"
 
-        parts = [f"Processed request under intent '{intent}'."]
+        if intent == "autocomplete":
+            minister_5 = self.ministers["minister_5"]
+            completion = minister_5.autocomplete(user_content)
+            return f"Predicted completion by Minister 5:\n```\n{user_content}{completion}\n```"
+
+        parts = [
+            f"[Main Boss GGUF Model Artifact missing from {self.models_dir}]. Please run `kingdom download` to auto-provision qwen2.5-coder-1.5b-instruct-q4_k_m.gguf for full LLM text generation.",
+            f"Minister 1 (Intent Router): Classified intent as '{intent}'.",
+        ]
+        if code_structure and any(code_structure.values()):
+            parts.append(f"Minister 4 (Code Parser): Extracted syntax elements: {json.dumps(code_structure)}")
         if retrieved_context:
             parts.append(retrieved_context)
         if security_warning:
             parts.append(security_warning)
+
         return "\n\n".join(parts)
 
     def fast_autocomplete(self, prefix: str, suffix: str = "") -> str:
