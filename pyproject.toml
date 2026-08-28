@@ -21,6 +21,7 @@ dependencies = [
     "Pillow>=9.0.0",
     "huggingface_hub>=0.20.0",
     "truststore>=0.8.0",
+    "llama-cpp-python>=0.2.0",
 ]
 
 [project.scripts]

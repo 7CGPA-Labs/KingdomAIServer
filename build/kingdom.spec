@@ -56,6 +56,8 @@ a = Analysis(
         "pystray",
         "PIL",
         "onnxruntime",
+        "llama_cpp",
+        "truststore",
         "sqlite3",
         "psutil",
         "httpx",
