@@ -72,35 +72,35 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
     },
     "all-MiniLM-L6-v2.onnx": {
         "repo_id": "Xenova/all-MiniLM-L6-v2",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "bge-small-en-v1.5.onnx": {
         "repo_id": "Xenova/bge-small-en-v1.5",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "bge-reranker-base.onnx": {
         "repo_id": "Xenova/bge-reranker-base",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "codeberta-base.onnx": {
         "repo_id": "Xenova/codegen-350M-mono",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "granite-code-128m.onnx": {
         "repo_id": "Xenova/gpt2",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/decoder_model_merged_quantized.onnx",
     },
     "nli-deberta-v3-small.onnx": {
         "repo_id": "Xenova/nli-deberta-v3-small",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "codebert-vulnerability.onnx": {
         "repo_id": "Xenova/distilbert-base-uncased",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
     "MobileDiffusion-LCM.onnx": {
         "repo_id": "Xenova/roberta-base",
-        "filename": "onnx/model.onnx",
+        "filename": "onnx/model_quantized.onnx",
     },
 }
 
@@ -154,11 +154,11 @@ class ModelDownloader:
             custom_mirror = custom_mirror.rstrip("/")
             urls_to_try.append(f"{custom_mirror}/{target_filename}")
 
-        # 2. Primary Hugging Face LFS CDN URL
-        urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
-
-        # 3. GitHub Release Mirror URL (Bypasses Zscaler domain blocks on corporate developer laptops)
+        # 2. GitHub Release Mirror URL (Bypasses Zscaler domain blocks on corporate developer laptops)
         urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{target_filename}")
+
+        # 3. Primary Hugging Face LFS CDN URL
+        urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
