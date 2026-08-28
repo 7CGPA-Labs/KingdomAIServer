@@ -34,6 +34,18 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+# Inject Windows Native Trust Store (Bypasses Zscaler SSL MITM Block)
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
+for proto in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+    if proto in os.environ:
+        os.environ[proto.upper()] = os.environ[proto]
+        os.environ[proto.lower()] = os.environ[proto]
+
 app = typer.Typer(
     name="kingdom",
     help="👑 Kingdom AI Server - Dedicated Local OpenAI-Compatible Server for Continue.dev",

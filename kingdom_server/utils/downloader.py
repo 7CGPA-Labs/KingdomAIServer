@@ -1,10 +1,10 @@
 """
-Thin-Client Model Auto-Provisioning module using standalone huggingface_hub, urllib, and curl.exe streaming.
+Thin-Client Model Auto-Provisioning module using standalone huggingface_hub, truststore, urllib, and curl.exe streaming.
 Zero heavy dependencies (no torch, transformers, or large ML frameworks).
 Downloads GGUF and ONNX models directly into %LocalAppData%\\KingdomAIServer\\models\\
 with rich.progress multi-bar UI (displaying transfer speed MB/s, ETA, progress),
 followed by post-download SHA-256 integrity verification.
-Supports corporate TLS proxy inspection (Zscaler) and custom SSL Root CAs via urllib/curl.exe.
+Supports enterprise Zscaler proxy inspection (using Windows Native Trust Store via truststore and custom CAs).
 """
 import sys
 import os
@@ -17,6 +17,20 @@ import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+# 1. Inject Windows Native Trust Store (Bypasses Zscaler SSL MITM Block by trusting Windows OS Root CAs)
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
+# 2. Inherit system corporate proxy environment variables
+for proto in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+    if proto in os.environ:
+        os.environ[proto.upper()] = os.environ[proto]
+        os.environ[proto.lower()] = os.environ[proto]
+
 from huggingface_hub import hf_hub_download, hf_hub_url
 import httpx
 
@@ -91,7 +105,7 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
 }
 
 class ModelDownloader:
-    """Thin-client model auto-provisioning engine using urllib/curl.exe/huggingface_hub with Zscaler proxy fallback."""
+    """Thin-client model auto-provisioning engine using truststore/huggingface_hub/urllib/curl.exe with Zscaler proxy fallback."""
 
     def __init__(self, models_dir: Optional[Path] = None):
         self.models_dir = Path(models_dir) if models_dir else get_models_dir()
@@ -112,7 +126,7 @@ class ModelDownloader:
         return False
 
     def download_model_via_hf(self, target_filename: str, progress: Optional[Progress] = None, task_id: Optional[Any] = None) -> bool:
-        """Downloads a single model file using urllib/curl.exe streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
+        """Downloads a single model file using truststore/hf_hub_download/urllib/curl.exe streaming into %LocalAppData%\\KingdomAIServer\\models\\."""
         spec = MODEL_HF_SPECS.get(target_filename)
         manifest_spec = MODEL_MANIFEST.get(target_filename, {})
 
@@ -144,7 +158,33 @@ class ModelDownloader:
             except Exception:
                 pass
 
-        # Strategy 1: urllib.request streaming
+        # Strategy 1: huggingface_hub with truststore Windows OS Root CA injection
+        try:
+            proxy_dict = {"https": os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")} if (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")) else None
+            downloaded_file = hf_hub_download(
+                repo_id=repo_id,
+                filename=hf_filename,
+                local_dir=str(self.models_dir),
+                proxies=proxy_dict,
+                resume_download=True,
+                force_download=True
+            )
+            downloaded_path = Path(downloaded_file)
+
+            if downloaded_path.exists() and downloaded_path != target_path:
+                if target_path.exists():
+                    target_path.unlink(missing_ok=True)
+                shutil.move(downloaded_path, target_path)
+
+            if target_path.exists() and target_path.stat().st_size >= min_bytes and not self.is_html_block_page(target_path):
+                if progress and task_id is not None:
+                    size = target_path.stat().st_size
+                    progress.update(task_id, total=size, completed=size)
+                return True
+        except Exception as e:
+            logger.debug(f"hf_hub_download with truststore for {target_filename} failed: {e}")
+
+        # Strategy 2: urllib.request streaming
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -187,7 +227,7 @@ class ModelDownloader:
             if temp_target.exists():
                 temp_target.unlink(missing_ok=True)
 
-        # Strategy 2: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
+        # Strategy 3: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
         try:
             curl_cmd = [
                 "curl.exe", "-L", "-k", "-s",
@@ -225,31 +265,6 @@ class ModelDownloader:
             if temp_target.exists():
                 temp_target.unlink(missing_ok=True)
 
-        # Strategy 3: PowerShell Invoke-WebRequest / Start-BitsTransfer fallback
-        try:
-            ps_script = f"""
-            $ProgressPreference = 'SilentlyContinue'
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri "{download_url}" -OutFile "{temp_target}" -UseBasicParsing -Headers @{{"User-Agent"="{headers['User-Agent']}"}}
-            """
-            proc = subprocess.Popen(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script])
-            while proc.poll() is None:
-                time.sleep(0.5)
-
-            if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
-                if target_path.exists():
-                    target_path.unlink(missing_ok=True)
-                shutil.move(temp_target, target_path)
-
-                if progress and task_id is not None:
-                    size = target_path.stat().st_size
-                    progress.update(task_id, total=size, completed=size)
-                return True
-        except Exception as e:
-            logger.debug(f"PowerShell download attempt for {target_filename} failed: {e}")
-            if temp_target.exists():
-                temp_target.unlink(missing_ok=True)
-
         return False
 
     def auto_provision_missing(self) -> Dict[str, bool]:
@@ -272,7 +287,7 @@ class ModelDownloader:
             console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models\\[/bold green]")
             return {}
 
-        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (huggingface_hub & curl.exe)[/bold gold1]")
+        console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (truststore & huggingface_hub)[/bold gold1]")
         console.print(f"[bold cyan]Auto-provisioning {len(missing_models)} missing model artifacts into {self.models_dir}...[/bold cyan]\n")
 
         results = {}

@@ -5,7 +5,22 @@ Running on http://127.0.0.1:58420
 import time
 import json
 import uuid
+import os
+import sys
 import logging
+
+# Inject Windows Native Trust Store (Bypasses Zscaler SSL MITM Block)
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
+for proto in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+    if proto in os.environ:
+        os.environ[proto.upper()] = os.environ[proto]
+        os.environ[proto.lower()] = os.environ[proto]
+
 from typing import List, Dict, Any, Optional, Union
 from contextlib import asynccontextmanager
 
