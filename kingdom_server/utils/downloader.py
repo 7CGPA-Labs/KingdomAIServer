@@ -158,6 +158,8 @@ class ModelDownloader:
             except Exception:
                 pass
 
+        errors = []
+
         # Strategy 1: huggingface_hub with truststore Windows OS Root CA injection
         try:
             proxy_dict = {"https": os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")} if (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")) else None
@@ -182,9 +184,10 @@ class ModelDownloader:
                     progress.update(task_id, total=size, completed=size)
                 return True
         except Exception as e:
+            errors.append(f"hf_hub_download: {e}")
             logger.debug(f"hf_hub_download with truststore for {target_filename} failed: {e}")
 
-        # Strategy 2: urllib.request streaming
+        # Strategy 2: urllib.request streaming with SSL bypass & proxy inheritance
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -194,35 +197,35 @@ class ModelDownloader:
             with urllib.request.urlopen(req, context=ctx, timeout=600) as response:
                 if response.status == 200:
                     total_bytes = int(response.headers.get("Content-Length", 0))
-                    if total_bytes >= min_bytes:
-                        if progress and task_id is not None:
-                            progress.update(task_id, total=total_bytes, completed=0)
+                    if progress and task_id is not None and total_bytes > 0:
+                        progress.update(task_id, total=total_bytes, completed=0)
 
-                        first_chunk = True
-                        with open(temp_target, "wb") as f:
-                            while True:
-                                chunk = response.read(1024 * 128)
-                                if not chunk:
-                                    break
-                                if first_chunk:
-                                    first_chunk = False
-                                    header_lower = chunk[:512].lower()
-                                    if b"<!doctype html" in header_lower or b"<html" in header_lower or b"zscaler" in header_lower:
-                                        raise ValueError("Response is HTML Zscaler proxy block page")
-                                f.write(chunk)
-                                if progress and task_id is not None:
-                                    progress.update(task_id, advance=len(chunk))
-
-                        if temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
-                            if target_path.exists():
-                                target_path.unlink(missing_ok=True)
-                            shutil.move(temp_target, target_path)
-
+                    first_chunk = True
+                    with open(temp_target, "wb") as f:
+                        while True:
+                            chunk = response.read(1024 * 128)
+                            if not chunk:
+                                break
+                            if first_chunk:
+                                first_chunk = False
+                                header_lower = chunk[:512].lower()
+                                if b"<!doctype html" in header_lower or b"<html" in header_lower or b"zscaler" in header_lower:
+                                    raise ValueError("Response is HTML Zscaler proxy block page")
+                            f.write(chunk)
                             if progress and task_id is not None:
-                                size = target_path.stat().st_size
-                                progress.update(task_id, total=size, completed=size)
-                            return True
+                                progress.update(task_id, advance=len(chunk))
+
+                    if temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                        if target_path.exists():
+                            target_path.unlink(missing_ok=True)
+                        shutil.move(temp_target, target_path)
+
+                        if progress and task_id is not None:
+                            size = target_path.stat().st_size
+                            progress.update(task_id, total=size, completed=size)
+                        return True
         except Exception as e:
+            errors.append(f"urllib: {e}")
             logger.debug(f"urllib download attempt for {target_filename} failed: {e}")
             if temp_target.exists():
                 temp_target.unlink(missing_ok=True)
@@ -235,6 +238,10 @@ class ModelDownloader:
                 "-o", str(temp_target),
                 download_url
             ]
+            proxy_env = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+            if proxy_env:
+                curl_cmd.extend(["--proxy", proxy_env])
+
             proc = subprocess.Popen(curl_cmd)
 
             expected_bytes = manifest_spec.get("approx_size_mb", 10) * 1024 * 1024
@@ -260,10 +267,16 @@ class ModelDownloader:
                     size = target_path.stat().st_size
                     progress.update(task_id, total=size, completed=size)
                 return True
+            else:
+                errors.append(f"curl.exe exit code {proc.returncode}")
         except Exception as e:
+            errors.append(f"curl.exe: {e}")
             logger.debug(f"curl.exe download attempt for {target_filename} failed: {e}")
             if temp_target.exists():
                 temp_target.unlink(missing_ok=True)
+
+        if errors:
+            logger.warning(f"Download attempts for {target_filename} failed: {'; '.join(errors)}")
 
         return False
 
@@ -307,7 +320,9 @@ class ModelDownloader:
             for m in missing_models:
                 fn = m["filename"]
                 name = m["name"]
-                task_id = progress.add_task("download", name=name, total=None)
+                manifest_spec = MODEL_MANIFEST.get(fn, {})
+                approx_bytes = int(manifest_spec.get("approx_size_mb", 10) * 1024 * 1024)
+                task_id = progress.add_task("download", name=name, total=approx_bytes)
                 tasks[fn] = task_id
 
             for m in missing_models:
