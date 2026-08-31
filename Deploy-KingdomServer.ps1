@@ -121,13 +121,8 @@ if (-not $Deployed) {
     }
 }
 
-# Always create kingdom.cmd launcher wrapper in bin (Bypasses corporate AppLocker .exe blocks)
-if (Get-Command python -ErrorAction SilentlyContinue) {
-    $PythonPath = (Get-Command python).Source
-} else {
-    $PythonPath = "$InstallDir\venv\Scripts\python.exe"
-}
-$LauncherCmd = "@echo off`r`n`"$PythonPath`" -m kingdom_server.cli.commands %*"
+# Always create kingdom.cmd launcher wrapper in bin
+$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" -m kingdom_server.cli.commands %*`r`n) else if exist `"%~dp0kingdom.exe`" (`r`n    `"%~dp0kingdom.exe`" %*`r`n) else (`r`n    python.exe -m kingdom_server.cli.commands %*`r`n)"
 Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
