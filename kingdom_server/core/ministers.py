@@ -7,11 +7,56 @@ import re
 import math
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Union
 from kingdom_server.utils import get_models_dir
 from kingdom_server.core.hardware import HardwareAccelerationEngine
 
 logger = logging.getLogger("kingdom.ministers")
+
+
+class WorkspacePathJailError(PermissionError):
+    """Exception raised when an indexing operation attempts to escape the active workspace boundary."""
+    pass
+
+
+class WorkspacePathJail:
+    """Enforces strict path traversal boundary preventing RAG/AST parsers from accessing sensitive user directories."""
+    
+    FORBIDDEN_PATTERNS = [
+        "\\.ssh",
+        "\\.aws",
+        "\\.git",
+        "\\.gnupg",
+        "\\appdata\\roaming",
+        "c:\\windows",
+        "c:\\program files",
+        "c:\\program files (x86)",
+    ]
+
+    @classmethod
+    def validate_path(cls, path_input: Union[str, Path], workspace_root: Optional[Union[str, Path]] = None) -> Path:
+        target_path = Path(path_input).resolve()
+        path_str_lower = str(target_path).lower()
+
+        # Check against sensitive system/user directories
+        for forbidden in cls.FORBIDDEN_PATTERNS:
+            if forbidden in path_str_lower:
+                raise WorkspacePathJailError(
+                    f"Access Denied: Path '{target_path}' traverses sensitive user/system directory '{forbidden}'."
+                )
+
+        # If a workspace root is specified, enforce strict subtree containment
+        if workspace_root:
+            root_path = Path(workspace_root).resolve()
+            try:
+                target_path.relative_to(root_path)
+            except ValueError:
+                raise WorkspacePathJailError(
+                    f"Access Denied: Path '{target_path}' escapes active workspace root '{root_path}'."
+                )
+
+        return target_path
+
 
 class BaseMinister:
     """Base class for all 8 Ministers."""

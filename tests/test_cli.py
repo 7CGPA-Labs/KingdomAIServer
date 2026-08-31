@@ -8,13 +8,28 @@ from kingdom_server.utils.downloader import MODEL_HF_SPECS
 
 runner = CliRunner()
 
-def test_cli_ask_prompt():
+import json
+
+def test_cli_ask_prompt(monkeypatch):
     """Test kingdom ask, plan, code, and sessions commands directly from CLI."""
-    res_ask = runner.invoke(app, ["ask", "Write a simple function to return hello world.", "--no-auto-provision"])
+    async def mock_stream(self, messages, model="qwen2.5-coder-1.5b", temperature=0.7, session_id=None, **kwargs):
+        chunk_data = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 1234567890,
+            "model": model,
+            "choices": [{"index": 0, "delta": {"content": " Mock agent response."}, "finish_reason": None}]
+        }
+        yield f"data: {json.dumps(chunk_data)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr("kingdom_server.core.orchestrator.KingdomOrchestrator.generate_chat_stream", mock_stream)
+
+    res_ask = runner.invoke(app, ["ask", "Hello world", "--no-auto-provision"])
     assert res_ask.exit_code == 0
     assert "Ask Agent Response" in res_ask.output
 
-    res_plan = runner.invoke(app, ["plan", "Create a microservice architecture plan.", "--no-auto-provision"])
+    res_plan = runner.invoke(app, ["plan", "Architecture plan", "--no-auto-provision"])
     assert res_plan.exit_code == 0
     assert "Plan Agent Response" in res_plan.output
 

@@ -18,6 +18,19 @@ def test_health_endpoint():
     assert "silicon_tiers" in data
     assert "models" in data
 
+def test_payload_size_limit_middleware():
+    """Test 2 MB payload size limit middleware."""
+    large_payload = {"messages": [{"role": "user", "content": "x" * (2 * 1024 * 1024 + 100)}]}
+    response = client.post("/v1/chat/completions", json=large_payload)
+    assert response.status_code == 413
+    assert "Payload Too Large" in response.json()["error"]["message"]
+
+def test_workspace_path_jail():
+    """Test WorkspacePathJail blocks traversal into sensitive user/system directories."""
+    from kingdom_server.core.ministers import WorkspacePathJail, WorkspacePathJailError
+    with pytest.raises(WorkspacePathJailError):
+        WorkspacePathJail.validate_path("C:\\Users\\test\\.ssh\\id_rsa")
+
 def test_fast_completions_endpoint():
     """Test /v1/completions tab autocomplete endpoint."""
     payload = {

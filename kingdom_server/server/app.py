@@ -81,6 +81,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Enterprise Security Guardrails Middleware
+@app.middleware("http")
+async def security_guardrails_middleware(request: Request, call_next):
+    # 1. Strict Loopback Binding & Client Host Check (Prevents LAN probing)
+    client_host = request.client.host if request.client else ""
+    if client_host not in ("127.0.0.1", "::1", "testclient", "localhost"):
+        return JSONResponse(
+            status_code=403,
+            content={"error": {"message": f"Access Denied: External interface client '{client_host}' blocked by enterprise loopback policy.", "type": "LoopbackSecurityError"}}
+        )
+
+    # 2. Payload Size Clamping Middleware (2 MB Maximum Limit)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > 2 * 1024 * 1024:
+                return JSONResponse(
+                    status_code=413,
+                    content={"error": {"message": "Payload Too Large: Request body exceeds 2 MB maximum limit.", "type": "PayloadTooLargeError"}}
+                )
+        except ValueError:
+            pass
+
+    return await call_next(request)
+
 # Request / Response Pydantic Models
 class ChatMessage(BaseModel):
     role: str
