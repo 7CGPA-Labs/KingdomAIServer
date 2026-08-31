@@ -12,12 +12,21 @@ datas = [
     (os.path.join(project_root, "kingdom_server"), "kingdom_server"),
 ]
 
+try:
+    import llama_cpp
+    llama_cpp_path = os.path.dirname(llama_cpp.__file__)
+    if os.path.exists(llama_cpp_path):
+        datas.append((llama_cpp_path, "llama_cpp"))
+except Exception:
+    pass
+
 binaries = []
 
 # Collect dynamic C++ DLLs if present
 possible_dll_dirs = [
     os.path.join(sys.prefix, "Lib", "site-packages", "onnxruntime", "capi"),
     os.path.join(sys.prefix, "Lib", "site-packages", "llama_cpp"),
+    os.path.join(sys.prefix, "Lib", "site-packages", "llama_cpp", "lib"),
     os.path.join(sys.prefix, "DLLs"),
 ]
 

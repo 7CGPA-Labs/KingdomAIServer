@@ -208,11 +208,13 @@ def ask(
                     try:
                         data = json.loads(chunk[6:])
                         delta = data["choices"][0]["delta"].get("content", "")
-                        console.print(delta, end="")
+                        sys.stdout.write(delta)
+                        sys.stdout.flush()
                         full_text += delta
                     except Exception:
                         pass
-            console.print("\n")
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
         asyncio.run(_stream_cli())
     else:
@@ -239,10 +241,12 @@ def ask(
                             try:
                                 data = json.loads(chunk[6:])
                                 delta = data["choices"][0]["delta"].get("content", "")
-                                console.print(delta, end="")
+                                sys.stdout.write(delta)
+                                sys.stdout.flush()
                             except Exception:
                                 pass
-                    console.print("\n")
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
 
                 asyncio.run(_stream_repl(user_input))
             except (KeyboardInterrupt, EOFError):

@@ -144,6 +144,21 @@ class KingdomOrchestrator:
                             }
                             yield f"data: {json.dumps(chunk_data)}\n\n"
 
+                # Yield OpenAI SSE end chunk and [DONE] marker
+                end_chunk = {
+                    "id": completion_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_ts,
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": "stop"
+                    }]
+                }
+                yield f"data: {json.dumps(end_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+
                 # Minister 6: Post-generation Fact & Hallucination Check
                 fact_res = self.ministers["minister_6"].verify_facts(full_text)
                 if not fact_res["verified"]:
