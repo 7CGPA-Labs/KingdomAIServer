@@ -37,6 +37,7 @@ class KingdomOrchestrator:
                     model_path=str(gguf_path),
                     n_ctx=4096,
                     n_gpu_layers=n_gpu_layers,
+                    offload_kqv=True,
                     verbose=False
                 )
                 logger.info(f"Main Boss Qwen2.5 loaded with backend: {backend}")

@@ -60,10 +60,10 @@ class HardwareAccelerationEngine:
         return self.chain.handle(providers)
 
     def resolve_llama_backend(self) -> str:
-        """Determines hardware backend for llama-cpp-python (DirectML/Vulkan/AVX2)."""
+        """Determines hardware backend for llama-cpp-python (Intel OpenCL/DirectML/AVX2)."""
         providers = self.get_available_providers()
         if "DmlExecutionProvider" in providers:
-            return "DirectML / Vulkan GPU"
+            return "Intel OpenCL / DirectML GPU"
         return "AVX2 CPU Fallback"
 
     def get_active_tiers(self) -> dict:

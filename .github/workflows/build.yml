@@ -25,11 +25,13 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Dependencies
+      - name: Install Dependencies & OpenCL GPU-Accelerated llama-cpp-python
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e .
-          python -m pip install pytest pyinstaller pillow pystray truststore huggingface_hub llama-cpp-python onnxruntime-directml
+          python -m pip install pytest pyinstaller pillow pystray truststore huggingface_hub onnxruntime-directml
+          $env:CMAKE_ARGS="-DGGML_CLBLAST=on"
+          python -m pip install llama-cpp-python --no-cache-dir --force-reinstall --prefer-binary
 
       - name: Run Verification & Test Suite
         run: |

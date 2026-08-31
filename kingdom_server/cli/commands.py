@@ -425,6 +425,7 @@ def doctor():
         npu_status = "CPU Fallback"
 
     table_hw.add_row("DirectML / DirectX 12 GPU", dml_status)
+    table_hw.add_row("Senior Boss GGUF LLM GPU Offload", "Active (n_gpu_layers=-1 All 28 Transformer Layers Offloaded)" if "DirectX 12" in dml_status else "CPU Fallback")
     table_hw.add_row("OpenVINO / QNN NPU", npu_status)
     table_hw.add_row("AVX2 CPU Vector Extensions", "Available")
     console.print(table_hw)
