@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
     User-Space Non-Admin Deployment Script for Kingdom AI Server.
-    Installs kingdom.exe into %LocalAppData%\KingdomAIServer\
-    Supports corporate network proxies (Zscaler) and Windows Defender unblocking.
+    Installs kingdom.cmd into %LocalAppData%\KingdomAIServer\
+    Supports corporate network proxies (Zscaler), AppLocker bypass, and SmartScreen unblocking.
 #>
 
 $ErrorActionPreference = "Continue"
 
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " 👑 KINGDOM AI SERVER - ZERO-ADMIN ENTERPRISE DEPLOYMENT" -ForegroundColor Yellow
+Write-Host " [KINGDOM AI SERVER] ZERO-ADMIN ENTERPRISE DEPLOYMENT" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow
 
 # Target user-space installation path
@@ -28,7 +28,7 @@ Write-Host "[2/5] Setting up Windows Defender directory unblocking..." -Foregrou
 try {
     if (Get-Command Add-MpPreference -ErrorAction SilentlyContinue) {
         Add-MpPreference -ExclusionPath $InstallDir -ErrorAction SilentlyContinue
-        Write-Host "✔ Added install directory exclusion to Windows Defender." -ForegroundColor Green
+        Write-Host "[OK] Added install directory exclusion to Windows Defender." -ForegroundColor Green
     }
 } catch {
     # Non-elevated execution will silently skip
@@ -41,11 +41,11 @@ $Deployed = $false
 
 # 1. Check local directory for pre-built binaries
 if ($ScriptDir -and (Test-Path "$ScriptDir\kingdom_bin")) {
-    Write-Host "✔ Found local pre-built binaries at $ScriptDir\kingdom_bin" -ForegroundColor Green
+    Write-Host "[OK] Found local pre-built binaries at $ScriptDir\kingdom_bin" -ForegroundColor Green
     Copy-Item -Path "$ScriptDir\kingdom_bin\*" -Destination $BinDir -Recurse -Force
     $Deployed = $true
 } elseif (Test-Path ".\dist\kingdom") {
-    Write-Host "✔ Found local compiled dist at .\dist\kingdom" -ForegroundColor Green
+    Write-Host "[OK] Found local compiled dist at .\dist\kingdom" -ForegroundColor Green
     Copy-Item -Path ".\dist\kingdom\*" -Destination $BinDir -Recurse -Force
     $Deployed = $true
 }
@@ -64,25 +64,27 @@ if (-not $Deployed) {
 
         # Check if downloaded file is an HTML Zscaler block page instead of a real ZIP file
         $HeaderBytes = Get-Content -Path $ZipPath -Encoding Byte -TotalCount 4 -ErrorAction SilentlyContinue
-        $IsZip = ($HeaderBytes -and $HeaderBytes[0] -eq 0x50 -and $HeaderBytes[1] -eq 0x4B) # 'PK' magic header
+        $IsZip = ($HeaderBytes -and $HeaderBytes[0] -eq 0x50 -and $HeaderBytes[1] -eq 0x4B)
 
         if ($IsZip) {
-            Write-Host "✔ Downloaded release ZIP successfully. Extracting..." -ForegroundColor Green
+            Write-Host "[OK] Downloaded release ZIP successfully. Extracting..." -ForegroundColor Green
             Expand-Archive -Path $ZipPath -DestinationPath "$env:TEMP\KingdomExtract" -Force
             if (Test-Path "$env:TEMP\KingdomExtract\kingdom_bin") {
                 Copy-Item -Path "$env:TEMP\KingdomExtract\kingdom_bin\*" -Destination $BinDir -Recurse -Force
             } elseif (Test-Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\kingdom_bin") {
                 Copy-Item -Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\kingdom_bin\*" -Destination $BinDir -Recurse -Force
+            } else {
+                Copy-Item -Path "$env:TEMP\KingdomExtract\*" -Destination $BinDir -Recurse -Force
             }
             Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$env:TEMP\KingdomExtract" -Recurse -Force -ErrorAction SilentlyContinue
             $Deployed = $true
         } else {
-            Write-Host "⚠ Direct ZIP download was intercepted by corporate network proxy (Zscaler)." -ForegroundColor Yellow
+            Write-Host "[WARN] Direct ZIP download was intercepted by corporate network proxy (Zscaler)." -ForegroundColor Yellow
             Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
         }
     } catch {
-        Write-Host "⚠ ZIP download failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "[WARN] ZIP download failed: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
@@ -111,12 +113,20 @@ if (-not $Deployed) {
                 & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore
                 & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python -ErrorAction SilentlyContinue
             } catch {
-                Write-Host "⚠ Note: Pre-compiled llama-cpp-python wheel not available for this Python version. System running on ONNX Minister Council." -ForegroundColor Yellow
+                Write-Host "[WARN] Pre-compiled llama-cpp-python wheel not available for this Python version. System running on ONNX Minister Council." -ForegroundColor Yellow
             }
         }
-        
+        $Deployed = $true
+        Write-Host "[OK] Python environment initialized successfully at $InstallDir\venv" -ForegroundColor Green
+    }
+}
+
 # Always create kingdom.cmd launcher wrapper in bin (Bypasses corporate AppLocker .exe blocks)
-$PythonPath = if (Get-Command python -ErrorAction SilentlyContinue) { (Get-Command python).Source } else { "$InstallDir\venv\Scripts\python.exe" }
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    $PythonPath = (Get-Command python).Source
+} else {
+    $PythonPath = "$InstallDir\venv\Scripts\python.exe"
+}
 $LauncherCmd = "@echo off`r`n`"$PythonPath`" -m kingdom_server.cli.commands %*"
 Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
 
@@ -130,7 +140,7 @@ if (Test-Path "$BinDir\kingdom.exe") {
 }
 
 # Create Desktop Shortcut
-Write-Host "[5/5] Creating user desktop shortcut & updating PATH..." -ForegroundColor Cyan
+Write-Host "[5/5] Creating user desktop shortcut and updating PATH..." -ForegroundColor Cyan
 try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
@@ -140,33 +150,33 @@ try {
     $Shortcut.WorkingDirectory = $InstallDir
     $Shortcut.Description = "Kingdom AI Server for Continue.dev"
     $Shortcut.Save()
-    Write-Host "✔ Desktop shortcut created successfully!" -ForegroundColor Green
+    Write-Host "[OK] Desktop shortcut created successfully!" -ForegroundColor Green
 } catch {
-    Write-Host "⚠ Note: Desktop shortcut creation skipped." -ForegroundColor Yellow
+    Write-Host "[WARN] Desktop shortcut creation skipped." -ForegroundColor Yellow
 }
 
 # Register User PATH
 $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
 if ($UserPath -notlike "*$BinDir*") {
     [Environment]::SetEnvironmentVariable("PATH", "$UserPath;$BinDir", "User")
-    Write-Host "✔ Added $BinDir to User PATH environment variable." -ForegroundColor Green
+    Write-Host "[OK] Added $BinDir to User PATH environment variable." -ForegroundColor Green
 }
 
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " 🚀 KINGDOM AI SERVER DEPLOYMENT COMPLETE!" -ForegroundColor Green
+Write-Host " KINGDOM AI SERVER DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
 Write-Host " Loopback Endpoint      : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
 Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
-Write-Host "   kingdom.cmd serve      # Start server & live dashboard" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd serve      # Start server and live dashboard" -ForegroundColor Yellow
 Write-Host "   kingdom.cmd doctor     # Run pre-flight health diagnostics" -ForegroundColor Yellow
 Write-Host ""
 Write-Host " Corporate AppLocker / Access Denied Fix:" -ForegroundColor Cyan
-Write-Host "   If corporate IT blocks unsigned .exe files in AppData with 'Access is denied':" -ForegroundColor White
-Write-Host "   Run commands using 'kingdom.cmd' or python module directly:" -ForegroundColor Yellow
+Write-Host "   If corporate IT blocks unsigned .exe files in AppData with Access is denied:" -ForegroundColor White
+Write-Host "   Run commands using kingdom.cmd or python module directly:" -ForegroundColor Yellow
 Write-Host "   1. kingdom.cmd doctor" -ForegroundColor White
 Write-Host "   2. kingdom.cmd prompt `"write a quick sort in Go`"" -ForegroundColor White
 Write-Host "   3. python -m kingdom_server.cli.commands doctor" -ForegroundColor White
