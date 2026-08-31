@@ -102,27 +102,32 @@ if (-not $Deployed) {
         New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
     }
 
-    # Setup Python environment in user space
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        Write-Host "Setting up Python virtual environment at $InstallDir\venv..." -ForegroundColor Yellow
+# Always ensure user-space Python virtual environment is set up (bypasses Windows Defender SmartScreen .exe false positives)
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    if (-not (Test-Path "$InstallDir\venv\Scripts\python.exe")) {
+        Write-Host "Initializing user-space Python virtual environment at $InstallDir\venv..." -ForegroundColor Yellow
         python -m venv "$InstallDir\venv"
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools
-        if (Test-Path "$SourceDir\pyproject.toml") {
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e $SourceDir
-            try {
-                & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml
-                & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python -ErrorAction SilentlyContinue
-            } catch {
-                Write-Host "[WARN] Pre-compiled llama-cpp-python wheel not available for this Python version. System running on ONNX Minister Council." -ForegroundColor Yellow
-            }
-        }
-        $Deployed = $true
-        Write-Host "[OK] Python environment initialized successfully at $InstallDir\venv" -ForegroundColor Green
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools -q
     }
+    
+    # Install kingdom package into venv
+    $SourceDir = "$InstallDir\src"
+    if (-not (Test-Path $SourceDir)) {
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            git clone https://github.com/7CGPA-Labs/KingdomAIServer.git $SourceDir -q
+        }
+    }
+    if (Test-Path "$SourceDir\pyproject.toml") {
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e $SourceDir -q
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml -q
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python -ErrorAction SilentlyContinue -q
+    }
+    $Deployed = $true
+}
 }
 
-# Always create kingdom.cmd launcher wrapper in bin
-$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" -m kingdom_server.cli.commands %*`r`n) else if exist `"%~dp0kingdom.exe`" (`r`n    `"%~dp0kingdom.exe`" %*`r`n) else (`r`n    python.exe -m kingdom_server.cli.commands %*`r`n)"
+# Always create kingdom.cmd launcher wrapper in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
+$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" -m kingdom_server.cli.commands %*`r`n) else (`r`n    python.exe -m kingdom_server.cli.commands %*`r`n)"
 Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
