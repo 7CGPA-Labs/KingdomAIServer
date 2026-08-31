@@ -9,10 +9,21 @@ from kingdom_server.utils.downloader import MODEL_HF_SPECS
 runner = CliRunner()
 
 def test_cli_ask_prompt():
-    """Test kingdom ask 'prompt' command directly from CLI."""
-    result = runner.invoke(app, ["ask", "Write a simple function to return hello world.", "--no-auto-provision"])
-    assert result.exit_code == 0
-    assert "Kingdom AI Server Response" in result.output
+    """Test kingdom ask, plan, code, and sessions commands directly from CLI."""
+    res_ask = runner.invoke(app, ["ask", "Write a simple function to return hello world.", "--no-auto-provision"])
+    assert res_ask.exit_code == 0
+    assert "Ask Agent Response" in res_ask.output
+
+    res_plan = runner.invoke(app, ["plan", "Create a microservice architecture plan.", "--no-auto-provision"])
+    assert res_plan.exit_code == 0
+    assert "Plan Agent Response" in res_plan.output
+
+    res_code = runner.invoke(app, ["code", "func main() {}", "--no-auto-provision"])
+    assert res_code.exit_code == 0
+    assert "Code Agent Response" in res_code.output
+
+    res_sess = runner.invoke(app, ["sessions"])
+    assert res_sess.exit_code == 0
 
 def test_cli_download_hf_specs():
     """Test thin-client huggingface_hub downloader specs manifest for all 9 models."""

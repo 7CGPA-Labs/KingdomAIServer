@@ -87,7 +87,6 @@ def create_telemetry_table(telemetry: dict) -> Table:
 
 
 @app.command("start")
-@app.command("serve")
 def serve(
     port: int = typer.Option(58420, "--port", "-p", help="Loopback port to listen on"),
     daemon: bool = typer.Option(False, "--daemon", "-d", help="Run server in background daemon mode"),
@@ -112,7 +111,7 @@ def serve(
 
     if daemon:
         console.print(f"[bold green]Launching Kingdom AI Server daemon on port {port}...[/bold green]")
-        cmd = [sys.executable, "-m", "kingdom_server.cli.commands", "serve", "--port", str(port)]
+        cmd = [sys.executable, "-m", "kingdom_server.cli.commands", "start", "--port", str(port)]
         if tray:
             cmd.append("--tray")
         proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0)
@@ -179,15 +178,40 @@ def download(
         downloader.auto_provision_missing()
 
 
-@app.command("ask")
-@app.command("prompt")
-@app.command("chat")
-def ask(
-    prompt: Optional[str] = typer.Argument(None, help="Prompt text to query directly from CLI"),
-    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name"),
-    auto_provision: bool = typer.Option(True, "--auto-provision/--no-auto-provision", help="Auto-provision missing model artifacts")
+@app.command("sessions")
+@app.command("history")
+def sessions():
+    """Lists saved conversation sessions from Cognitive Memory Vault."""
+    vault = MemoryVault()
+    sess_list = vault.list_sessions()
+    if not sess_list:
+        console.print("[yellow]No past conversation sessions found in Memory Vault.[/yellow]")
+        return
+
+    table = Table(title="[Saved Conversation Sessions]", title_style="bold magenta", expand=True)
+    table.add_column("Session ID", style="cyan")
+    table.add_column("Turns", justify="right")
+    table.add_column("Last Active", style="yellow")
+    table.add_column("Initial Prompt Snippet", style="white")
+
+    for s in sess_list:
+        dt_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(s["last_time"]))
+        snippet = s["first_prompt"][:55] + ("..." if len(s["first_prompt"]) > 55 else "")
+        table.add_row(s["session_id"], str(s["turn_count"]), dt_str, snippet)
+
+    console.print(table)
+    console.print("\n[bold cyan]To resume a session, pass --session <session_id> to 'ask', 'plan', or 'code':[/bold cyan]")
+    console.print(f"Example: [bold yellow]kingdom ask --session {sess_list[0]['session_id']}[/bold yellow]\n")
+
+
+def _run_agent_cli(
+    agent_name: str,
+    system_instruction: str,
+    prompt: Optional[str],
+    session_id: Optional[str],
+    model: str,
+    auto_provision: bool
 ):
-    """Runs a prompt directly in the CLI terminal or launches interactive terminal chat mode."""
     if auto_provision:
         from kingdom_server.utils.downloader import ModelDownloader
         downloader = ModelDownloader()
@@ -195,15 +219,23 @@ def ask(
 
     from kingdom_server.core.orchestrator import KingdomOrchestrator
     orchestrator = KingdomOrchestrator()
+    vault = MemoryVault()
+
+    session_id = session_id or f"{agent_name}-session-{int(time.time())}"
 
     if prompt:
-        console.print(Panel(f"[bold white]User Query:[/bold white] {prompt}", style="bold blue"))
-        console.print("\n[bold gold1]👑 Kingdom AI Server Response:[/bold gold1]\n")
+        console.print(Panel(f"[bold white][Agent: {agent_name.upper()}] Query:[/bold white] {prompt}\n[dim]Session ID: {session_id}[/dim]", style="bold blue"))
+        console.print(f"\n[bold gold1]👑 Kingdom {agent_name.capitalize()} Agent Response:[/bold gold1]\n")
         
         async def _stream_cli():
             full_text = ""
-            messages = [{"role": "user", "content": prompt}]
-            async for chunk in orchestrator.generate_chat_stream(messages, model=model):
+            prev_turns = vault.get_session_history(session_id)
+            messages = [{"role": "system", "content": system_instruction}]
+            for turn in prev_turns:
+                messages.append({"role": turn["role"], "content": turn["content"]})
+            messages.append({"role": "user", "content": prompt})
+
+            async for chunk in orchestrator.generate_chat_stream(messages, model=model, session_id=session_id):
                 if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
                     try:
                         data = json.loads(chunk[6:])
@@ -218,24 +250,32 @@ def ask(
 
         asyncio.run(_stream_cli())
     else:
-        # Interactive REPL terminal session
+        # Interactive REPL session
         console.clear()
-        console.print(Panel("[bold gold1]👑 KINGDOM AI SERVER - INTERACTIVE CLI CHAT SESSION[/bold gold1]\nType 'exit', 'quit', or press Ctrl+C to stop.", style="bold blue"))
-        session_id = f"cli-session-{int(time.time())}"
+        console.print(Panel(f"[bold gold1]👑 KINGDOM AI SERVER - INTERACTIVE {agent_name.upper()} AGENT SESSION[/bold gold1]\nSession ID: [cyan]{session_id}[/cyan]\nType 'exit', 'quit', or press Ctrl+C to stop.", style="bold blue"))
+        
+        prev_turns = vault.get_session_history(session_id)
+        if prev_turns:
+            console.print(f"[bold cyan][Loaded {len(prev_turns)} previous message turns from session history][/bold cyan]")
 
         while True:
             try:
-                user_input = console.input("\n[bold cyan]kingdom > [/bold cyan]").strip()
+                user_input = console.input(f"\n[bold cyan]kingdom ({agent_name}) > [/bold cyan]").strip()
                 if not user_input:
                     continue
                 if user_input.lower() in ("exit", "quit", "q"):
-                    console.print("[yellow]Exiting interactive CLI chat session.[/yellow]")
+                    console.print("[yellow]Exiting agent chat session.[/yellow]")
                     break
                 
-                console.print("\n[bold gold1]👑 Kingdom AI Server:[/bold gold1]\n")
+                console.print(f"\n[bold gold1]👑 Kingdom {agent_name.capitalize()} Agent:[/bold gold1]\n")
 
                 async def _stream_repl(u_input: str):
-                    messages = [{"role": "user", "content": u_input}]
+                    current_history = vault.get_session_history(session_id)
+                    messages = [{"role": "system", "content": system_instruction}]
+                    for turn in current_history:
+                        messages.append({"role": turn["role"], "content": turn["content"]})
+                    messages.append({"role": "user", "content": u_input})
+
                     async for chunk in orchestrator.generate_chat_stream(messages, model=model, session_id=session_id):
                         if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
                             try:
@@ -252,6 +292,42 @@ def ask(
             except (KeyboardInterrupt, EOFError):
                 console.print("\n[yellow]Session ended.[/yellow]")
                 break
+
+
+@app.command("ask")
+def ask_cmd(
+    prompt: Optional[str] = typer.Argument(None, help="Prompt text to query Ask Agent directly"),
+    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to resume or create"),
+    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name"),
+    auto_provision: bool = typer.Option(True, "--auto-provision/--no-auto-provision", help="Auto-provision missing model artifacts")
+):
+    """General Q&A Agent: Answer questions with clear explanations, architectural insights, and domain knowledge."""
+    sys_prefix = "You are Kingdom Ask Agent. Answer user queries with clear, structured explanations, technical depth, and architectural insights."
+    _run_agent_cli("ask", sys_prefix, prompt, session, model, auto_provision)
+
+
+@app.command("plan")
+def plan_cmd(
+    prompt: Optional[str] = typer.Argument(None, help="Prompt text to query Plan Agent directly"),
+    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to resume or create"),
+    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name"),
+    auto_provision: bool = typer.Option(True, "--auto-provision/--no-auto-provision", help="Auto-provision missing model artifacts")
+):
+    """Implementation Planning Agent: Provide step-by-step engineering plans, roadmaps, and trade-off analyses."""
+    sys_prefix = "You are Kingdom Plan Agent. Provide structured, step-by-step technical implementation plans, engineering roadmaps, and trade-off analyses."
+    _run_agent_cli("plan", sys_prefix, prompt, session, model, auto_provision)
+
+
+@app.command("code")
+def code_cmd(
+    prompt: Optional[str] = typer.Argument(None, help="Prompt text to query Code Agent directly"),
+    session: Optional[str] = typer.Option(None, "--session", "-s", help="Session ID to resume or create"),
+    model: str = typer.Option("qwen2.5-coder-1.5b", "--model", "-m", help="Target model name"),
+    auto_provision: bool = typer.Option(True, "--auto-provision/--no-auto-provision", help="Auto-provision missing model artifacts")
+):
+    """Code Generation Agent: Write clean, production-ready, highly optimized code with full syntax structure."""
+    sys_prefix = "You are Kingdom Code Agent. Write clean, production-ready, highly optimized code with complete syntax structure and zero boilerplate."
+    _run_agent_cli("code", sys_prefix, prompt, session, model, auto_provision)
 
 
 @app.command("stop")
@@ -357,23 +433,27 @@ def doctor():
     port_status = "[bold yellow]Port 58420 In Use (Server Running or Conflict)[/bold yellow]" if is_port_in_use(58420) else "[bold green]Port 58420 Available (127.0.0.1)[/bold green]"
     console.print(f"\n[bold white]Loopback Port Check:[/bold white] {port_status}")
 
-    # 4. Continue.dev Config Verification
+    # 4. Continue.dev Config Verification & Auto-Repair
     continue_config_path = Path.home() / ".continue" / "config.json"
     console.print("\n[bold magenta][Continue.dev Integration Status][/bold magenta]")
     if continue_config_path.exists():
         console.print(f"Config file found at [cyan]{continue_config_path}[/cyan]")
         try:
-            cfg_data = json.loads(continue_config_path.read_text(encoding="utf-8"))
+            content = continue_config_path.read_text(encoding="utf-8")
+            lines = [line for line in content.splitlines() if not line.strip().startswith("//")]
+            cfg_data = json.loads("\n".join(lines))
             models = cfg_data.get("models", [])
             kingdom_found = any("58420" in str(m.get("apiBase", "")) for m in models)
             if kingdom_found:
                 console.print("[bold green]✔ Continue.dev is configured to use Kingdom AI Server (http://127.0.0.1:58420/v1)![/bold green]")
             else:
-                console.print("[yellow]⚠ Continue.dev config exists but apiBase for Kingdom AI Server was not detected.[/yellow]")
+                console.print("[yellow]⚠ Continue.dev config exists but apiBase for Kingdom AI Server was not detected. Run 'kingdom config' to fix automatically.[/yellow]")
         except Exception:
-            console.print("[yellow]⚠ Continue.dev config file could not be parsed as valid JSON.[/yellow]")
+            console.print("[yellow]⚠ Continue.dev config file contained syntax errors. Auto-repairing now...[/yellow]")
+            config_cmd(fix=True)
     else:
-        console.print(f"[yellow]⚠ Continue.dev config file not found at {continue_config_path}.[/yellow]")
+        console.print(f"[yellow]⚠ Continue.dev config file not found at {continue_config_path}. Auto-generating default configuration...[/yellow]")
+        config_cmd(fix=True)
 
     console.print("\n[bold cyan]To configure Continue.dev, add the following to your ~/.continue/config.json:[/bold cyan]")
     snippet = {
@@ -395,6 +475,52 @@ def doctor():
         }
     }
     console.print(Panel(json.dumps(snippet, indent=2), style="green"))
+
+
+@app.command("config")
+def config_cmd(
+    fix: bool = typer.Option(True, "--fix", help="Auto-configure or repair ~/.continue/config.json")
+):
+    """Auto-configures or repairs Continue.dev VS Code Extension ~/.continue/config.json."""
+    cfg_dir = Path.home() / ".continue"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = cfg_dir / "config.json"
+
+    kingdom_model_entry = {
+        "title": "Kingdom AI Server (Qwen2.5-Coder)",
+        "provider": "openai",
+        "model": "qwen2.5-coder-1.5b",
+        "apiBase": "http://127.0.0.1:58420/v1",
+        "apiKey": "EMPTY"
+    }
+    kingdom_tab_entry = {
+        "title": "Kingdom Autocomplete (Granite 128M)",
+        "provider": "openai",
+        "model": "granite-code-128m",
+        "apiBase": "http://127.0.0.1:58420/v1",
+        "apiKey": "EMPTY"
+    }
+
+    raw_data = {"models": [kingdom_model_entry], "tabAutocompleteModel": kingdom_tab_entry}
+    if cfg_path.exists():
+        try:
+            content = cfg_path.read_text(encoding="utf-8")
+            lines = [line for line in content.splitlines() if not line.strip().startswith("//")]
+            clean_content = "\n".join(lines)
+            data = json.loads(clean_content)
+            
+            models = data.get("models", [])
+            has_kingdom = any("58420" in str(m.get("apiBase", "")) for m in models)
+            if not has_kingdom:
+                models.insert(0, kingdom_model_entry)
+                data["models"] = models
+            data["tabAutocompleteModel"] = kingdom_tab_entry
+            raw_data = data
+        except Exception:
+            console.print("[yellow]Overwriting broken ~/.continue/config.json with valid Kingdom AI Server config...[/yellow]")
+
+    cfg_path.write_text(json.dumps(raw_data, indent=2), encoding="utf-8")
+    console.print(f"[bold green]✔ Successfully configured Continue.dev at {cfg_path}[/bold green]")
 
 
 @app.command("logs")

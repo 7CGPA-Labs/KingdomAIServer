@@ -105,6 +105,41 @@ class MemoryVault:
         finally:
             conn.close()
 
+    def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Lists distinct conversation sessions with turn counts and start/last timestamps."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("""
+                SELECT session_id,
+                       COUNT(*) as turn_count,
+                       MIN(timestamp) as start_time,
+                       MAX(timestamp) as last_time
+                FROM session_history
+                GROUP BY session_id
+                ORDER BY last_time DESC
+                LIMIT ?;
+            """, (limit,))
+            rows = cursor.fetchall()
+            sessions = []
+            for r in rows:
+                # Retrieve first user query prompt for snippet preview
+                p_cur = conn.execute(
+                    "SELECT content FROM session_history WHERE session_id = ? AND role = 'user' ORDER BY id ASC LIMIT 1;",
+                    (r["session_id"],)
+                )
+                p_row = p_cur.fetchone()
+                snippet = p_row["content"] if p_row else "No prompt recorded"
+                sessions.append({
+                    "session_id": r["session_id"],
+                    "turn_count": r["turn_count"],
+                    "start_time": r["start_time"],
+                    "last_time": r["last_time"],
+                    "first_prompt": snippet
+                })
+            return sessions
+        finally:
+            conn.close()
+
     def insert_vector(self, document: str, vector: List[float], metadata: Optional[dict] = None) -> int:
         """Inserts a 384-dim vector and document into cognitive memory."""
         conn = self._get_connection()

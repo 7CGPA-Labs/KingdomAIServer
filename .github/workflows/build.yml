@@ -29,7 +29,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e .
-          python -m pip install pytest pyinstaller pillow pystray truststore huggingface_hub llama-cpp-python
+          python -m pip install pytest pyinstaller pillow pystray truststore huggingface_hub llama-cpp-python onnxruntime-directml
 
       - name: Run Verification & Test Suite
         run: |
