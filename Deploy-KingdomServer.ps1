@@ -115,13 +115,10 @@ if (-not $Deployed) {
             }
         }
         
-        # Create kingdom.cmd launcher wrapper in bin
-        $LauncherCmd = "@echo off`r`n`"$InstallDir\venv\Scripts\python.exe`" -m kingdom_server.cli.commands %*"
-        Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
-        $Deployed = $true
-        Write-Host "✔ Python fallback launcher created at $BinDir\kingdom.cmd" -ForegroundColor Green
-    }
-}
+# Always create kingdom.cmd launcher wrapper in bin (Bypasses corporate AppLocker .exe blocks)
+$PythonPath = if (Get-Command python -ErrorAction SilentlyContinue) { (Get-Command python).Source } else { "$InstallDir\venv\Scripts\python.exe" }
+$LauncherCmd = "@echo off`r`n`"$PythonPath`" -m kingdom_server.cli.commands %*"
+Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
 Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundColor Cyan
@@ -138,14 +135,8 @@ try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
     $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI Server.lnk")
-    
-    if (Test-Path "$BinDir\kingdom.exe") {
-        $Shortcut.TargetPath = "$BinDir\kingdom.exe"
-        $Shortcut.Arguments = "serve --tray"
-    } else {
-        $Shortcut.TargetPath = "$BinDir\kingdom.cmd"
-        $Shortcut.Arguments = "serve"
-    }
+    $Shortcut.TargetPath = "$BinDir\kingdom.cmd"
+    $Shortcut.Arguments = "serve"
     $Shortcut.WorkingDirectory = $InstallDir
     $Shortcut.Description = "Kingdom AI Server for Continue.dev"
     $Shortcut.Save()
@@ -170,12 +161,13 @@ Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
 Write-Host " Loopback Endpoint      : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
 Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
-Write-Host "   kingdom serve          # Start server & live dashboard" -ForegroundColor Yellow
-Write-Host "   kingdom doctor         # Run pre-flight health diagnostics" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd serve      # Start server & live dashboard" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd doctor     # Run pre-flight health diagnostics" -ForegroundColor Yellow
 Write-Host ""
-Write-Host " Troubleshooting Windows Defender / SmartScreen:" -ForegroundColor Cyan
-Write-Host "   If Windows Defender blocks launch of kingdom.exe / KingdomTray.exe:" -ForegroundColor White
-Write-Host "   1. Open File Explorer to: $BinDir" -ForegroundColor White
-Write-Host "   2. Right-click 'kingdom.exe' > Properties" -ForegroundColor White
-Write-Host "   3. Check 'Unblock' checkbox at the bottom > Click Apply > OK" -ForegroundColor White
+Write-Host " Corporate AppLocker / Access Denied Fix:" -ForegroundColor Cyan
+Write-Host "   If corporate IT blocks unsigned .exe files in AppData with 'Access is denied':" -ForegroundColor White
+Write-Host "   Run commands using 'kingdom.cmd' or python module directly:" -ForegroundColor Yellow
+Write-Host "   1. kingdom.cmd doctor" -ForegroundColor White
+Write-Host "   2. kingdom.cmd prompt `"write a quick sort in Go`"" -ForegroundColor White
+Write-Host "   3. python -m kingdom_server.cli.commands doctor" -ForegroundColor White
 Write-Host "======================================================================" -ForegroundColor Yellow
