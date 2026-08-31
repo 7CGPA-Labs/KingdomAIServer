@@ -106,30 +106,43 @@ class KingdomOrchestrator:
 
         # 1. Main Boss Model Execution (Dynamic GGUF LLM Generation)
         if self.llama_llm is not None:
-            prompt_input = user_content + retrieved_context
+            system_instruction = (
+                "You are Kingdom AI (Main Boss: Qwen2.5-Coder), an expert software engineering assistant. "
+                f"Minister 1 (Intent Router) classified request intent as '{intent}'."
+            )
+            if retrieved_context:
+                system_instruction += f"{retrieved_context}\n"
+
+            formatted_messages = [{"role": "system", "content": system_instruction}]
+            for msg in messages:
+                formatted_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
             try:
-                response = self.llama_llm(
-                    prompt_input,
+                response = self.llama_llm.create_chat_completion(
+                    messages=formatted_messages,
                     max_tokens=2048,
                     temperature=temperature,
                     stream=True
                 )
                 full_text = ""
                 for chunk in response:
-                    delta_text = chunk["choices"][0]["text"]
-                    full_text += delta_text
-                    chunk_data = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created_ts,
-                        "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"content": delta_text},
-                            "finish_reason": None
-                        }]
-                    }
-                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                    if "choices" in chunk and len(chunk["choices"]) > 0:
+                        delta_dict = chunk["choices"][0].get("delta", {})
+                        delta_text = delta_dict.get("content", "")
+                        if delta_text:
+                            full_text += delta_text
+                            chunk_data = {
+                                "id": completion_id,
+                                "object": "chat.completion.chunk",
+                                "created": created_ts,
+                                "model": model,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"content": delta_text},
+                                    "finish_reason": None
+                                }]
+                            }
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
 
                 # Minister 6: Post-generation Fact & Hallucination Check
                 fact_res = self.ministers["minister_6"].verify_facts(full_text)
