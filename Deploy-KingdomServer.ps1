@@ -53,12 +53,12 @@ if ($ScriptDir -and (Test-Path "$ScriptDir\kingdom_bin")) {
 # 2. If not local, attempt downloading release asset from GitHub
 if (-not $Deployed) {
     $ZipPath = "$env:TEMP\KingdomServer-win64-full.zip"
-    $ReleaseUrl = "https://github.com/7CGPA-Labs/KingdomAIServer/releases/latest/download/KingdomServer-win64-full.zip"
+    $ReleaseUrl = "https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0/KingdomServer-win64-full.zip"
     
     Write-Host "Downloading release bundle from GitHub..." -ForegroundColor Yellow
     try {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            curl.exe -fSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $ReleaseUrl -o $ZipPath
+            curl.exe -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $ReleaseUrl -o $ZipPath
         } else {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -Uri $ReleaseUrl -OutFile $ZipPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -UseBasicParsing
@@ -80,7 +80,7 @@ if (-not $Deployed) {
             Remove-Item -Path "$env:TEMP\KingdomExtract" -Recurse -Force -ErrorAction SilentlyContinue
         }
     } catch {
-        Write-Host "[WARN] Release ZIP download failed: $($_.Exception.Message). Falling back to Git/Python source..." -ForegroundColor Yellow
+        Write-Host "[WARN] Release ZIP download failed. Falling back to Git/Python source..." -ForegroundColor Yellow
     }
 }
 
@@ -105,7 +105,11 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     if (Test-Path "$SourceDir\pyproject.toml") {
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python -ErrorAction SilentlyContinue
+        try {
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python
+        } catch {
+            Write-Host "[WARN] Optional llama-cpp-python installation skipped." -ForegroundColor Yellow
+        }
     }
     $Deployed = $true
 }
