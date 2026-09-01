@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-windows:
-    name: Build Standalone Windows Executable
+    name: Package Kingdom AI WebUI & Enterprise Server
     runs-on: windows-latest
 
     permissions:
@@ -46,12 +46,12 @@ jobs:
           path: release/KingdomServer-win64-full.zip
           retention-days: 30
 
-      - name: Publish Binary Release ZIP (v1.0.0)
+      - name: Publish Release Bundle (v1.0.0)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server v1.0.0 Release" --notes "Standalone PyInstaller Executable Distribution for Windows x64 compiled clean in GitHub Actions" --clobber || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
+          gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64" --clobber || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
 
       - name: Provision Model Binaries for GitHub Releases Mirror
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
