@@ -105,11 +105,7 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     if (Test-Path "$SourceDir\pyproject.toml") {
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml
-        try {
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary llama-cpp-python llama-cpp-python
-        } catch {
-            Write-Host "[WARN] Pre-compiled llama-cpp-python wheel not available for this Python version. Minister Council active." -ForegroundColor Yellow
-        }
+        $null = & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python 2>&1
     }
     $Deployed = $true
 }
