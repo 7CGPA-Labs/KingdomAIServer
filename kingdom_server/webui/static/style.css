@@ -144,6 +144,31 @@ body.dark-theme {
     color: var(--text-main);
 }
 
+/* Sidebar Telemetry Mini Box */
+.sidebar-telemetry-box {
+    margin: 8px 16px;
+    padding: 10px 12px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.sidebar-telemetry-box:hover {
+    border-color: var(--accent-cyan);
+}
+
+.telem-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+}
+
 .sidebar-footer {
     padding: 16px;
     border-top: 1px solid var(--border-color);
@@ -225,6 +250,29 @@ body.dark-theme {
     background: var(--card-bg);
     color: var(--accent-cyan);
 }
+
+/* Header Telemetry Badges */
+.header-telemetry-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.telem-pill {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pill-label { color: var(--text-muted); font-weight: 600; }
+.pill-val { font-weight: 700; color: var(--text-main); }
+.green-pill { border-color: var(--accent-green); }
+.cyan-text { color: var(--accent-cyan); }
 
 .hardware-badge {
     display: flex;
@@ -402,7 +450,7 @@ body.dark-theme {
 .modal-content {
     background: var(--sidebar-bg);
     border: 1px solid var(--border-color);
-    width: 600px;
+    width: 650px;
     max-width: 90%;
     border-radius: 12px;
     overflow: hidden;
@@ -432,7 +480,7 @@ body.dark-theme {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .telemetry-card {
@@ -445,6 +493,27 @@ body.dark-theme {
 .card-label { font-size: 0.75rem; color: var(--text-muted); }
 .card-val { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
 .green-text { color: var(--accent-green); }
+
+/* Progress Bars */
+.progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: var(--card-bg);
+    border-radius: 3px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--accent-cyan);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.ram-fill {
+    background: var(--accent-gold);
+}
 
 .models-table-container { max-height: 200px; overflow-y: auto; margin-top: 10px; }
 .models-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }

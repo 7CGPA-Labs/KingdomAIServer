@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kingdom AI Server - Open WebUI</title>
     <link rel="stylesheet" href="/static/style.css">
-    <!-- Embedded Highlight.js style for offline corporate proxy safety -->
     <style>
         pre code { display: block; padding: 12px; background: #1e1e2e; border-radius: 8px; color: #cdd6f4; font-family: 'Consolas', 'Fira Code', monospace; overflow-x: auto; font-size: 0.9em; line-height: 1.5; }
     </style>
@@ -35,9 +34,25 @@
                 </ul>
             </div>
 
+            <!-- Mini Telemetry Box in Sidebar -->
+            <div class="sidebar-telemetry-box" id="openTelemetryBtn">
+                <div class="telem-row">
+                    <span>⚡ CPU Load:</span>
+                    <span id="sideCpu">--%</span>
+                </div>
+                <div class="telem-row">
+                    <span>💾 RAM Usage:</span>
+                    <span id="sideRam">-- MB</span>
+                </div>
+                <div class="telem-row">
+                    <span>🎮 GPU Acceleration:</span>
+                    <span id="sideGpu" class="green-text">Khronos OpenCL</span>
+                </div>
+            </div>
+
             <div class="sidebar-footer">
-                <button class="footer-btn" id="openTelemetryBtn">
-                    <span>📊</span> Telemetry & Models
+                <button class="footer-btn" id="openTelemetryModalBtn">
+                    <span>📊</span> Telemetry & Models Dashboard
                 </button>
                 <button class="footer-btn" id="configContinueBtn">
                     <span>⚙️</span> Continue.dev Config
@@ -47,7 +62,7 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <!-- Header Bar -->
+            <!-- Header Bar with Live Telemetry Pills -->
             <header class="top-header">
                 <button class="toggle-sidebar-btn" id="toggleSidebarBtn">☰</button>
                 
@@ -63,9 +78,24 @@
                     </button>
                 </div>
 
-                <div class="hardware-badge" id="hardwareBadge">
-                    <span class="status-dot green"></span>
-                    <span id="gpuStatusText">Khronos OpenCL GPU</span>
+                <!-- Live Header Telemetry Badges -->
+                <div class="header-telemetry-badges">
+                    <div class="telem-pill">
+                        <span class="pill-label">CPU</span>
+                        <span class="pill-val" id="headCpu">--%</span>
+                    </div>
+                    <div class="telem-pill">
+                        <span class="pill-label">RAM</span>
+                        <span class="pill-val" id="headRam">-- MB</span>
+                    </div>
+                    <div class="telem-pill green-pill">
+                        <span class="pill-label">Models</span>
+                        <span class="pill-val" id="headModels">9/9</span>
+                    </div>
+                    <div class="hardware-badge" id="hardwareBadge">
+                        <span class="status-dot green"></span>
+                        <span id="gpuStatusText">Khronos OpenCL GPU</span>
+                    </div>
                 </div>
             </header>
 
@@ -113,11 +143,11 @@
         </main>
     </div>
 
-    <!-- Telemetry Modal -->
+    <!-- Live Telemetry & Models Modal -->
     <div class="modal-overlay" id="telemetryModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📊 Hardware Telemetry & Model Council</h2>
+                <h2>📊 Hardware Telemetry & Model Council Dashboard</h2>
                 <button class="close-modal-btn" id="closeTelemetryBtn">&times;</button>
             </div>
             <div class="modal-body">
@@ -125,28 +155,41 @@
                     <div class="telemetry-card">
                         <div class="card-label">CPU Utilization</div>
                         <div class="card-val" id="telemetryCpu">--%</div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="cpuBar" style="width: 0%;"></div></div>
                     </div>
                     <div class="telemetry-card">
                         <div class="card-label">System RAM Usage</div>
                         <div class="card-val" id="telemetryRam">-- MB</div>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill ram-fill" id="ramBar" style="width: 0%;"></div></div>
                     </div>
                     <div class="telemetry-card">
                         <div class="card-label">DirectML / DirectX 12 GPU</div>
                         <div class="card-val green-text" id="telemetryDml">Active</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">OpenCL GPU Offload</div>
+                        <div class="card-label">Khronos OpenCL GPU Offload</div>
                         <div class="card-val green-text" id="telemetryOpenCl">Active (n_gpu_layers=-1)</div>
                     </div>
                 </div>
 
-                <h3>👑 Model Council Status</h3>
+                <div class="telemetry-grid">
+                    <div class="telemetry-card">
+                        <div class="card-label">Cognitive Memory Vectors</div>
+                        <div class="card-val cyan-text" id="telemVaultVectors">0 Indexed</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="card-label">Memory Vault Sessions</div>
+                        <div class="card-val cyan-text" id="telemVaultSessions">0 Saved</div>
+                    </div>
+                </div>
+
+                <h3>👑 Model Council & Artifacts Status</h3>
                 <div class="models-table-container">
                     <table class="models-table">
                         <thead>
                             <tr>
                                 <th>Model Filename</th>
-                                <th>Role & Name</th>
+                                <th>Target Provider</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
