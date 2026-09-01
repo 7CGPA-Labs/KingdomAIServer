@@ -57,52 +57,44 @@ if (-not $Deployed) {
     
     Write-Host "Downloading release bundle from GitHub..." -ForegroundColor Yellow
     try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $WebClient = New-Object System.Net.WebClient
-        $WebClient.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-        $WebClient.DownloadFile($ReleaseUrl, $ZipPath)
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            curl.exe -fSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $ReleaseUrl -o $ZipPath
+        } else {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $ReleaseUrl -OutFile $ZipPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -UseBasicParsing
+        }
 
-        # Check if downloaded file is an HTML Zscaler block page instead of a real ZIP file
+        # Check if downloaded file is an HTML block page or real ZIP
         $HeaderBytes = Get-Content -Path $ZipPath -Encoding Byte -TotalCount 4 -ErrorAction SilentlyContinue
         $IsZip = ($HeaderBytes -and $HeaderBytes[0] -eq 0x50 -and $HeaderBytes[1] -eq 0x4B)
 
         if ($IsZip) {
             Write-Host "[OK] Downloaded release ZIP successfully. Extracting..." -ForegroundColor Green
             Expand-Archive -Path $ZipPath -DestinationPath "$env:TEMP\KingdomExtract" -Force
-            if (Test-Path "$env:TEMP\KingdomExtract\kingdom_bin") {
-                Copy-Item -Path "$env:TEMP\KingdomExtract\kingdom_bin\*" -Destination $BinDir -Recurse -Force
-            } elseif (Test-Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\kingdom_bin") {
-                Copy-Item -Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\kingdom_bin\*" -Destination $BinDir -Recurse -Force
-            } else {
-                Copy-Item -Path "$env:TEMP\KingdomExtract\*" -Destination $BinDir -Recurse -Force
+            if (Test-Path "$env:TEMP\KingdomExtract\src") {
+                Copy-Item -Path "$env:TEMP\KingdomExtract\src" -Destination "$InstallDir\src" -Recurse -Force
+            } elseif (Test-Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\src") {
+                Copy-Item -Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\src" -Destination "$InstallDir\src" -Recurse -Force
             }
             Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "$env:TEMP\KingdomExtract" -Recurse -Force -ErrorAction SilentlyContinue
-            $Deployed = $true
-        } else {
-            Write-Host "[WARN] Direct ZIP download was intercepted by corporate network proxy (Zscaler)." -ForegroundColor Yellow
-            Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
         }
     } catch {
-        Write-Host "[WARN] ZIP download failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "[WARN] Release ZIP download failed: $($_.Exception.Message). Falling back to Git/Python source..." -ForegroundColor Yellow
     }
 }
 
-# 3. Fallback: Source installation via Git clone or Python virtual environment
-if (-not $Deployed) {
-    Write-Host "[CORPORATE-FALLBACK] Deploying via Python / Git source fallback..." -ForegroundColor Cyan
-    $SourceDir = "$InstallDir\src"
+# 3. Setup Python virtual environment & package installation
+Write-Host "[CORPORATE-FALLBACK] Setting up Python virtual environment..." -ForegroundColor Cyan
+$SourceDir = "$InstallDir\src"
+if (-not (Test-Path $SourceDir)) {
     if (Get-Command git -ErrorAction SilentlyContinue) {
-        if (-not (Test-Path $SourceDir)) {
-            git clone https://github.com/7CGPA-Labs/KingdomAIServer.git $SourceDir
-        } else {
-            git -C $SourceDir pull
-        }
+        git clone https://github.com/7CGPA-Labs/KingdomAIServer.git $SourceDir -q
     } else {
         New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
     }
+}
 
-# Always ensure user-space Python virtual environment is set up (bypasses Windows Defender SmartScreen .exe false positives)
 if (Get-Command python -ErrorAction SilentlyContinue) {
     if (-not (Test-Path "$InstallDir\venv\Scripts\python.exe")) {
         Write-Host "Initializing user-space Python virtual environment at $InstallDir\venv..." -ForegroundColor Yellow
@@ -110,20 +102,12 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools -q
     }
     
-    # Install kingdom package into venv
-    $SourceDir = "$InstallDir\src"
-    if (-not (Test-Path $SourceDir)) {
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            git clone https://github.com/7CGPA-Labs/KingdomAIServer.git $SourceDir -q
-        }
-    }
     if (Test-Path "$SourceDir\pyproject.toml") {
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e $SourceDir -q
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml -q
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python -ErrorAction SilentlyContinue -q
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python -ErrorAction SilentlyContinue
     }
     $Deployed = $true
-}
 }
 
 # Always create kingdom.cmd launcher wrapper in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
