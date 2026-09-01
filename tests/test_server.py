@@ -18,6 +18,18 @@ def test_health_endpoint():
     assert "silicon_tiers" in data
     assert "models" in data
 
+def test_webui_index_endpoint():
+    """Test / root endpoint returns WebUI HTML application."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "Kingdom AI Server - Open WebUI" in response.text
+
+def test_webui_api_sessions():
+    """Test /api/sessions endpoint returns session history list."""
+    response = client.get("/api/sessions")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
 def test_payload_size_limit_middleware():
     """Test 2 MB payload size limit middleware."""
     large_payload = {"messages": [{"role": "user", "content": "x" * (2 * 1024 * 1024 + 100)}]}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingdom AI Server - Open WebUI</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Embedded Highlight.js style for offline corporate proxy safety -->
+    <style>
+        pre code { display: block; padding: 12px; background: #1e1e2e; border-radius: 8px; color: #cdd6f4; font-family: 'Consolas', 'Fira Code', monospace; overflow-x: auto; font-size: 0.9em; line-height: 1.5; }
+    </style>
+</head>
+<body class="dark-theme">
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <span class="crown-icon">👑</span>
+                    <span class="brand-name">Kingdom AI</span>
+                </div>
+                <button class="new-chat-btn" id="newChatBtn">
+                    <span>+</span> New Chat
+                </button>
+            </div>
+
+            <div class="search-box">
+                <input type="text" id="sessionSearch" placeholder="Search sessions...">
+            </div>
+
+            <div class="session-history">
+                <div class="section-title">Saved Sessions</div>
+                <ul class="session-list" id="sessionList">
+                    <!-- Loaded dynamically via JavaScript -->
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="footer-btn" id="openTelemetryBtn">
+                    <span>📊</span> Telemetry & Models
+                </button>
+                <button class="footer-btn" id="configContinueBtn">
+                    <span>⚙️</span> Continue.dev Config
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <button class="toggle-sidebar-btn" id="toggleSidebarBtn">☰</button>
+                
+                <div class="agent-selector" id="agentSelector">
+                    <button class="agent-pill active" data-agent="ask">
+                        <span class="agent-icon">💡</span> Ask Agent
+                    </button>
+                    <button class="agent-pill" data-agent="plan">
+                        <span class="agent-icon">🗺️</span> Plan Agent
+                    </button>
+                    <button class="agent-pill" data-agent="code">
+                        <span class="agent-icon">⚡</span> Code Agent
+                    </button>
+                </div>
+
+                <div class="hardware-badge" id="hardwareBadge">
+                    <span class="status-dot green"></span>
+                    <span id="gpuStatusText">Khronos OpenCL GPU</span>
+                </div>
+            </header>
+
+            <!-- Chat Scroll Container -->
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-crown">👑</div>
+                    <h1>Kingdom AI Enterprise WebUI</h1>
+                    <p>Dedicated Local OpenAI-Compatible Server for Continue.dev & Desktop Coding</p>
+                    
+                    <div class="quick-prompts">
+                        <div class="prompt-card" data-prompt="Write a high-performance quicksort algorithm in Go with comments.">
+                            <span class="card-icon">⚡</span>
+                            <div class="card-title">Go Quicksort</div>
+                            <div class="card-desc">Generate optimized Go code</div>
+                        </div>
+                        <div class="prompt-card" data-prompt="Design a microservice architecture plan for an enterprise auth service.">
+                            <span class="card-icon">🗺️</span>
+                            <div class="card-title">Architecture Plan</div>
+                            <div class="card-desc">Step-by-step engineering roadmap</div>
+                        </div>
+                        <div class="prompt-card" data-prompt="Explain how Khronos OpenCL and DirectML accelerate LLM matrix math on Intel Iris Xe.">
+                            <span class="card-icon">💡</span>
+                            <div class="card-title">GPU Acceleration</div>
+                            <div class="card-desc">Hardware telemetry & execution EUs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="messages-list" id="messagesList"></div>
+            </div>
+
+            <!-- Input Box Container -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea id="promptInput" placeholder="Message Kingdom AI Server..." rows="1"></textarea>
+                    <button id="sendBtn" class="send-btn" disabled>
+                        <span>➔</span>
+                    </button>
+                </div>
+                <div class="input-footer">
+                    <span>Kingdom AI Server v1.0.0 • Loopback 127.0.0.1:58420 • Enterprise Secure</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Telemetry Modal -->
+    <div class="modal-overlay" id="telemetryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Hardware Telemetry & Model Council</h2>
+                <button class="close-modal-btn" id="closeTelemetryBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="telemetry-grid">
+                    <div class="telemetry-card">
+                        <div class="card-label">CPU Utilization</div>
+                        <div class="card-val" id="telemetryCpu">--%</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="card-label">System RAM Usage</div>
+                        <div class="card-val" id="telemetryRam">-- MB</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="card-label">DirectML / DirectX 12 GPU</div>
+                        <div class="card-val green-text" id="telemetryDml">Active</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="card-label">OpenCL GPU Offload</div>
+                        <div class="card-val green-text" id="telemetryOpenCl">Active (n_gpu_layers=-1)</div>
+                    </div>
+                </div>
+
+                <h3>👑 Model Council Status</h3>
+                <div class="models-table-container">
+                    <table class="models-table">
+                        <thead>
+                            <tr>
+                                <th>Model Filename</th>
+                                <th>Role & Name</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modelsTableBody">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -140,7 +140,14 @@ def serve(
 
     console.clear()
     console.print(render_banner(active=True, address=f"http://127.0.0.1:{port}"))
-    console.print(f"[bold cyan][Active Ministers: {summary['valid']}/{summary['total']} Online] [Cognitive Vault: {vault_stats['total_vectors_indexed']} Vectors Indexed][/bold cyan]\n")
+    console.print(f"[bold cyan][Active Ministers: {summary['valid']}/{summary['total']} Online] [Cognitive Vault: {vault_stats['total_vectors_indexed']} Vectors Indexed][/bold cyan]")
+    console.print(f"[bold green]🚀 Kingdom AI Open WebUI available at http://127.0.0.1:{port}[/bold green]\n")
+
+    import webbrowser
+    try:
+        webbrowser.open(f"http://127.0.0.1:{port}")
+    except Exception:
+        pass
 
     config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=port, log_level="info", access_log=False)
     server = uvicorn.Server(config)

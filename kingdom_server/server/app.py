@@ -21,6 +21,7 @@ for proto in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
         os.environ[proto.upper()] = os.environ[proto]
         os.environ[proto.lower()] = os.environ[proto]
 
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from contextlib import asynccontextmanager
 
@@ -250,3 +251,41 @@ async def health_check():
         },
         "vault": orch.memory_vault.get_stats() if orch else {}
     }
+
+
+# WebUI Application Static & API Routes
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
+
+webui_static_dir = Path(__file__).parent.parent / "webui" / "static"
+if webui_static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(webui_static_dir)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_webui():
+    """Serves Kingdom AI Browser-Based Open WebUI Application."""
+    index_file = webui_static_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return HTMLResponse("<h2>Kingdom AI Server Active (http://127.0.0.1:58420)</h2>")
+
+
+@app.get("/api/sessions")
+async def get_sessions():
+    """Returns saved conversation sessions from MemoryVault."""
+    orch = get_orchestrator()
+    if orch and orch.memory_vault:
+        return orch.memory_vault.list_sessions()
+    return []
+
+
+@app.post("/api/config/fix")
+async def fix_continue_config():
+    """One-click Continue.dev config auto-repair endpoint."""
+    from kingdom_server.cli.commands import config_cmd
+    try:
+        config_cmd(fix=True)
+        return {"status": "ok", "message": "Successfully auto-configured Continue.dev"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

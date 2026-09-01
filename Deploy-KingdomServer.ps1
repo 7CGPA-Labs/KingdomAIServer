@@ -135,20 +135,16 @@ Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundCo
 Get-ChildItem -Path $BinDir -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
     Unblock-File -Path $_.FullName -ErrorAction SilentlyContinue
 }
-if (Test-Path "$BinDir\kingdom.exe") {
-    Unblock-File -Path "$BinDir\kingdom.exe" -ErrorAction SilentlyContinue
-}
-
 # Create Desktop Shortcut
 Write-Host "[5/5] Creating user desktop shortcut and updating PATH..." -ForegroundColor Cyan
 try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI Server.lnk")
+    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI WebUI.lnk")
     $Shortcut.TargetPath = "$BinDir\kingdom.cmd"
-    $Shortcut.Arguments = "serve"
+    $Shortcut.Arguments = "start"
     $Shortcut.WorkingDirectory = $InstallDir
-    $Shortcut.Description = "Kingdom AI Server for Continue.dev"
+    $Shortcut.Description = "Kingdom AI Server & Open WebUI Application"
     $Shortcut.Save()
     Write-Host "[OK] Desktop shortcut created successfully!" -ForegroundColor Green
 } catch {
@@ -164,20 +160,16 @@ if ($UserPath -notlike "*$BinDir*") {
 
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " KINGDOM AI SERVER DEPLOYMENT COMPLETE!" -ForegroundColor Green
+Write-Host " KINGDOM AI SERVER & OPEN WEBUI DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
-Write-Host " Loopback Endpoint      : http://127.0.0.1:58420" -ForegroundColor White
+Write-Host " Open WebUI Endpoint    : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
 Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
-Write-Host "   kingdom.cmd serve      # Start server and live dashboard" -ForegroundColor Yellow
-Write-Host "   kingdom.cmd doctor     # Run pre-flight health diagnostics" -ForegroundColor Yellow
-Write-Host ""
-Write-Host " Corporate AppLocker / Access Denied Fix:" -ForegroundColor Cyan
-Write-Host "   If corporate IT blocks unsigned .exe files in AppData with Access is denied:" -ForegroundColor White
-Write-Host "   Run commands using kingdom.cmd or python module directly:" -ForegroundColor Yellow
-Write-Host "   1. kingdom.cmd doctor" -ForegroundColor White
-Write-Host "   2. kingdom.cmd prompt `"write a quick sort in Go`"" -ForegroundColor White
-Write-Host "   3. python -m kingdom_server.cli.commands doctor" -ForegroundColor White
+Write-Host "   kingdom.cmd start      # Start server & launch browser WebUI" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd ask        # CLI Ask Agent prompt" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd plan       # CLI Plan Agent prompt" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd code       # CLI Code Agent prompt" -ForegroundColor Yellow
+Write-Host "   kingdom.cmd doctor     # Run pre-flight health & GPU diagnostics" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow

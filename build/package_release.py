@@ -21,15 +21,15 @@ def create_release_archive():
         shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True)
 
-    # 1. Copy compiled binary distribution
-    if dist_dir.exists():
-        print(f"Copying compiled dist from {dist_dir}...")
-        shutil.copytree(dist_dir, staging_dir / "kingdom_bin")
-    else:
-        print("Warning: PyInstaller dist folder not found. Including standalone main.py script launcher.")
-        bin_dir = staging_dir / "kingdom_bin"
-        bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(project_root / "main.py", bin_dir / "main.py")
+    # 1. Copy source codebase package
+    src_dir = staging_dir / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    for item in ["kingdom_server", "pyproject.toml", "README.md"]:
+        target = project_root / item
+        if target.is_dir():
+            shutil.copytree(target, src_dir / item)
+        elif target.is_file():
+            shutil.copy(target, src_dir / item)
 
     # 2. Copy Deploy-KingdomServer.ps1 script
     deploy_script = project_root / "Deploy-KingdomServer.ps1"
