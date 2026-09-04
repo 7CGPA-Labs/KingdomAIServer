@@ -283,9 +283,9 @@ async def get_sessions():
 @app.post("/api/config/fix")
 async def fix_continue_config():
     """One-click Continue.dev config auto-repair endpoint."""
-    from kingdom_server.cli.commands import config_cmd
+    from kingdom_server.utils.continue_config import repair_continue_config
     try:
-        config_cmd(fix=True)
+        repair_continue_config()
         return {"status": "ok", "message": "Successfully auto-configured Continue.dev"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

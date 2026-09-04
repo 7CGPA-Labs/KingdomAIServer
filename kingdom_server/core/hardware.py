@@ -59,18 +59,18 @@ class HardwareAccelerationEngine:
         providers = self.get_available_providers()
         return self.chain.handle(providers)
 
-    def resolve_llama_backend(self) -> str:
-        """Determines hardware backend for llama-cpp-python (Intel OpenCL/DirectML/AVX2)."""
+    def resolve_genai_backend(self) -> str:
+        """Determines hardware backend for onnxruntime-genai-directml."""
         providers = self.get_available_providers()
         if "DmlExecutionProvider" in providers:
-            return "Intel OpenCL / DirectML GPU"
-        return "AVX2 CPU Fallback"
+            return "ONNX Runtime GenAI DirectML (DirectX 12 GPU)"
+        return "ONNX Runtime GenAI CPU (AVX2 Fallback)"
 
     def get_active_tiers(self) -> dict:
         onnx_provider, onnx_tier = self.resolve_onnx_provider()
-        llama_tier = self.resolve_llama_backend()
+        genai_tier = self.resolve_genai_backend()
         return {
             "onnx_provider": onnx_provider,
             "ministers_tier": onnx_tier,
-            "boss_tier": llama_tier,
+            "boss_tier": genai_tier,
         }

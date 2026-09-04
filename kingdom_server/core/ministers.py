@@ -74,7 +74,12 @@ class BaseMinister:
         if self.model_path.exists() and self.model_path.stat().st_size > 0:
             try:
                 import onnxruntime as ort
+                try:
+                    ort.set_default_logger_severity(3)
+                except Exception:
+                    pass
                 opts = ort.SessionOptions()
+                opts.log_severity_level = 3
                 opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
                 self.session = ort.InferenceSession(str(self.model_path), sess_options=opts, providers=[self.provider])
                 logger.info(f"{self.name} loaded ONNX session with provider {self.provider}")

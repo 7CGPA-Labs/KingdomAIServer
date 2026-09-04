@@ -9,13 +9,13 @@ from kingdom_server.utils import get_models_dir
 
 # 9 Models Specification Manifest
 MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
-    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
+    "qwen2.5-coder-1.5b-onnx": {
         "id": "boss_qwen2.5",
         "name": "Senior Software Engineer (Main Boss)",
-        "model_id": "Qwen2.5-Coder-1.5B-Instruct",
+        "model_id": "Qwen2.5-Coder-1.5B-Instruct-ONNX",
         "approx_size_mb": 1100,
-        "type": "gguf",
-        "sha256": None,  # Optional expected hash
+        "type": "onnx-genai",
+        "sha256": None,
     },
     "all-MiniLM-L6-v2.onnx": {
         "id": "minister_1",
@@ -105,17 +105,29 @@ class ModelVerifier:
             "actual_mb": 0.0,
             "sha256": None,
             "status": "missing",
-            "message": "File not found",
+            "message": "File/Directory not found",
         }
 
         if not target_file.exists():
+            return result
+
+        if target_file.is_dir():
+            total_bytes = sum(f.stat().st_size for f in target_file.glob("**/*") if f.is_file())
+            size_mb = round(total_bytes / (1024 * 1024), 2)
+            result["actual_mb"] = size_mb
+            min_mb = spec["approx_size_mb"] * 0.4
+            if size_mb >= min_mb:
+                result["status"] = "valid"
+                result["message"] = f"Directory present ({size_mb} MB)"
+            else:
+                result["status"] = "dummy"
+                result["message"] = f"Incomplete directory ({size_mb} MB < min {round(min_mb, 1)} MB)"
             return result
 
         size_bytes = target_file.stat().st_size
         size_mb = size_bytes / (1024 * 1024)
         result["actual_mb"] = round(size_mb, 2)
 
-        # Check if empty file
         if size_bytes == 0:
             result["status"] = "corrupt"
             result["message"] = "Empty file (0 bytes)"
@@ -133,7 +145,6 @@ class ModelVerifier:
                 result["message"] = f"Hash mismatch (expected {expected_hash[:8]}...)"
             return result
 
-        # Size verification: check if file size meets expected minimum threshold (at least 40% of full binary)
         min_mb = spec["approx_size_mb"] * 0.4
         if size_mb < min_mb:
             result["status"] = "dummy"

@@ -66,9 +66,9 @@ console = Console(safe_box=True)
 
 # 100% Verified open HuggingFace repository specifications for 9 Models
 MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
-    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
-        "repo_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
-        "filename": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+    "qwen2.5-coder-1.5b-onnx": {
+        "repo_id": "onnx-community/Qwen2.5-Coder-1.5B-Instruct-ONNX",
+        "filename": "onnx/model.onnx",
     },
     "all-MiniLM-L6-v2.onnx": {
         "repo_id": "Xenova/all-MiniLM-L6-v2",
@@ -332,7 +332,7 @@ class ModelDownloader:
         missing_models = [m for m in summary["details"] if m["status"] != "valid"]
 
         if not missing_models:
-            console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models\\[/bold green]")
+            console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models[/bold green]")
             return {}
 
         console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (Zscaler & Corporate Resilient)[/bold gold1]")
@@ -375,3 +375,20 @@ class ModelDownloader:
         post_summary = self.verifier.get_summary()
         console.print(f"\n[bold green]✔ Auto-provisioning complete! {post_summary['valid']}/{post_summary['total']} models verified online.[/bold green]\n")
         return results
+
+
+def prepare_release_mirror(target_dir: Optional[Path] = None):
+    """Prepares and downloads all 9 ONNX model artifacts for GitHub Release v1.0.0-models publishing (combines upload_models.py)."""
+    target_dir = Path(target_dir) if target_dir else Path("dist_models")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    downloader = ModelDownloader(target_dir)
+    downloader.auto_provision_missing()
+
+
+if __name__ == "__main__":
+    if "--prepare-mirror" in sys.argv:
+        prepare_release_mirror()
+    else:
+        downloader = ModelDownloader()
+        downloader.auto_provision_missing()
+

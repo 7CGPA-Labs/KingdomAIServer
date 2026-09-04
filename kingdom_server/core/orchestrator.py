@@ -23,33 +23,30 @@ class KingdomOrchestrator:
         self.minister_factory = MinisterFactory(self.hardware_engine, self.models_dir)
         self.ministers = self.minister_factory.create_all_ministers()
         self.memory_vault = MemoryVault(db_path=db_path)
-        self.llama_llm = None
+        self.genai_model = None
+        self.genai_tokenizer = None
         self._init_boss_llm()
 
     def _init_boss_llm(self):
-        gguf_path = self.models_dir / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
-        if gguf_path.exists() and gguf_path.stat().st_size > 0:
+        genai_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
+        if genai_path.exists():
             try:
-                from llama_cpp import Llama
-                backend = self.hardware_engine.resolve_llama_backend()
-                n_gpu_layers = -1 if "GPU" in backend else 0
-                self.llama_llm = Llama(
-                    model_path=str(gguf_path),
-                    n_ctx=4096,
-                    n_gpu_layers=n_gpu_layers,
-                    offload_kqv=True,
-                    verbose=False
-                )
-                logger.info(f"Main Boss Qwen2.5 loaded with backend: {backend}")
+                import onnxruntime_genai as og
+                backend = self.hardware_engine.resolve_genai_backend()
+                self.genai_model = og.Model(str(genai_path))
+                self.genai_tokenizer = og.Tokenizer(self.genai_model)
+                logger.info(f"Main Boss Qwen2.5 ONNX loaded with backend: {backend}")
             except Exception as e:
-                logger.warning(f"llama-cpp-python initialization error loading GGUF: {e}. Minister Council active.")
-                self.llama_llm = None
+                logger.warning(f"onnxruntime-genai-directml error loading Qwen2.5 ONNX: {e}. Minister Council active.")
+                self.genai_model = None
+                self.genai_tokenizer = None
         else:
-            self.llama_llm = None
+            self.genai_model = None
+            self.genai_tokenizer = None
 
     @property
     def is_boss_loaded(self) -> bool:
-        return self.llama_llm is not None
+        return self.genai_model is not None
 
     def get_model_status(self) -> Dict[str, bool]:
         status = {"boss_qwen2.5": self.is_boss_loaded}
@@ -105,8 +102,8 @@ class KingdomOrchestrator:
         # Minister 4: Code AST Parsing
         code_structure = self.ministers["minister_4"].parse_code(user_content)
 
-        # 1. Main Boss Model Execution (Dynamic GGUF LLM Generation)
-        if self.llama_llm is not None:
+        # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
+        if self.genai_model is not None and self.genai_tokenizer is not None:
             system_instruction = (
                 "You are Kingdom AI (Main Boss: Qwen2.5-Coder), an expert software engineering assistant. "
                 f"Minister 1 (Intent Router) classified request intent as '{intent}'."
@@ -114,38 +111,43 @@ class KingdomOrchestrator:
             if retrieved_context:
                 system_instruction += f"{retrieved_context}\n"
 
-            formatted_messages = [{"role": "system", "content": system_instruction}]
+            prompt_text = f"<|im_start|>system\n{system_instruction}<|im_end|>\n"
             for msg in messages:
-                formatted_messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                prompt_text += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+            prompt_text += "<|im_start|>assistant\n"
 
             try:
-                response = self.llama_llm.create_chat_completion(
-                    messages=formatted_messages,
-                    max_tokens=2048,
-                    temperature=temperature,
-                    stream=True
-                )
-                full_text = ""
-                for chunk in response:
-                    if "choices" in chunk and len(chunk["choices"]) > 0:
-                        delta_dict = chunk["choices"][0].get("delta", {})
-                        delta_text = delta_dict.get("content", "")
-                        if delta_text:
-                            full_text += delta_text
-                            chunk_data = {
-                                "id": completion_id,
-                                "object": "chat.completion.chunk",
-                                "created": created_ts,
-                                "model": model,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {"content": delta_text},
-                                    "finish_reason": None
-                                }]
-                            }
-                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                import onnxruntime_genai as og
+                params = og.GeneratorParams(self.genai_model)
+                params.set_search_options(max_length=4096, temperature=temperature)
+                input_tokens = self.genai_tokenizer.encode(prompt_text)
+                params.input_ids = input_tokens
 
-                # Yield OpenAI SSE end chunk and [DONE] marker
+                generator = og.Generator(self.genai_model, params)
+                tokenizer_stream = self.genai_tokenizer.create_stream()
+
+                full_text = ""
+                while not generator.is_done():
+                    generator.generate_next_token()
+                    new_token = generator.get_next_tokens()[0]
+                    delta_text = tokenizer_stream.decode(new_token)
+                    if delta_text:
+                        full_text += delta_text
+                        chunk_data = {
+                            "id": completion_id,
+                            "object": "chat.completion.chunk",
+                            "created": created_ts,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": delta_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        yield f"data: {json.dumps(chunk_data)}\n\n"
+
                 end_chunk = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
@@ -160,17 +162,15 @@ class KingdomOrchestrator:
                 yield f"data: {json.dumps(end_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
 
-                # Minister 6: Post-generation Fact & Hallucination Check
                 fact_res = self.ministers["minister_6"].verify_facts(full_text)
                 if not fact_res["verified"]:
                     full_text += "\n\n[Fact Check Warning by Minister 6]: Potential unverified patterns detected."
 
-                # Save turn to Memory Vault
                 self.memory_vault.add_session_message(session_id, "user", user_content)
                 self.memory_vault.add_session_message(session_id, "assistant", full_text + security_warning)
                 return
             except Exception as e:
-                logger.error(f"Error during llama-cpp generation: {e}")
+                logger.error(f"Error during ONNX GenAI generation: {e}")
 
         # 2. Dynamic Minister Council Execution (when GGUF model binary is omitted)
         response_text = self._synthesize_council_response(user_content, intent, code_structure, retrieved_context, security_warning)

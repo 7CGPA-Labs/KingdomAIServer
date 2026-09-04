@@ -8,7 +8,7 @@ from kingdom_server.utils.verifier import ModelVerifier, MODEL_MANIFEST
 def test_model_manifest_completeness():
     """Verify all 9 models are specified in MODEL_MANIFEST."""
     assert len(MODEL_MANIFEST) == 9
-    assert "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" in MODEL_MANIFEST
+    assert "qwen2.5-coder-1.5b-onnx" in MODEL_MANIFEST
     assert "all-MiniLM-L6-v2.onnx" in MODEL_MANIFEST
     assert "bge-small-en-v1.5.onnx" in MODEL_MANIFEST
     assert "bge-reranker-base.onnx" in MODEL_MANIFEST

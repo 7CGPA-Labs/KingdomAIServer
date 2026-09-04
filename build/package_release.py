@@ -24,7 +24,7 @@ def create_release_archive():
     # 1. Copy source codebase package
     src_dir = staging_dir / "src"
     src_dir.mkdir(parents=True, exist_ok=True)
-    for item in ["kingdom_server", "pyproject.toml", "README.md"]:
+    for item in ["kingdom_server", "pyproject.toml", "README.md", "main.py", "start_server.py"]:
         target = project_root / item
         if target.is_dir():
             shutil.copytree(target, src_dir / item)
@@ -40,8 +40,8 @@ def create_release_archive():
     models_dir = staging_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / "README.txt").write_text(
-        "Place the 9 GGUF/ONNX model files here:\n"
-        "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
+        "Place the 9 ONNX model files/directories here:\n"
+        "- qwen2.5-coder-1.5b-onnx/\n"
         "- all-MiniLM-L6-v2.onnx\n"
         "- bge-small-en-v1.5.onnx\n"
         "- bge-reranker-base.onnx\n"

@@ -1,10 +1,15 @@
 """
-Entry point for kingdom.exe standalone executable binary and CLI.
+Kingdom AI Server - Pure Python Server Launcher.
+Starts the FastAPI OpenAI Server on http://127.0.0.1:58420 and auto-opens the Open WebUI in default browser.
+Usage:
+    python main.py
 """
 import sys
-import io
+import os
+import webbrowser
+import uvicorn
 
-# Ensure UTF-8 output encoding on Windows legacy consoles
+# Enforce UTF-8 console output encoding on Windows
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -12,7 +17,21 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from kingdom_server.cli.commands import app
+def start_server():
+    print("======================================================================")
+    print(" 👑 KINGDOM AI SERVER & OPEN WEBUI (Enterprise Edition) • v1.0.0")
+    print(" Dedicated Local OpenAI-Compatible Server for Continue.dev & WebUI")
+    print(" Status: ● ACTIVE  |  Endpoint: http://127.0.0.1:58420")
+    print("======================================================================")
+    
+    # Auto-launch default browser to Open WebUI
+    try:
+        webbrowser.open("http://127.0.0.1:58420")
+    except Exception:
+        pass
+
+    # Start FastAPI Uvicorn Server
+    uvicorn.run("kingdom_server.server.app:app", host="127.0.0.1", port=58420, reload=False)
 
 if __name__ == "__main__":
-    app()
+    start_server()

@@ -104,15 +104,14 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     
     if (Test-Path "$SourceDir\pyproject.toml") {
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml
-        $null = & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python 2>&1
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml onnxruntime-genai-directml
     }
     $Deployed = $true
 }
 
-# Always create kingdom.cmd launcher wrapper in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
-$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" -m kingdom_server.cli.commands %*`r`n) else (`r`n    python.exe -m kingdom_server.cli.commands %*`r`n)"
-Set-Content -Path "$BinDir\kingdom.cmd" -Value $LauncherCmd -Encoding ASCII
+# Create start_server.cmd launcher wrapper in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
+$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\main.py`" %*`r`n) else (`r`n    python.exe `"%~dp0..\src\main.py`" %*`r`n)"
+Set-Content -Path "$BinDir\start_server.cmd" -Value $LauncherCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
 Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundColor Cyan
@@ -125,8 +124,7 @@ try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
     $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI WebUI.lnk")
-    $Shortcut.TargetPath = "$BinDir\kingdom.cmd"
-    $Shortcut.Arguments = "start"
+    $Shortcut.TargetPath = "$BinDir\start_server.cmd"
     $Shortcut.WorkingDirectory = $InstallDir
     $Shortcut.Description = "Kingdom AI Server & Open WebUI Application"
     $Shortcut.Save()
@@ -150,10 +148,7 @@ Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
 Write-Host " Open WebUI Endpoint    : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
-Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
-Write-Host "   kingdom.cmd start      # Start server & launch browser WebUI" -ForegroundColor Yellow
-Write-Host "   kingdom.cmd ask        # CLI Ask Agent prompt" -ForegroundColor Yellow
-Write-Host "   kingdom.cmd plan       # CLI Plan Agent prompt" -ForegroundColor Yellow
-Write-Host "   kingdom.cmd code       # CLI Code Agent prompt" -ForegroundColor Yellow
-Write-Host "   kingdom.cmd doctor     # Run pre-flight health & GPU diagnostics" -ForegroundColor Yellow
+Write-Host " Quick Launch Server Command:" -ForegroundColor Cyan
+Write-Host "   python main.py          # Start server & launch browser WebUI" -ForegroundColor Yellow
+Write-Host "   python start_server.py   # Alternative top-level launcher" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow

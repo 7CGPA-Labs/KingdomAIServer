@@ -39,23 +39,26 @@ def test_ministers_mock_onnx_session(tmp_path):
         assert minister1.session == mock_instance
 
 def test_orchestrator_boss_model_usage(tmp_path):
-    """Verify orchestrator tracks whether Main Boss Qwen2.5 GGUF model is loaded or using fallback."""
+    """Verify orchestrator tracks whether Main Boss Qwen2.5 ONNX model is loaded or using fallback."""
     orch = KingdomOrchestrator(models_dir=tmp_path)
     status = orch.get_model_status()
     
     assert "boss_qwen2.5" in status
-    assert status["boss_qwen2.5"] is False  # Missing GGUF file in temp dir
+    assert status["boss_qwen2.5"] is False  # Missing ONNX model dir in temp path
 
-def test_orchestrator_mock_gguf_boss_loaded(tmp_path):
-    """Verify that when GGUF model file is present and llama_cpp loads, is_boss_loaded returns True."""
-    gguf_file = tmp_path / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
-    gguf_file.write_bytes(b"dummy gguf bytes")
+def test_orchestrator_mock_genai_boss_loaded(tmp_path):
+    """Verify that when ONNX GenAI model directory is present and onnxruntime_genai loads, is_boss_loaded returns True."""
+    genai_dir = tmp_path / "qwen2.5-coder-1.5b-onnx"
+    genai_dir.mkdir(parents=True, exist_ok=True)
+    (genai_dir / "genai_config.json").write_text("{}")
 
-    mock_llama_mod = MagicMock()
-    mock_llama_cls = MagicMock()
-    mock_llama_mod.Llama = mock_llama_cls
+    mock_og_mod = MagicMock()
+    mock_model_cls = MagicMock()
+    mock_tok_cls = MagicMock()
+    mock_og_mod.Model = mock_model_cls
+    mock_og_mod.Tokenizer = mock_tok_cls
 
-    with patch.dict("sys.modules", {"llama_cpp": mock_llama_mod}):
+    with patch.dict("sys.modules", {"onnxruntime_genai": mock_og_mod}):
         orch = KingdomOrchestrator(models_dir=tmp_path)
         assert orch.is_boss_loaded is True
         assert orch.get_model_status()["boss_qwen2.5"] is True
