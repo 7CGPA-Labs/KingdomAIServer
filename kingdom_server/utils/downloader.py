@@ -72,8 +72,8 @@ console = Console(safe_box=True)
 # 100% Verified open HuggingFace repository specifications for 9 Models
 MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
     "qwen2.5-coder-1.5b-onnx": {
-        "repo_id": "onnx-community/Qwen2.5-Coder-1.5B-Instruct-ONNX",
-        "filename": "onnx/model.onnx",
+        "repo_id": "onnx-community/Qwen2.5-Coder-1.5B-Instruct",
+        "filename": "onnx/model_quantized.onnx",
     },
     "all-MiniLM-L6-v2.onnx": {
         "repo_id": "Xenova/all-MiniLM-L6-v2",

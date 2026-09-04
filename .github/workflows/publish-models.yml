@@ -38,4 +38,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server ONNX Model Weights Mirror" --notes "Pre-built ONNX model binary artifacts for corporate proxy fallbacks" --clobber || gh release upload v1.0.0-models dist_models/* --clobber
+          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server ONNX Model Weights Mirror" --notes "Pre-built ONNX model binary artifacts for corporate proxy fallbacks" || gh release upload v1.0.0-models dist_models/* --clobber

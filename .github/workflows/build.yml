@@ -51,4 +51,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64" --clobber || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
+          gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64" || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber

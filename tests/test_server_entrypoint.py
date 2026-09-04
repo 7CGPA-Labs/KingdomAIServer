@@ -17,5 +17,5 @@ def test_downloader_hf_specs():
     """Test thin-client downloader specifications manifest for all 9 ONNX models."""
     assert len(MODEL_HF_SPECS) == 9
     assert "qwen2.5-coder-1.5b-onnx" in MODEL_HF_SPECS
-    assert MODEL_HF_SPECS["qwen2.5-coder-1.5b-onnx"]["repo_id"] == "onnx-community/Qwen2.5-Coder-1.5B-Instruct-ONNX"
+    assert MODEL_HF_SPECS["qwen2.5-coder-1.5b-onnx"]["repo_id"] == "onnx-community/Qwen2.5-Coder-1.5B-Instruct"
     assert "all-MiniLM-L6-v2.onnx" in MODEL_HF_SPECS
