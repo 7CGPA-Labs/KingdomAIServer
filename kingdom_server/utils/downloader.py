@@ -377,18 +377,7 @@ class ModelDownloader:
         return results
 
 
-def prepare_release_mirror(target_dir: Optional[Path] = None):
-    """Prepares and downloads all 9 ONNX model artifacts for GitHub Release v1.0.0-models publishing (combines upload_models.py)."""
-    target_dir = Path(target_dir) if target_dir else Path("dist_models")
-    target_dir.mkdir(parents=True, exist_ok=True)
-    downloader = ModelDownloader(target_dir)
-    downloader.auto_provision_missing()
-
-
 if __name__ == "__main__":
-    if "--prepare-mirror" in sys.argv:
-        prepare_release_mirror()
-    else:
-        downloader = ModelDownloader()
-        downloader.auto_provision_missing()
+    downloader = ModelDownloader()
+    downloader.auto_provision_missing()
 

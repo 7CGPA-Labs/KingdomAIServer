@@ -52,15 +52,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64" --clobber || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
-
-      - name: Provision Model Binaries for GitHub Releases Mirror
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          python -m kingdom_server.utils.downloader --prepare-mirror
-
-      - name: Publish Models to GitHub Release Mirror (v1.0.0-models)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server ONNX Model Weights Mirror" --notes "Pre-built ONNX model binary artifacts for corporate proxy fallbacks" --clobber || gh release upload v1.0.0-models dist_models/* --clobber
