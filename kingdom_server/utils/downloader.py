@@ -147,6 +147,29 @@ class ModelDownloader:
                 except Exception as e:
                     logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
 
+    def _finalize_model_file(self, temp_target: Path, target_filename: str):
+        """Finalizes downloaded binary into single file or ONNX GenAI directory structure."""
+        target_path = self.models_dir / target_filename
+        if target_filename == "qwen2.5-coder-1.5b-onnx":
+            if target_path.exists():
+                if target_path.is_file():
+                    target_path.unlink(missing_ok=True)
+                elif target_path.is_dir():
+                    pass
+            target_path.mkdir(parents=True, exist_ok=True)
+            final_binary = target_path / "model.onnx"
+            if final_binary.exists():
+                final_binary.unlink(missing_ok=True)
+            shutil.move(temp_target, final_binary)
+            self.provision_qwen_onnx_config_files(target_path)
+        else:
+            if target_path.exists():
+                if target_path.is_dir():
+                    shutil.rmtree(target_path, ignore_errors=True)
+                else:
+                    target_path.unlink(missing_ok=True)
+            shutil.move(temp_target, target_path)
+
     def is_html_block_page(self, filepath: Path) -> bool:
         """Checks if a downloaded file is an HTML proxy block page (e.g. Zscaler 403 Forbidden Access Blocked)."""
         if not filepath.exists() or filepath.stat().st_size == 0:
@@ -242,9 +265,7 @@ class ModelDownloader:
                                 last_size = curr_size
 
                     if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
-                        if target_path.exists():
-                            target_path.unlink(missing_ok=True)
-                        shutil.move(temp_target, target_path)
+                        self._finalize_model_file(temp_target, target_filename)
 
                         if progress and task_id is not None:
                             size = target_path.stat().st_size
@@ -289,9 +310,7 @@ class ModelDownloader:
                                     progress.update(task_id, advance=len(chunk))
 
                         if temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
-                            if target_path.exists():
-                                target_path.unlink(missing_ok=True)
-                            shutil.move(temp_target, target_path)
+                            self._finalize_model_file(temp_target, target_filename)
 
                             if progress and task_id is not None:
                                 size = target_path.stat().st_size
@@ -331,9 +350,7 @@ class ModelDownloader:
                             last_size = curr_size
 
                 if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
-                    if target_path.exists():
-                        target_path.unlink(missing_ok=True)
-                    shutil.move(temp_target, target_path)
+                    self._finalize_model_file(temp_target, target_filename)
 
                     if progress and task_id is not None:
                         size = target_path.stat().st_size
@@ -364,6 +381,23 @@ class ModelDownloader:
                     target_path.unlink(missing_ok=True)
                 except Exception:
                     pass
+
+        # Check if qwen2.5-coder-1.5b-onnx is currently a single file instead of a directory
+        qwen_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
+        if qwen_path.exists() and qwen_path.is_file():
+            try:
+                min_bytes = int(MODEL_MANIFEST["qwen2.5-coder-1.5b-onnx"]["approx_size_mb"] * 1024 * 1024 * 0.4)
+                if qwen_path.stat().st_size >= min_bytes:
+                    temp_bin = self.models_dir / "qwen_temp.part"
+                    shutil.move(qwen_path, temp_bin)
+                    self._finalize_model_file(temp_bin, "qwen2.5-coder-1.5b-onnx")
+                else:
+                    qwen_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Error converting qwen file to folder: {e}")
+
+        if qwen_path.exists() and qwen_path.is_dir():
+            self.provision_qwen_onnx_config_files(qwen_path)
 
         summary = self.verifier.get_summary()
         missing_models = [m for m in summary["details"] if m["status"] != "valid"]
