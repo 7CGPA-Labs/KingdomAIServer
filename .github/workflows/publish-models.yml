@@ -40,5 +40,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if (Test-Path "dist_models/qwen2.5-coder-1.5b-onnx") {
+              Compress-Archive -Path "dist_models/qwen2.5-coder-1.5b-onnx/*" -DestinationPath "dist_models/qwen2.5-coder-1.5b-onnx.zip" -Force
+              Remove-Item -Path "dist_models/qwen2.5-coder-1.5b-onnx" -Recurse -Force
+          }
           gh release delete v1.0.0-models -y --cleanup-tag || true
           gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server Model Weights Mirror" --notes "Pre-built INT4 Quantized ONNX and INT8 ONNX model binary artifacts for corporate proxy fallbacks"

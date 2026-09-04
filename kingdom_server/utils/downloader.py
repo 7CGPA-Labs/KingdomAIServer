@@ -148,19 +148,36 @@ class ModelDownloader:
                     logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
 
     def _finalize_model_file(self, temp_target: Path, target_filename: str):
-        """Finalizes downloaded binary into single file or ONNX GenAI directory structure."""
+        """Finalizes downloaded binary or zip archive into single file or ONNX GenAI directory structure."""
         target_path = self.models_dir / target_filename
         if target_filename == "qwen2.5-coder-1.5b-onnx":
             if target_path.exists():
                 if target_path.is_file():
                     target_path.unlink(missing_ok=True)
                 elif target_path.is_dir():
-                    pass
+                    shutil.rmtree(target_path, ignore_errors=True)
             target_path.mkdir(parents=True, exist_ok=True)
-            final_binary = target_path / "model.onnx"
-            if final_binary.exists():
-                final_binary.unlink(missing_ok=True)
-            shutil.move(temp_target, final_binary)
+
+            is_zip = False
+            try:
+                import zipfile
+                if zipfile.is_zipfile(temp_target):
+                    with zipfile.ZipFile(temp_target, 'r') as zip_ref:
+                        zip_ref.extractall(target_path)
+                    is_zip = True
+                    logger.info("Successfully extracted qwen2.5-coder-1.5b-onnx.zip into directory structure")
+            except Exception as e:
+                logger.debug(f"Zip extraction check failed: {e}")
+
+            if not is_zip:
+                final_binary = target_path / "model.onnx"
+                if final_binary.exists():
+                    final_binary.unlink(missing_ok=True)
+                shutil.move(temp_target, final_binary)
+            else:
+                if temp_target.exists():
+                    temp_target.unlink(missing_ok=True)
+
             self.provision_qwen_onnx_config_files(target_path)
         else:
             if target_path.exists():
@@ -199,22 +216,24 @@ class ModelDownloader:
         # Unlink dummy/placeholder/Zscaler HTML block file before downloading full binary
         if target_path.exists() and (target_path.stat().st_size < min_bytes or self.is_html_block_page(target_path)):
             try:
-                target_path.unlink(missing_ok=True)
+                if target_path.is_file():
+                    target_path.unlink(missing_ok=True)
             except Exception:
                 pass
 
         # Build resilient multi-source Mirror URLs
         urls_to_try = []
+        mirror_filename = "qwen2.5-coder-1.5b-onnx.zip" if target_filename == "qwen2.5-coder-1.5b-onnx" else target_filename
 
         # 1. Custom Mirror URL set by corporate IT or user via KINGDOM_MODELS_MIRROR_URL
         custom_mirror = os.environ.get("KINGDOM_MODELS_MIRROR_URL")
         if custom_mirror:
             custom_mirror = custom_mirror.rstrip("/")
-            urls_to_try.append(f"{custom_mirror}/{target_filename}")
+            urls_to_try.append(f"{custom_mirror}/{mirror_filename}")
 
         # 2. GitHub Release Mirror URL (Bypasses Zscaler domain blocks on corporate developer laptops)
         if not os.environ.get("SKIP_GITHUB_MIRROR"):
-            urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{target_filename}")
+            urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{mirror_filename}")
 
         # 3. Primary Hugging Face LFS CDN URL
         urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
