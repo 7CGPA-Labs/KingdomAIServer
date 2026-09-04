@@ -188,7 +188,7 @@ class ModelDownloader:
                 "no_repeat_ngram_size": 0,
                 "num_beams": 1,
                 "num_return_sequences": 1,
-                "past_present_share_buffer": True,
+                "past_present_share_buffer": False,
                 "repetition_penalty": 1.0,
                 "temperature": 0.7,
                 "top_k": 50,
@@ -202,8 +202,14 @@ class ModelDownloader:
         else:
             try:
                 data = json.loads(genai_config_path.read_text(encoding="utf-8"))
+                repaired = False
                 if "model" in data and "decoder" in data["model"] and "type" in data["model"]["decoder"]:
                     del data["model"]["decoder"]["type"]
+                    repaired = True
+                if "search" in data and data["search"].get("past_present_share_buffer") is True:
+                    data["search"]["past_present_share_buffer"] = False
+                    repaired = True
+                if repaired:
                     default_genai_config = data
                     should_write = True
             except Exception:
