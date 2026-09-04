@@ -146,8 +146,28 @@ class KingdomOrchestrator:
             if retrieved_context:
                 system_instruction += f"{retrieved_context}\n"
 
+            # Sliding Context Window: Prune older messages if history is long to fit inside ONNX KV Cache (4096 max limit)
+            recent_messages = list(messages)
+            while len(recent_messages) > 1:
+                test_prompt = f"<|im_start|>system\n{system_instruction}<|im_end|>\n"
+                for msg in recent_messages:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    test_prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+                test_prompt += "<|im_start|>assistant\n"
+                
+                try:
+                    test_tokens = self.genai_tokenizer.encode(test_prompt)
+                    tok_len = len(test_tokens) if hasattr(test_tokens, "__len__") else getattr(test_tokens, "size", 100)
+                except Exception:
+                    tok_len = len(test_prompt) // 3
+
+                if tok_len <= 3000:
+                    break
+                recent_messages.pop(0)
+
             prompt_text = f"<|im_start|>system\n{system_instruction}<|im_end|>\n"
-            for msg in messages:
+            for msg in recent_messages:
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 prompt_text += f"<|im_start|>{role}\n{content}<|im_end|>\n"
@@ -155,9 +175,16 @@ class KingdomOrchestrator:
 
             try:
                 import onnxruntime_genai as og
-                params = og.GeneratorParams(self.genai_model)
-                params.set_search_options(max_length=4096, temperature=temperature)
                 input_tokens = self.genai_tokenizer.encode(prompt_text)
+                try:
+                    num_input_tokens = len(input_tokens) if hasattr(input_tokens, "__len__") else getattr(input_tokens, "size", 500)
+                except Exception:
+                    num_input_tokens = 500
+
+                safe_max_length = min(3840, num_input_tokens + 512)
+
+                params = og.GeneratorParams(self.genai_model)
+                params.set_search_options(max_length=safe_max_length, temperature=temperature)
 
                 generator = og.Generator(self.genai_model, params)
                 if hasattr(generator, "append_tokens"):
