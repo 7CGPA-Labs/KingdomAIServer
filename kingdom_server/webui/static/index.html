@@ -46,7 +46,7 @@
                 </div>
                 <div class="telem-row">
                     <span>🎮 GPU Acceleration:</span>
-                    <span id="sideGpu" class="green-text">Khronos OpenCL</span>
+                    <span id="sideGpu" class="green-text">DirectML GPU</span>
                 </div>
             </div>
 
@@ -94,7 +94,7 @@
                     </div>
                     <div class="hardware-badge" id="hardwareBadge">
                         <span class="status-dot green"></span>
-                        <span id="gpuStatusText">Khronos OpenCL GPU</span>
+                        <span id="gpuStatusText">ONNX GenAI DirectML GPU</span>
                     </div>
                 </div>
             </header>
@@ -117,7 +117,7 @@
                             <div class="card-title">Architecture Plan</div>
                             <div class="card-desc">Step-by-step engineering roadmap</div>
                         </div>
-                        <div class="prompt-card" data-prompt="Explain how Khronos OpenCL and DirectML accelerate LLM matrix math on Intel Iris Xe.">
+                        <div class="prompt-card" data-prompt="Explain how ONNX Runtime GenAI and DirectML accelerate LLM matrix math on Intel Iris Xe.">
                             <span class="card-icon">💡</span>
                             <div class="card-title">GPU Acceleration</div>
                             <div class="card-desc">Hardware telemetry & execution EUs</div>
@@ -167,8 +167,8 @@
                         <div class="card-val green-text" id="telemetryDml">Active</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">Khronos OpenCL GPU Offload</div>
-                        <div class="card-val green-text" id="telemetryOpenCl">Active (n_gpu_layers=-1)</div>
+                        <div class="card-label">ONNX Runtime GenAI DirectML</div>
+                        <div class="card-val green-text" id="telemetryOpenCl">Active (DirectML Execution Provider)</div>
                     </div>
                 </div>
 

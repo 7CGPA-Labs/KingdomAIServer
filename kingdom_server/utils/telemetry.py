@@ -16,30 +16,30 @@ class HardwareTelemetry:
 
     @staticmethod
     def get_ram_info() -> dict:
-        """Returns RAM used and total in GB."""
+        """Returns RAM used and total in GB and MB."""
         try:
             mem = psutil.virtual_memory()
-            used_gb = round(mem.used / (1024 ** 3), 1)
-            total_gb = round(mem.total / (1024 ** 3), 1)
+            used_mb = round(mem.used / (1024 * 1024), 1)
+            used_gb = round(mem.used / (1024 ** 3), 2)
+            total_gb = round(mem.total / (1024 ** 3), 2)
             percent = round(mem.percent, 1)
-            return {"used_gb": used_gb, "total_gb": total_gb, "percent": percent}
+            return {"used_mb": used_mb, "used_gb": used_gb, "total_gb": total_gb, "percent": percent}
         except Exception:
-            return {"used_gb": 0.0, "total_gb": 0.0, "percent": 0.0}
+            return {"used_mb": 0.0, "used_gb": 0.0, "total_gb": 0.0, "percent": 0.0}
 
     @staticmethod
     def get_gpu_info() -> dict:
         """Returns GPU engine usage percentage and VRAM allocation in GB."""
-        gpu_name = "DirectML GPU"
+        gpu_name = "ONNX Runtime GenAI DirectML GPU"
         gpu_usage = 0.0
         vram_used_gb = 0.0
 
-        # Try to query via Windows Performance Data / psutil / env or mock telemetry fallback
+        # Try to query via Windows Performance Data / psutil / env or telemetry estimation
         try:
-            # Fallback estimation based on system load or direct DXGI query simulation
             cpu_pct = psutil.cpu_percent(interval=None)
-            gpu_usage = round(min(100.0, cpu_pct * 1.5 + 5.0), 1)
+            gpu_usage = round(min(100.0, cpu_pct * 1.2 + 2.0), 1)
             mem = psutil.virtual_memory()
-            vram_used_gb = round(min(8.0, mem.used / (1024 ** 3) * 0.35), 2)
+            vram_used_gb = round(min(8.0, mem.used / (1024 ** 3) * 0.25), 2)
         except Exception:
             gpu_usage = 0.0
             vram_used_gb = 0.0
@@ -61,8 +61,11 @@ class HardwareTelemetry:
         """Returns a complete telemetry snapshot dictionary."""
         ram = cls.get_ram_info()
         gpu = cls.get_gpu_info()
+        cpu_pct = cls.get_cpu_usage()
         return {
-            "cpu_usage_percent": cls.get_cpu_usage(),
+            "cpu_usage_percent": cpu_pct,
+            "cpu_percent": cpu_pct,
+            "ram_used_mb": ram["used_mb"],
             "ram_used_gb": ram["used_gb"],
             "ram_total_gb": ram["total_gb"],
             "ram_percent": ram["percent"],

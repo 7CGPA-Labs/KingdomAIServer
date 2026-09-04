@@ -341,10 +341,12 @@ class ModelDownloader:
                 if temp_target.exists():
                     temp_target.unlink(missing_ok=True)
 
-            # Engine Strategy 3: Native Windows curl.exe -L -k (bypasses Zscaler corporate proxy TLS restrictions)
+            # Engine Strategy 3: Native Windows curl.exe -L -k -C - --retry 5 (bypasses Zscaler corporate proxy TLS restrictions & resumes interrupted downloads)
             try:
                 curl_cmd = [
                     "curl.exe", "-L", "-k", "-s",
+                    "--retry", "5", "--retry-delay", "2",
+                    "-C", "-",
                     "-A", headers["User-Agent"],
                     "-o", str(temp_target),
                     download_url

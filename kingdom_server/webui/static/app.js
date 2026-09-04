@@ -231,23 +231,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const models = data.models || {};
                 const vault = data.vault || {};
                 
-                const cpuVal = telem.cpu_percent ? telem.cpu_percent : 4.5;
-                const ramVal = telem.ram_used_mb ? telem.ram_used_mb : 380;
-                const ramPct = telem.ram_percent ? telem.ram_percent : 12;
+                const cpuVal = (telem.cpu_percent !== undefined) ? telem.cpu_percent : (telem.cpu_usage_percent !== undefined ? telem.cpu_usage_percent : 4.5);
+                const ramVal = telem.ram_used_mb !== undefined ? telem.ram_used_mb : 380;
+                const ramPct = telem.ram_percent !== undefined ? telem.ram_percent : 12;
                 
                 // Update Top Header Telemetry Badges
                 headCpu.textContent = `${cpuVal}%`;
                 headRam.textContent = `${ramVal} MB`;
                 headModels.textContent = `${models.online || 9}/${models.total || 9}`;
 
-                const dmlTier = tiers.ministers_tier || 'DirectML GPU';
-                const bossTier = tiers.boss_tier || 'Khronos OpenCL GPU';
-                gpuStatusText.textContent = bossTier.includes('OpenCL') ? 'Khronos OpenCL GPU' : dmlTier;
+                const dmlTier = tiers.ministers_tier || 'DirectML GPU (DirectX 12)';
+                const bossTier = tiers.boss_tier || 'ONNX Runtime GenAI DirectML';
+                gpuStatusText.textContent = bossTier.includes('DirectML') || bossTier.includes('GenAI') ? bossTier : dmlTier;
 
                 // Update Sidebar Mini Telemetry Widget
                 sideCpu.textContent = `${cpuVal}%`;
                 sideRam.textContent = `${ramVal} MB`;
-                sideGpu.textContent = bossTier.includes('OpenCL') ? 'Khronos OpenCL' : 'DirectML GPU';
+                sideGpu.textContent = bossTier.includes('DirectML') ? 'DirectML GPU' : 'CPU Acceleration';
 
                 // Update Modal Telemetry Dashboard
                 document.getElementById('telemetryCpu').textContent = `${cpuVal}%`;
@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tbody = document.getElementById('modelsTableBody');
                 tbody.innerHTML = '';
                 const modelList = [
-                    { name: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', tier: bossTier },
+                    { name: 'qwen2.5-coder-1.5b-onnx', tier: bossTier },
                     { name: 'all-MiniLM-L6-v2.onnx', tier: dmlTier },
                     { name: 'bge-small-en-v1.5.onnx', tier: dmlTier },
                     { name: 'bge-reranker-base.onnx', tier: dmlTier },
