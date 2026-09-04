@@ -31,6 +31,8 @@ jobs:
           python -m pip install huggingface_hub truststore httpx rich
 
       - name: Download Model Artifacts from Source (HuggingFace / ONNX Community)
+        env:
+          SKIP_GITHUB_MIRROR: "1"
         run: |
           python -c "from kingdom_server.utils.downloader import ModelDownloader; from pathlib import Path; ModelDownloader(Path('dist_models')).auto_provision_missing()"
 
@@ -38,4 +40,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server ONNX Model Weights Mirror" --notes "Pre-built ONNX model binary artifacts for corporate proxy fallbacks" || gh release upload v1.0.0-models dist_models/* --clobber
+          gh release delete v1.0.0-models -y --cleanup-tag || true
+          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server Model Weights Mirror" --notes "Pre-built INT4 Quantized ONNX and INT8 ONNX model binary artifacts for corporate proxy fallbacks"

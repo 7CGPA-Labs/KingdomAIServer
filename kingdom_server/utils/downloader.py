@@ -160,7 +160,8 @@ class ModelDownloader:
             urls_to_try.append(f"{custom_mirror}/{target_filename}")
 
         # 2. GitHub Release Mirror URL (Bypasses Zscaler domain blocks on corporate developer laptops)
-        urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{target_filename}")
+        if not os.environ.get("SKIP_GITHUB_MIRROR"):
+            urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{target_filename}")
 
         # 3. Primary Hugging Face LFS CDN URL
         urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
@@ -170,7 +171,7 @@ class ModelDownloader:
             "Accept": "*/*",
         }
 
-        temp_target = target_path.with_suffix(".tmp")
+        temp_target = self.models_dir / f"{target_filename}.part"
         if temp_target.exists():
             try:
                 temp_target.unlink(missing_ok=True)
@@ -183,6 +184,7 @@ class ModelDownloader:
         for download_url in urls_to_try:
             # Engine Strategy 1: PowerShell System.Net.WebClient with DefaultWebProxy & DefaultNetworkCredentials (Corporate Windows PAC/NTLM/SSO Engine)
             if sys.platform == "win32":
+                script_path = self.models_dir / f"_down_{int(time.time())}.ps1"
                 try:
                     ps_script = f"""
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -192,7 +194,6 @@ class ModelDownloader:
                     $wc.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
                     $wc.DownloadFile("{download_url}", "{temp_target}")
                     """
-                    script_path = self.models_dir / f"_down_{int(time.time())}.ps1"
                     script_path.write_text(ps_script, encoding="utf-8")
 
                     proc = subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)])
@@ -210,8 +211,6 @@ class ModelDownloader:
                                 progress.update(task_id, advance=delta)
                                 last_size = curr_size
 
-                    script_path.unlink(missing_ok=True)
-
                     if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
                         if target_path.exists():
                             target_path.unlink(missing_ok=True)
@@ -220,11 +219,14 @@ class ModelDownloader:
                         if progress and task_id is not None:
                             size = target_path.stat().st_size
                             progress.update(task_id, total=size, completed=size)
+                        script_path.unlink(missing_ok=True)
                         return True
                     else:
                         errors.append(f"PowerShell WebClient ({download_url}): Zscaler/HTML Blocked or code {proc.returncode}")
                 except Exception as e:
                     errors.append(f"PowerShell WebClient ({download_url}): {e}")
+                finally:
+                    script_path.unlink(missing_ok=True)
                     if temp_target.exists():
                         temp_target.unlink(missing_ok=True)
 
@@ -373,9 +375,18 @@ class ModelDownloader:
                 if not success:
                     progress.update(t_id, description=f"[red]Failed ({m['name']})[/red]")
 
-        # Clean up temporary .cache and onnx subfolders
+        # Clean up temporary .cache, .tmp, .part, and onnx subfolders
         shutil.rmtree(self.models_dir / ".cache", ignore_errors=True)
         shutil.rmtree(self.models_dir / "onnx", ignore_errors=True)
+        for p in self.models_dir.glob("*.tmp"):
+            try: p.unlink(missing_ok=True)
+            except Exception: pass
+        for p in self.models_dir.glob("*.part"):
+            try: p.unlink(missing_ok=True)
+            except Exception: pass
+        for p in self.models_dir.glob("_down_*.ps1"):
+            try: p.unlink(missing_ok=True)
+            except Exception: pass
 
         post_summary = self.verifier.get_summary()
         console.print(f"\n[bold green]✔ Auto-provisioning complete! {post_summary['valid']}/{post_summary['total']} models verified online.[/bold green]\n")
