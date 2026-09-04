@@ -24,7 +24,7 @@ def create_release_archive():
     # 1. Copy source codebase package
     src_dir = staging_dir / "src"
     src_dir.mkdir(parents=True, exist_ok=True)
-    for item in ["kingdom_server", "pyproject.toml", "README.md", "main.py", "start_server.py"]:
+    for item in ["kingdom_server", "pyproject.toml", "README.md", "LICENSE", "main.py", "start_server.py", "download_models.py"]:
         target = project_root / item
         if target.is_dir():
             shutil.copytree(target, src_dir / item)

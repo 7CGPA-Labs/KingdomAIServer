@@ -110,10 +110,10 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
 }
 
 # Create start_server.cmd and download_models.cmd launcher wrappers in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
-$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\main.py`" %*`r`n) else (`r`n    python.exe `"%~dp0..\src\main.py`" %*`r`n)"
+$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\start_server.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\start_server.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\start_server.py`" %*`r`n    )`r`n) else if exist `"%~dp0..\src\main.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\main.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\main.py`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m main %*`r`n    ) else (`r`n        python.exe -m main %*`r`n    )`r`n)"
 Set-Content -Path "$BinDir\start_server.cmd" -Value $LauncherCmd -Encoding ASCII
 
-$DownloadCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.py`" %*`r`n) else (`r`n    python.exe `"%~dp0..\src\download_models.py`" %*`r`n)"
+$DownloadCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\download_models.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\download_models.py`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m kingdom_server.utils.downloader %*`r`n    ) else (`r`n        python.exe -m kingdom_server.utils.downloader %*`r`n    )`r`n)"
 Set-Content -Path "$BinDir\download_models.cmd" -Value $DownloadCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
