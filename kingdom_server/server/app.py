@@ -87,6 +87,8 @@ app.add_middleware(
 async def security_guardrails_middleware(request: Request, call_next):
     # 1. Strict Loopback Binding & Client Host Check (Prevents LAN probing)
     client_host = request.client.host if request.client else ""
+    if client_host.startswith("::ffff:"):
+        client_host = client_host[7:]
     if client_host not in ("127.0.0.1", "::1", "testclient", "localhost"):
         return JSONResponse(
             status_code=403,
