@@ -158,16 +158,30 @@ class KingdomOrchestrator:
                 params = og.GeneratorParams(self.genai_model)
                 params.set_search_options(max_length=4096, temperature=temperature)
                 input_tokens = self.genai_tokenizer.encode(prompt_text)
-                params.input_ids = input_tokens
 
                 generator = og.Generator(self.genai_model, params)
+                if hasattr(generator, "append_tokens"):
+                    generator.append_tokens(input_tokens)
+                elif hasattr(params, "input_ids"):
+                    try:
+                        params.input_ids = input_tokens
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        generator.set_inputs(input_tokens)
+                    except Exception:
+                        pass
+
                 tokenizer_stream = self.genai_tokenizer.create_stream()
 
                 full_text = ""
                 while not generator.is_done():
                     generator.generate_next_token()
-                    new_token = generator.get_next_tokens()[0]
-                    delta_text = tokenizer_stream.decode(new_token)
+                    next_tokens = generator.get_next_tokens()
+                    if len(next_tokens) > 0:
+                        new_token = next_tokens[0]
+                        delta_text = tokenizer_stream.decode(new_token)
                     if delta_text:
                         full_text += delta_text
                         chunk_data = {
