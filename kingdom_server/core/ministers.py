@@ -128,7 +128,7 @@ class Minister2RepoEmbedder(BaseMinister):
         super().__init__("Minister 2 (Repo Embedder)", "bge-small-en-v1.5.onnx", hardware_engine, models_dir)
 
     def embed(self, text: str) -> List[float]:
-        if self.session is not None:
+        if self.is_onnx_loaded and self.session is not None:
             try:
                 import numpy as np
                 input_ids = np.array([[ord(c) % 30522 for c in text[:128]] + [0] * (128 - len(text[:128]))], dtype=np.int64)
@@ -192,7 +192,7 @@ class Minister5SpeedAutocomplete(BaseMinister):
         super().__init__("Minister 5 (Speed Autocomplete)", "granite-code-128m.onnx", hardware_engine, models_dir)
 
     def autocomplete(self, prefix: str, suffix: str = "") -> str:
-        if self.session is not None:
+        if self.is_onnx_loaded and self.session is not None:
             try:
                 import numpy as np
                 tokens = [ord(c) % 50257 for c in prefix[-64:]]

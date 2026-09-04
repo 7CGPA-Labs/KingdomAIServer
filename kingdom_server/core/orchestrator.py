@@ -19,7 +19,7 @@ logger = logging.getLogger("kingdom.orchestrator")
 class KingdomOrchestrator:
     """Master Orchestrator coordinating Master Boss (Qwen2.5-Coder ONNX) and 8 ONNX Ministers."""
 
-    def __init__(self, models_dir: Optional[Any] = None, db_path: Optional[Any] = None, preload_in_background: bool = True):
+    def __init__(self, models_dir: Optional[Any] = None, db_path: Optional[Any] = None, preload_in_background: bool = False):
         self.models_dir = models_dir or get_models_dir()
         self.hardware_engine = HardwareAccelerationEngine()
         self.minister_factory = MinisterFactory(self.hardware_engine, self.models_dir)
@@ -32,8 +32,6 @@ class KingdomOrchestrator:
 
         if preload_in_background:
             threading.Thread(target=self._background_preload, daemon=True, name="model-preloader").start()
-        else:
-            self._background_preload()
 
     def _background_preload(self):
         logger.info("Background model pre-loading started...")
