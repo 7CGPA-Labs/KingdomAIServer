@@ -147,53 +147,66 @@ class ModelDownloader:
                 except Exception as e:
                     logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
 
-        # Ensure genai_config.json exists for onnxruntime-genai model loading
+        # Ensure genai_config.json exists and is valid for onnxruntime-genai model loading
         genai_config_path = target_dir / "genai_config.json"
-        if not genai_config_path.exists() or genai_config_path.stat().st_size == 0 or self.is_html_block_page(genai_config_path):
-            import json
-            default_genai_config = {
-                "model": {
-                    "bos_token_id": 151643,
-                    "context_length": 4096,
-                    "decoder": {
-                        "filename": "model.onnx",
-                        "head_size": 128,
-                        "hidden_size": 1536,
-                        "inputs": {
-                            "input_ids": "input_ids",
-                            "position_ids": "position_ids",
-                            "attention_mask": "attention_mask"
-                        },
-                        "num_attention_heads": 12,
-                        "num_key_value_heads": 2,
-                        "num_hidden_layers": 28,
-                        "type": "qwen2"
+        import json
+        default_genai_config = {
+            "model": {
+                "bos_token_id": 151643,
+                "context_length": 4096,
+                "decoder": {
+                    "filename": "model.onnx",
+                    "head_size": 128,
+                    "hidden_size": 1536,
+                    "inputs": {
+                        "input_ids": "input_ids",
+                        "position_ids": "position_ids",
+                        "attention_mask": "attention_mask"
                     },
-                    "eos_token_id": 151643,
-                    "pad_token_id": 151643,
-                    "type": "qwen2",
-                    "vocab_size": 151936
+                    "num_attention_heads": 12,
+                    "num_key_value_heads": 2,
+                    "num_hidden_layers": 28
                 },
-                "search": {
-                    "diversity_penalty": 0.0,
-                    "do_sample": True,
-                    "early_stopping": True,
-                    "length_penalty": 1.0,
-                    "max_length": 4096,
-                    "min_length": 0,
-                    "no_repeat_ngram_size": 0,
-                    "num_beams": 1,
-                    "num_return_sequences": 1,
-                    "past_present_share_buffer": True,
-                    "repetition_penalty": 1.0,
-                    "temperature": 0.7,
-                    "top_k": 50,
-                    "top_p": 0.9
-                }
+                "eos_token_id": 151643,
+                "pad_token_id": 151643,
+                "type": "qwen2",
+                "vocab_size": 151936
+            },
+            "search": {
+                "diversity_penalty": 0.0,
+                "do_sample": True,
+                "early_stopping": True,
+                "length_penalty": 1.0,
+                "max_length": 4096,
+                "min_length": 0,
+                "no_repeat_ngram_size": 0,
+                "num_beams": 1,
+                "num_return_sequences": 1,
+                "past_present_share_buffer": True,
+                "repetition_penalty": 1.0,
+                "temperature": 0.7,
+                "top_k": 50,
+                "top_p": 0.9
             }
+        }
+
+        should_write = False
+        if not genai_config_path.exists() or genai_config_path.stat().st_size == 0 or self.is_html_block_page(genai_config_path):
+            should_write = True
+        else:
+            try:
+                data = json.loads(genai_config_path.read_text(encoding="utf-8"))
+                if "model" in data and "decoder" in data["model"] and "type" in data["model"]["decoder"]:
+                    del data["model"]["decoder"]["type"]
+                    default_genai_config = data
+                    should_write = True
+            except Exception:
+                should_write = True
+
+        if should_write:
             try:
                 genai_config_path.write_text(json.dumps(default_genai_config, indent=4), encoding="utf-8")
-                logger.info("Generated default genai_config.json for ONNX Runtime GenAI")
+                logger.info("Provisioned/Repaired genai_config.json for ONNX Runtime GenAI")
             except Exception as e:
                 logger.debug(f"Failed to write genai_config.json: {e}")
 
