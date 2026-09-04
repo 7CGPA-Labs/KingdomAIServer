@@ -113,7 +113,17 @@ class ModelDownloader:
     """Thin-client model auto-provisioning engine using Multi-Source Mirror Fallbacks for corporate laptops behind Zscaler."""
 
     def __init__(self, models_dir: Optional[Path] = None):
-        self.models_dir = Path(models_dir) if models_dir else get_models_dir()
+        if models_dir is not None:
+            self.models_dir = Path(models_dir)
+        else:
+            dist_cwd = Path("dist_models")
+            dist_parent = Path("..") / "dist_models"
+            if dist_cwd.exists() and dist_cwd.is_dir():
+                self.models_dir = dist_cwd.resolve()
+            elif dist_parent.exists() and dist_parent.is_dir():
+                self.models_dir = dist_parent.resolve()
+            else:
+                self.models_dir = get_models_dir()
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.verifier = ModelVerifier(self.models_dir)
 

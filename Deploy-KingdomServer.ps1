@@ -109,9 +109,12 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     $Deployed = $true
 }
 
-# Create start_server.cmd launcher wrapper in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
+# Create start_server.cmd and download_models.cmd launcher wrappers in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
 $LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\main.py`" %*`r`n) else (`r`n    python.exe `"%~dp0..\src\main.py`" %*`r`n)"
 Set-Content -Path "$BinDir\start_server.cmd" -Value $LauncherCmd -Encoding ASCII
+
+$DownloadCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.py`" %*`r`n) else (`r`n    python.exe `"%~dp0..\src\download_models.py`" %*`r`n)"
+Set-Content -Path "$BinDir\download_models.cmd" -Value $DownloadCmd -Encoding ASCII
 
 # Unblock files against Windows Defender Zone.Identifier
 Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundColor Cyan

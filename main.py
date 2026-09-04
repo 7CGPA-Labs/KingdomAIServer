@@ -49,6 +49,13 @@ def start_server():
     print(" Status: ● ACTIVE  |  Endpoint: http://127.0.0.1:58420")
     print("======================================================================")
     
+    # Auto-provision any missing model weights
+    try:
+        from kingdom_server.utils.downloader import ModelDownloader
+        ModelDownloader().auto_provision_missing()
+    except Exception as e:
+        print(f"⚠️ Model auto-provisioning check warning: {e}")
+
     # Auto-launch default browser to Open WebUI after Uvicorn starts listening
     def _open_browser():
         time.sleep(1.5)
