@@ -34,8 +34,13 @@ for proto in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
 from huggingface_hub import hf_hub_download, hf_hub_url
 import httpx
 
-# Enable VT100 / Virtual Terminal processing on Windows console host to prevent duplicate line refreshes
+# Enable VT100 / Virtual Terminal processing and UTF-8 console output on Windows
 if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     os.system("")
 
 # Disable internal tqdm progress bars from huggingface_hub to prevent terminal stream collision with Rich
