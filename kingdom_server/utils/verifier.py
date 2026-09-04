@@ -112,6 +112,20 @@ class ModelVerifier:
             return result
 
         if target_file.is_dir():
+            # Auto-flatten double-nested extraction folder (e.g. qwen2.5-coder-1.5b-onnx/qwen2.5-coder-1.5b-onnx/)
+            subdirs = [d for d in target_file.iterdir() if d.is_dir()]
+            if len(subdirs) == 1 and not (target_file / "model.onnx").exists():
+                nested_dir = subdirs[0]
+                try:
+                    import shutil
+                    for item in nested_dir.iterdir():
+                        dest = target_file / item.name
+                        if not dest.exists():
+                            shutil.move(item, dest)
+                    shutil.rmtree(nested_dir, ignore_errors=True)
+                except Exception:
+                    pass
+
             total_bytes = sum(f.stat().st_size for f in target_file.glob("**/*") if f.is_file())
             size_mb = round(total_bytes / (1024 * 1024), 2)
             result["actual_mb"] = size_mb

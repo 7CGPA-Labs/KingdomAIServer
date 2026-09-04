@@ -130,7 +130,7 @@ class ModelDownloader:
     def provision_qwen_onnx_config_files(self, target_dir: Path):
         """Provisions genai_config.json and tokenizers for ONNX GenAI inside qwen2.5-coder-1.5b-onnx/ directory."""
         target_dir.mkdir(parents=True, exist_ok=True)
-        config_files = ["genai_config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
+        config_files = ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
         repo_id = "onnx-community/Qwen2.5-Coder-1.5B-Instruct"
 
         for cf in config_files:
@@ -146,6 +146,56 @@ class ModelDownloader:
                             logger.info(f"Downloaded ONNX GenAI config asset: {cf}")
                 except Exception as e:
                     logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
+
+        # Ensure genai_config.json exists for onnxruntime-genai model loading
+        genai_config_path = target_dir / "genai_config.json"
+        if not genai_config_path.exists() or genai_config_path.stat().st_size == 0 or self.is_html_block_page(genai_config_path):
+            import json
+            default_genai_config = {
+                "model": {
+                    "bos_token_id": 151643,
+                    "context_length": 4096,
+                    "decoder": {
+                        "filename": "model.onnx",
+                        "head_size": 128,
+                        "hidden_size": 1536,
+                        "inputs": {
+                            "input_ids": "input_ids",
+                            "position_ids": "position_ids",
+                            "attention_mask": "attention_mask"
+                        },
+                        "num_attention_heads": 12,
+                        "num_key_value_heads": 2,
+                        "num_hidden_layers": 28,
+                        "type": "qwen2"
+                    },
+                    "eos_token_id": 151643,
+                    "pad_token_id": 151643,
+                    "type": "qwen2",
+                    "vocab_size": 151936
+                },
+                "search": {
+                    "diversity_penalty": 0.0,
+                    "do_sample": True,
+                    "early_stopping": True,
+                    "length_penalty": 1.0,
+                    "max_length": 4096,
+                    "min_length": 0,
+                    "no_repeat_ngram_size": 0,
+                    "num_beams": 1,
+                    "num_return_sequences": 1,
+                    "past_present_share_buffer": True,
+                    "repetition_penalty": 1.0,
+                    "temperature": 0.7,
+                    "top_k": 50,
+                    "top_p": 0.9
+                }
+            }
+            try:
+                genai_config_path.write_text(json.dumps(default_genai_config, indent=4), encoding="utf-8")
+                logger.info("Generated default genai_config.json for ONNX Runtime GenAI")
+            except Exception as e:
+                logger.debug(f"Failed to write genai_config.json: {e}")
 
     def _finalize_model_file(self, temp_target: Path, target_filename: str):
         """Finalizes downloaded binary or zip archive into single file or ONNX GenAI directory structure."""
@@ -177,6 +227,24 @@ class ModelDownloader:
             else:
                 if temp_target.exists():
                     temp_target.unlink(missing_ok=True)
+
+            # Flatten nested extracted subfolders if zip created a top-level parent folder
+            subdirs = [d for d in target_path.iterdir() if d.is_dir()]
+            if len(subdirs) == 1 and not (target_path / "model.onnx").exists():
+                nested_dir = subdirs[0]
+                for item in nested_dir.iterdir():
+                    dest = target_path / item.name
+                    if dest.exists():
+                        if dest.is_dir(): shutil.rmtree(dest, ignore_errors=True)
+                        else: dest.unlink(missing_ok=True)
+                    shutil.move(item, dest)
+                shutil.rmtree(nested_dir, ignore_errors=True)
+
+            # Rename model_quantized.onnx to model.onnx if necessary
+            quantized_bin = target_path / "model_quantized.onnx"
+            model_bin = target_path / "model.onnx"
+            if quantized_bin.exists() and not model_bin.exists():
+                shutil.move(quantized_bin, model_bin)
 
             self.provision_qwen_onnx_config_files(target_path)
         else:
