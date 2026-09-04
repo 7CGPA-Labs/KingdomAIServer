@@ -49,7 +49,22 @@ class KingdomOrchestrator:
                 return
             self._boss_initialized = True
             genai_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
-            if genai_path.exists():
+            if genai_path.is_file():
+                try:
+                    file_bytes = genai_path.read_bytes()
+                    genai_path.unlink()
+                    genai_path.mkdir(parents=True, exist_ok=True)
+                    (genai_path / "model.onnx").write_bytes(file_bytes)
+                except Exception:
+                    pass
+
+            if genai_path.exists() and genai_path.is_dir():
+                try:
+                    from kingdom_server.utils.downloader import ModelDownloader
+                    ModelDownloader(self.models_dir).provision_qwen_onnx_config_files(genai_path)
+                except Exception as e:
+                    logger.debug(f"Error provisioning ONNX config files: {e}")
+
                 try:
                     import onnxruntime_genai as og
                     backend = self.hardware_engine.resolve_genai_backend()
@@ -66,8 +81,6 @@ class KingdomOrchestrator:
 
     @property
     def is_boss_loaded(self) -> bool:
-        if self.genai_model is None and not self._boss_initialized:
-            self._init_boss_llm()
         return self.genai_model is not None
 
     def get_model_status(self) -> Dict[str, bool]:
@@ -125,6 +138,7 @@ class KingdomOrchestrator:
         code_structure = self.ministers["minister_4"].parse_code(user_content)
 
         # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
+        self._init_boss_llm()
         if self.genai_model is not None and self.genai_tokenizer is not None:
             system_instruction = (
                 "You are Kingdom AI (Main Boss: Qwen2.5-Coder), an expert software engineering assistant. "

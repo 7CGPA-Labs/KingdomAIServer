@@ -127,6 +127,26 @@ class ModelDownloader:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.verifier = ModelVerifier(self.models_dir)
 
+    def provision_qwen_onnx_config_files(self, target_dir: Path):
+        """Provisions genai_config.json and tokenizers for ONNX GenAI inside qwen2.5-coder-1.5b-onnx/ directory."""
+        target_dir.mkdir(parents=True, exist_ok=True)
+        config_files = ["genai_config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
+        repo_id = "onnx-community/Qwen2.5-Coder-1.5B-Instruct"
+
+        for cf in config_files:
+            file_path = target_dir / cf
+            if not file_path.exists() or file_path.stat().st_size == 0 or self.is_html_block_page(file_path):
+                url = f"https://huggingface.co/{repo_id}/raw/main/{cf}"
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 KingdomAIServer/1.0"})
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        if resp.status == 200:
+                            content = resp.read()
+                            file_path.write_bytes(content)
+                            logger.info(f"Downloaded ONNX GenAI config asset: {cf}")
+                except Exception as e:
+                    logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
+
     def is_html_block_page(self, filepath: Path) -> bool:
         """Checks if a downloaded file is an HTML proxy block page (e.g. Zscaler 403 Forbidden Access Blocked)."""
         if not filepath.exists() or filepath.stat().st_size == 0:

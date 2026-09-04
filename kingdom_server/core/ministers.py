@@ -97,8 +97,6 @@ class BaseMinister:
 
     @property
     def is_onnx_loaded(self) -> bool:
-        if self.session is None:
-            self._load_session()
         return self.session is not None
 
 

@@ -35,6 +35,7 @@ def test_ministers_mock_onnx_session(tmp_path):
 
     with patch.dict("sys.modules", {"onnxruntime": mock_ort}):
         minister1 = MinisterFactory(hw_engine, models_dir=tmp_path).create_all_ministers()["minister_1"]
+        minister1._load_session()
         assert minister1.is_onnx_loaded is True
         assert minister1.session == mock_instance
 
@@ -60,5 +61,6 @@ def test_orchestrator_mock_genai_boss_loaded(tmp_path):
 
     with patch.dict("sys.modules", {"onnxruntime_genai": mock_og_mod}):
         orch = KingdomOrchestrator(models_dir=tmp_path)
+        orch._init_boss_llm()
         assert orch.is_boss_loaded is True
         assert orch.get_model_status()["boss_qwen2.5"] is True
