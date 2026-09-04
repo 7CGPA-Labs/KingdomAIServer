@@ -45,9 +45,8 @@ class KingdomOrchestrator:
 
     def _init_boss_llm(self):
         with self._boss_lock:
-            if self._boss_initialized:
+            if self.genai_model is not None:
                 return
-            self._boss_initialized = True
             genai_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
             if genai_path.is_file():
                 try:
@@ -265,7 +264,7 @@ class KingdomOrchestrator:
             return f"Predicted completion by Minister 5:\n```\n{user_content}{completion}\n```"
 
         parts = [
-            f"[Main Boss GGUF Model Artifact missing from {self.models_dir}]. Please run `kingdom download` to auto-provision qwen2.5-coder-1.5b-instruct-q4_k_m.gguf for full LLM text generation.",
+            f"[Main Boss ONNX Model Artifact missing from {self.models_dir}]. Please run `python download_models.py` or start the server to auto-provision qwen2.5-coder-1.5b-onnx for full LLM text generation.",
             f"Minister 1 (Intent Router): Classified intent as '{intent}'.",
         ]
         if code_structure and any(code_structure.values()):
