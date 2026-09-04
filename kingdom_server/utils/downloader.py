@@ -136,16 +136,22 @@ class ModelDownloader:
         for cf in config_files:
             file_path = target_dir / cf
             if not file_path.exists() or file_path.stat().st_size == 0 or self.is_html_block_page(file_path):
-                url = f"https://huggingface.co/{repo_id}/raw/main/{cf}"
-                try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 KingdomAIServer/1.0"})
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        if resp.status == 200:
-                            content = resp.read()
-                            file_path.write_bytes(content)
-                            logger.info(f"Downloaded ONNX GenAI config asset: {cf}")
-                except Exception as e:
-                    logger.debug(f"Failed to fetch {cf} from HF raw: {e}")
+                urls = [
+                    f"https://huggingface.co/{repo_id}/resolve/main/{cf}",
+                    f"https://huggingface.co/{repo_id}/raw/main/{cf}"
+                ]
+                for url in urls:
+                    try:
+                        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KingdomAIServer/1.0"})
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            if resp.status in (200, 302):
+                                content = resp.read()
+                                if not content.lower().startswith(b"version https://git-lfs"):
+                                    file_path.write_bytes(content)
+                                    logger.info(f"Downloaded valid ONNX GenAI config asset: {cf} ({len(content)} bytes)")
+                                    break
+                    except Exception as e:
+                        logger.debug(f"Failed to fetch {cf} from {url}: {e}")
 
         # Ensure genai_config.json exists and is valid for onnxruntime-genai model loading
         genai_config_path = target_dir / "genai_config.json"
@@ -269,13 +275,13 @@ class ModelDownloader:
             shutil.move(temp_target, target_path)
 
     def is_html_block_page(self, filepath: Path) -> bool:
-        """Checks if a downloaded file is an HTML proxy block page (e.g. Zscaler 403 Forbidden Access Blocked)."""
+        """Checks if a downloaded file is an HTML proxy block page or Git LFS pointer text file."""
         if not filepath.exists() or filepath.stat().st_size == 0:
             return True
         try:
             with open(filepath, "rb") as f:
                 header = f.read(1024).lower()
-                if b"<!doctype html" in header or b"<html" in header or b"zscaler" in header or b"internet security" in header or b"403 forbidden" in header or b"access-control-allow-origin" in header:
+                if b"<!doctype html" in header or b"<html" in header or b"zscaler" in header or b"internet security" in header or b"403 forbidden" in header or b"access-control-allow-origin" in header or b"version https://git-lfs" in header or (filepath.stat().st_size < 1024 and header.startswith(b"version ")):
                     return True
         except Exception:
             pass
