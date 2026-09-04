@@ -6,6 +6,7 @@ import os
 import re
 import math
 import logging
+import threading
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 from kingdom_server.utils import get_models_dir
@@ -60,7 +61,7 @@ class WorkspacePathJail:
 
 class BaseMinister:
     """Base class for all 8 Ministers."""
-    def __init__(self, name: str, model_filename: str, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
+    def __init__(self, name: str, model_filename: str, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None, lazy_load: bool = True):
         self.name = name
         self.model_filename = model_filename
         self.models_dir = Path(models_dir) if models_dir else get_models_dir()
@@ -68,29 +69,36 @@ class BaseMinister:
         self.hardware_engine = hardware_engine
         self.session = None
         self.provider, self.tier = self.hardware_engine.resolve_onnx_provider()
-        self._load_session()
+        self._lock = threading.Lock()
+        if not lazy_load:
+            self._load_session()
 
     def _load_session(self):
-        if self.model_path.exists() and self.model_path.stat().st_size > 0:
-            try:
-                import onnxruntime as ort
+        with self._lock:
+            if self.session is not None:
+                return
+            if self.model_path.exists() and self.model_path.stat().st_size > 0:
                 try:
-                    ort.set_default_logger_severity(3)
-                except Exception:
-                    pass
-                opts = ort.SessionOptions()
-                opts.log_severity_level = 3
-                opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                self.session = ort.InferenceSession(str(self.model_path), sess_options=opts, providers=[self.provider])
-                logger.info(f"{self.name} loaded ONNX session with provider {self.provider}")
-            except Exception as e:
-                logger.warning(f"Failed to load ONNX model for {self.name}: {e}.")
+                    import onnxruntime as ort
+                    try:
+                        ort.set_default_logger_severity(3)
+                    except Exception:
+                        pass
+                    opts = ort.SessionOptions()
+                    opts.log_severity_level = 3
+                    opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                    self.session = ort.InferenceSession(str(self.model_path), sess_options=opts, providers=[self.provider])
+                    logger.info(f"{self.name} loaded ONNX session with provider {self.provider}")
+                except Exception as e:
+                    logger.warning(f"Failed to load ONNX model for {self.name}: {e}.")
+                    self.session = None
+            else:
                 self.session = None
-        else:
-            self.session = None
 
     @property
     def is_onnx_loaded(self) -> bool:
+        if self.session is None:
+            self._load_session()
         return self.session is not None
 
 

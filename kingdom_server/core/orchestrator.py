@@ -12,12 +12,14 @@ from kingdom_server.core.ministers import MinisterFactory, BaseMinister
 from kingdom_server.core.memory_vault import MemoryVault
 from kingdom_server.utils import get_models_dir
 
+import threading
+
 logger = logging.getLogger("kingdom.orchestrator")
 
 class KingdomOrchestrator:
-    """Master Orchestrator coordinating Master Boss (Qwen2.5-Coder GGUF) and 8 ONNX Ministers."""
+    """Master Orchestrator coordinating Master Boss (Qwen2.5-Coder ONNX) and 8 ONNX Ministers."""
 
-    def __init__(self, models_dir: Optional[Any] = None, db_path: Optional[Any] = None):
+    def __init__(self, models_dir: Optional[Any] = None, db_path: Optional[Any] = None, preload_in_background: bool = True):
         self.models_dir = models_dir or get_models_dir()
         self.hardware_engine = HardwareAccelerationEngine()
         self.minister_factory = MinisterFactory(self.hardware_engine, self.models_dir)
@@ -25,27 +27,49 @@ class KingdomOrchestrator:
         self.memory_vault = MemoryVault(db_path=db_path)
         self.genai_model = None
         self.genai_tokenizer = None
+        self._boss_lock = threading.Lock()
+        self._boss_initialized = False
+
+        if preload_in_background:
+            threading.Thread(target=self._background_preload, daemon=True, name="model-preloader").start()
+        else:
+            self._background_preload()
+
+    def _background_preload(self):
+        logger.info("Background model pre-loading started...")
+        for name, minister in self.ministers.items():
+            try:
+                minister._load_session()
+            except Exception as e:
+                logger.warning(f"Error loading model for {name}: {e}")
         self._init_boss_llm()
+        logger.info("Background model pre-loading complete. Server fully operational.")
 
     def _init_boss_llm(self):
-        genai_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
-        if genai_path.exists():
-            try:
-                import onnxruntime_genai as og
-                backend = self.hardware_engine.resolve_genai_backend()
-                self.genai_model = og.Model(str(genai_path))
-                self.genai_tokenizer = og.Tokenizer(self.genai_model)
-                logger.info(f"Main Boss Qwen2.5 ONNX loaded with backend: {backend}")
-            except Exception as e:
-                logger.warning(f"onnxruntime-genai-directml error loading Qwen2.5 ONNX: {e}. Minister Council active.")
+        with self._boss_lock:
+            if self._boss_initialized:
+                return
+            self._boss_initialized = True
+            genai_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
+            if genai_path.exists():
+                try:
+                    import onnxruntime_genai as og
+                    backend = self.hardware_engine.resolve_genai_backend()
+                    self.genai_model = og.Model(str(genai_path))
+                    self.genai_tokenizer = og.Tokenizer(self.genai_model)
+                    logger.info(f"Main Boss Qwen2.5 ONNX loaded with backend: {backend}")
+                except Exception as e:
+                    logger.warning(f"onnxruntime-genai-directml error loading Qwen2.5 ONNX: {e}. Minister Council active.")
+                    self.genai_model = None
+                    self.genai_tokenizer = None
+            else:
                 self.genai_model = None
                 self.genai_tokenizer = None
-        else:
-            self.genai_model = None
-            self.genai_tokenizer = None
 
     @property
     def is_boss_loaded(self) -> bool:
+        if self.genai_model is None and not self._boss_initialized:
+            self._init_boss_llm()
         return self.genai_model is not None
 
     def get_model_status(self) -> Dict[str, bool]:

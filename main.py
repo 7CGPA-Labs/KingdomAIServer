@@ -17,6 +17,9 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+import threading
+import time
+
 def start_server():
     print("======================================================================")
     print(" 👑 KINGDOM AI SERVER & OPEN WEBUI (Enterprise Edition) • v1.0.0")
@@ -24,11 +27,15 @@ def start_server():
     print(" Status: ● ACTIVE  |  Endpoint: http://127.0.0.1:58420")
     print("======================================================================")
     
-    # Auto-launch default browser to Open WebUI
-    try:
-        webbrowser.open("http://127.0.0.1:58420")
-    except Exception:
-        pass
+    # Auto-launch default browser to Open WebUI after Uvicorn starts listening
+    def _open_browser():
+        time.sleep(1.5)
+        try:
+            webbrowser.open("http://127.0.0.1:58420")
+        except Exception:
+            pass
+
+    threading.Thread(target=_open_browser, daemon=True).start()
 
     # Start FastAPI Uvicorn Server
     uvicorn.run("kingdom_server.server.app:app", host="127.0.0.1", port=58420, reload=False)
