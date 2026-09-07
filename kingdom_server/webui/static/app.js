@@ -264,6 +264,23 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => toast.classList.remove('visible'), 2500);
     }
 
+    // Load Chat Turn History for Selected Session
+    async function openSession(sessionId) {
+        currentSessionId = sessionId;
+        try {
+            const res = await fetch(`/api/sessions/${sessionId}`);
+            if (res.ok) {
+                const history = await res.json();
+                messagesList.innerHTML = '';
+                welcomeScreen.style.display = 'none';
+                history.forEach(msg => {
+                    appendMessage(msg.role, msg.content);
+                });
+                loadSessions();
+            }
+        } catch (e) {}
+    }
+
     // Fetch and Load Saved Sessions from MemoryVault
     async function loadSessions() {
         try {
@@ -274,10 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessions.forEach(sess => {
                     const li = document.createElement('li');
                     li.className = `session-item ${sess.session_id === currentSessionId ? 'active' : ''}`;
+                    const labelText = sess.first_prompt || sess.snippet || sess.session_id;
                     li.innerHTML = `
-                        <span>${sess.snippet || sess.session_id}</span>
+                        <span>${labelText}</span>
                         <span style="font-size: 0.7rem; color: #64748b;">${sess.turn_count} turns</span>
                     `;
+                    li.addEventListener('click', () => openSession(sess.session_id));
                     sessionList.appendChild(li);
                 });
             }

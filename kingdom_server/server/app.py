@@ -282,6 +282,15 @@ async def get_sessions():
     return []
 
 
+@app.get("/api/sessions/{session_id}")
+async def get_session_history(session_id: str):
+    """Returns detailed turn history for a given session ID."""
+    orch = get_orchestrator()
+    if orch and orch.memory_vault:
+        return orch.memory_vault.get_session_history(session_id)
+    return []
+
+
 @app.post("/api/config/fix")
 async def fix_continue_config():
     """One-click Continue.dev config auto-repair endpoint."""
