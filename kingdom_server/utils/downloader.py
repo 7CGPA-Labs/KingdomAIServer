@@ -341,6 +341,9 @@ class ModelDownloader:
         # 3. Primary Hugging Face LFS CDN URL
         urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
 
+        # 4. Tertiary HF Community Mirror Fallback (hf-mirror.com)
+        urls_to_try.append(f"https://hf-mirror.com/{repo_id}/resolve/main/{hf_filename}")
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
             "Accept": "*/*",

@@ -66,6 +66,12 @@ class HardwareAccelerationEngine:
             return "ONNX Runtime GenAI DirectML (DirectX 12 GPU)"
         return "ONNX Runtime GenAI CPU (AVX2 Fallback)"
 
+    def get_shader_cache_dir(self) -> Path:
+        from kingdom_server.utils import get_base_dir
+        cache_dir = get_base_dir() / "shader_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir
+
     def get_active_tiers(self) -> dict:
         onnx_provider, onnx_tier = self.resolve_onnx_provider()
         genai_tier = self.resolve_genai_backend()
@@ -73,4 +79,5 @@ class HardwareAccelerationEngine:
             "onnx_provider": onnx_provider,
             "ministers_tier": onnx_tier,
             "boss_tier": genai_tier,
+            "shader_cache_path": str(self.get_shader_cache_dir())
         }

@@ -636,6 +636,31 @@ code.inline-code {
     transform: scale(1.05);
 }
 
+.stop-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    animation: stopPulse 1.5s infinite alternate;
+}
+
+@keyframes stopPulse {
+    0% { transform: scale(1); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+    100% { transform: scale(1.08); box-shadow: 0 0 16px rgba(239, 68, 68, 0.8); }
+}
+
+.stop-btn:hover {
+    transform: scale(1.1);
+}
+
 .input-footer {
     margin-top: 8px;
     font-size: 0.72rem;

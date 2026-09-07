@@ -82,7 +82,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enterprise Security Guardrails Middleware
+# Enterprise Security Guardrails Middleware (CSPA & Local Token Defense)
 @app.middleware("http")
 async def security_guardrails_middleware(request: Request, call_next):
     # 1. Strict Loopback Binding & Client Host Check (Prevents LAN probing)
@@ -95,7 +95,17 @@ async def security_guardrails_middleware(request: Request, call_next):
             content={"error": {"message": f"Access Denied: External interface client '{client_host}' blocked by enterprise loopback policy.", "type": "LoopbackSecurityError"}}
         )
 
-    # 2. Payload Size Clamping Middleware (2 MB Maximum Limit)
+    # 2. Cross-Site Port Attack (CSPA) Origin Header Inspection
+    origin = request.headers.get("origin", "").lower()
+    if origin:
+        allowed_origins = ("http://127.0.0.1", "http://localhost", "https://127.0.0.1", "https://localhost", "vscode-webview://", "null")
+        if not any(origin.startswith(ao) for ao in allowed_origins):
+            return JSONResponse(
+                status_code=403,
+                content={"error": {"message": f"Access Denied: Untrusted Origin '{origin}' blocked by Cross-Site Port Attack defense policy.", "type": "CSPASecurityError"}}
+            )
+
+    # 3. Payload Size Clamping Middleware (2 MB Maximum Limit)
     content_length = request.headers.get("content-length")
     if content_length:
         try:

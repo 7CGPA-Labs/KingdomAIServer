@@ -28,6 +28,7 @@ class KingdomOrchestrator:
         self.genai_model = None
         self.genai_tokenizer = None
         self._boss_lock = threading.Lock()
+        self._fim_lock = threading.Lock()
         self._boss_initialized = False
 
         if preload_in_background:
@@ -116,9 +117,47 @@ class KingdomOrchestrator:
 
         user_content = messages[-1].get("content", "") if messages else ""
 
+        # Check Prompt Response Cache for Sub-2ms Fast Return
+        query_vec = self.get_context_embeddings(user_content)
+        cached_reply = self.memory_vault.get_cached_response(user_content, query_vec)
+        if cached_reply:
+            cached_chunk = {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": created_ts,
+                "model": model,
+                "council_trace": [{"id": "cache", "name": "Response Cache", "detail": "Sub-2ms Hit", "status": "verified"}],
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": cached_reply},
+                    "finish_reason": None
+                }]
+            }
+            yield f"data: {json.dumps(cached_chunk)}\n\n"
+            end_chunk = {"id": completion_id, "object": "chat.completion.chunk", "created": created_ts, "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            yield f"data: {json.dumps(end_chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+            self.memory_vault.add_session_message(session_id, "user", user_content)
+            self.memory_vault.add_session_message(session_id, "assistant", cached_reply)
+            return
+
         # Minister 1: Intent Classification (ONNX Runtime)
         intent = self.route_request(user_content)
-        
+
+        # On-Demand SSRF-Protected Web Crawler RAG Integration
+        web_context = ""
+        if intent == "web_search" or "search" in user_content.lower() or "http://" in user_content.lower() or "https://" in user_content.lower():
+            try:
+                import re
+                from kingdom_server.core.crawler import WebCrawler
+                found_urls = re.findall(r'https?://[^\s]+', user_content)
+                if found_urls:
+                    crawl_res = WebCrawler().fetch_and_parse(found_urls[0])
+                    if crawl_res and crawl_res.get("text"):
+                        web_context = f"\n\n[Live Web Search Context]:\n{crawl_res['text'][:1500]}\n"
+            except Exception as e:
+                logger.debug(f"Web crawler execution error: {e}")
+
         # Minister 7: Security Vulnerability Audit
         audit_res = self.audit_security(user_content)
         security_warning = ""
@@ -127,14 +166,13 @@ class KingdomOrchestrator:
             security_warning = f"\n\n[Security Alert by Minister 7]: Potential vulnerabilities detected ({warning_details})."
 
         # Minister 2 & Minister 3: Dense Semantic Vector Embedding & RAG Re-Ranking
-        query_vec = self.get_context_embeddings(user_content)
         vector_matches = self.memory_vault.search_similar(query_vec, k=3)
-        retrieved_context = ""
+        retrieved_context = web_context
         if vector_matches:
             docs = [m["document"] for m in vector_matches if m["score"] > 0.3]
             ranked_docs = self.ministers["minister_3"].rerank(user_content, docs)
             if ranked_docs:
-                retrieved_context = "\n\n[Cognitive Memory Context by Minister 3 Re-Ranker]:\n" + "\n".join([doc[0] for doc in ranked_docs])
+                retrieved_context += "\n\n[Cognitive Memory Context by Minister 3 Re-Ranker]:\n" + "\n".join([doc[0] for doc in ranked_docs])
 
         # Minister 4: Code AST Parsing
         code_structure = self.ministers["minister_4"].parse_code(user_content)
@@ -294,6 +332,7 @@ class KingdomOrchestrator:
                 if not fact_res["verified"]:
                     full_text += "\n\n[Fact Check Warning by Minister 6]: Potential unverified patterns detected."
 
+                self.memory_vault.store_cached_response(user_content, full_text, query_vec)
                 self.memory_vault.add_session_message(session_id, "user", user_content)
                 self.memory_vault.add_session_message(session_id, "assistant", full_text + security_warning)
                 return
@@ -370,8 +409,10 @@ class KingdomOrchestrator:
         return "\n\n".join(parts)
 
     def fast_autocomplete(self, prefix: str, suffix: str = "") -> str:
-        minister_5 = self.ministers["minister_5"]
-        return minister_5.autocomplete(prefix, suffix)
+        """Fast single-line autocomplete via Minister 5 using dedicated non-blocking FIM lock."""
+        with self._fim_lock:
+            minister_5 = self.ministers["minister_5"]
+            return minister_5.autocomplete(prefix, suffix)
 
     def create_embeddings(self, input_data: Any) -> List[List[float]]:
         minister_2 = self.ministers["minister_2"]

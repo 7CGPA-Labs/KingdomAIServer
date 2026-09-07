@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newChatBtn = document.getElementById('newChatBtn');
     const promptInput = document.getElementById('promptInput');
     const sendBtn = document.getElementById('sendBtn');
+    const stopBtn = document.getElementById('stopBtn');
     const messagesList = document.getElementById('messagesList');
     const welcomeScreen = document.getElementById('welcomeScreen');
     const sessionList = document.getElementById('sessionList');
@@ -30,6 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeAgent = 'ask';
     let currentSessionId = null;
     let isGenerating = false;
+    let currentAbortController = null;
+
+    // Handle Stop Button Click
+    if (stopBtn) {
+        stopBtn.addEventListener('click', () => {
+            if (currentAbortController) {
+                currentAbortController.abort();
+                showToast('Generation stopped by user.');
+            }
+        });
+    }
 
     // Toggle Sidebar
     toggleSidebarBtn.addEventListener('click', () => {
@@ -88,8 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!text || isGenerating) return;
 
         isGenerating = true;
-        sendBtn.disabled = true;
+        sendBtn.style.display = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-flex';
         welcomeScreen.style.display = 'none';
+        currentAbortController = new AbortController();
 
         // Append User Message Bubble
         appendMessage('user', text);
@@ -105,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: currentAbortController.signal,
                 body: JSON.stringify({
                     model: 'qwen2.5-coder-1.5b',
                     messages: [{ role: 'user', content: text }],
@@ -150,10 +165,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             loadSessions(); // Refresh session history list
         } catch (err) {
-            contentDiv.innerHTML = `<span style="color: #ef4444;">Error generating response: ${err.message}</span>`;
+            if (err.name === 'AbortError') {
+                contentDiv.innerHTML += ` <span style="color: #f59e0b; font-style: italic;">[Generation stopped by user]</span>`;
+            } else {
+                contentDiv.innerHTML = `<span style="color: #ef4444;">Error generating response: ${err.message}</span>`;
+            }
         } finally {
             isGenerating = false;
-            sendBtn.disabled = false;
+            currentAbortController = null;
+            if (stopBtn) stopBtn.style.display = 'none';
+            sendBtn.style.display = 'inline-flex';
+            sendBtn.disabled = promptInput.value.trim() === '';
         }
     }
 

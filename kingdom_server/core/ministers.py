@@ -90,7 +90,15 @@ class BaseMinister:
                     opts.inter_op_num_threads = 2
                     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                    
+
+                    # DirectML Persistent PSO Shader Cache configuration
+                    try:
+                        shader_cache_dir = self.hardware_engine.get_shader_cache_dir()
+                        opts.add_session_config_entry("session.use_device_allocator_for_initializers", "1")
+                        opts.add_session_config_entry("session.ort_shader_cache_path", str(shader_cache_dir))
+                    except Exception as e:
+                        logger.debug(f"Shader cache config skipped: {e}")
+
                     available = ort.get_available_providers()
                     providers = []
                     if "DmlExecutionProvider" in available:
@@ -108,6 +116,19 @@ class BaseMinister:
                     self.session = None
             else:
                 self.session = None
+
+    def unload_session(self):
+        """Evicts active ONNX Runtime session from memory to free VRAM/RAM."""
+        with self._lock:
+            if self.session is not None:
+                try:
+                    del self.session
+                except Exception:
+                    pass
+                self.session = None
+                import gc
+                gc.collect()
+                logger.info(f"Evicted ONNX session for {self.name} to preserve VRAM.")
 
     @property
     def is_onnx_loaded(self) -> bool:

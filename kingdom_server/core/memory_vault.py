@@ -69,12 +69,77 @@ class MemoryVault:
                     );
                 """)
 
+                # Prompt Response Cache table for sub-2ms instant returns
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS response_cache (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        query_hash TEXT UNIQUE NOT NULL,
+                        prompt_text TEXT NOT NULL,
+                        response_text TEXT NOT NULL,
+                        vector_blob BLOB,
+                        hit_count INTEGER DEFAULT 1,
+                        timestamp REAL NOT NULL
+                    );
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_query_hash ON response_cache(query_hash);")
+
                 if self.has_sqlite_vec:
                     conn.execute("""
                         CREATE VIRTUAL TABLE IF NOT EXISTS vec_cognitive USING vec0(
                             embedding float[384]
                         );
                     """)
+        finally:
+            conn.close()
+
+    def get_cached_response(self, prompt_text: str, query_vector: Optional[List[float]] = None) -> Optional[str]:
+        """Checks for exact prompt query_hash match or semantic vector match (>0.95 cosine score)."""
+        import hashlib
+        q_hash = hashlib.sha256(prompt_text.strip().lower().encode("utf-8")).hexdigest()
+        conn = self._get_connection()
+        try:
+            cur = conn.execute("SELECT id, response_text, hit_count FROM response_cache WHERE query_hash = ?;", (q_hash,))
+            row = cur.fetchone()
+            if row:
+                with conn:
+                    conn.execute("UPDATE response_cache SET hit_count = hit_count + 1 WHERE id = ?;", (row["id"],))
+                return row["response_text"]
+
+            # Optional semantic similarity check if vector provided
+            if query_vector:
+                cur_all = conn.execute("SELECT id, response_text, vector_blob, hit_count FROM response_cache WHERE vector_blob IS NOT NULL ORDER BY id DESC LIMIT 50;")
+                rows = cur_all.fetchall()
+                for r in rows:
+                    try:
+                        v_stored = json.loads(r["vector_blob"].decode("utf-8"))
+                        if len(v_stored) == len(query_vector):
+                            dot = sum(a * b for a, b in zip(v_stored, query_vector))
+                            norm_a = math.sqrt(sum(a * a for a in v_stored))
+                            norm_b = math.sqrt(sum(b * b for b in query_vector))
+                            score = dot / (norm_a * norm_b + 1e-9)
+                            if score >= 0.95:
+                                with conn:
+                                    conn.execute("UPDATE response_cache SET hit_count = hit_count + 1 WHERE id = ?;", (r["id"],))
+                                return r["response_text"]
+                    except Exception:
+                        pass
+            return None
+        finally:
+            conn.close()
+
+    def store_cached_response(self, prompt_text: str, response_text: str, query_vector: Optional[List[float]] = None):
+        """Stores a generated prompt response into the response_cache table."""
+        import hashlib
+        q_hash = hashlib.sha256(prompt_text.strip().lower().encode("utf-8")).hexdigest()
+        conn = self._get_connection()
+        try:
+            vec_blob = json.dumps(query_vector).encode("utf-8") if query_vector else None
+            with conn:
+                conn.execute("""
+                    INSERT INTO response_cache (query_hash, prompt_text, response_text, vector_blob, hit_count, timestamp)
+                    VALUES (?, ?, ?, ?, 1, ?)
+                    ON CONFLICT(query_hash) DO UPDATE SET response_text=excluded.response_text, timestamp=excluded.timestamp;
+                """, (q_hash, prompt_text, response_text, vec_blob, time.time()))
         finally:
             conn.close()
 
