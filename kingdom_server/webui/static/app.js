@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // App State Variables
     let activeAgent = 'ask';
     let currentSessionId = null;
+    let currentSessionMessages = [];
     let isGenerating = false;
     let currentAbortController = null;
 
@@ -88,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // New Chat Button
     newChatBtn.addEventListener('click', () => {
         currentSessionId = null;
+        currentSessionMessages = [];
         messagesList.innerHTML = '';
         welcomeScreen.style.display = 'block';
         promptInput.value = '';
@@ -104,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (stopBtn) stopBtn.style.display = 'inline-flex';
         welcomeScreen.style.display = 'none';
         currentAbortController = new AbortController();
+
+        // Push User Message to Multi-Turn Conversation Memory
+        currentSessionMessages.push({ role: 'user', content: text });
 
         // Append User Message Bubble
         appendMessage('user', text);
@@ -122,7 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 signal: currentAbortController.signal,
                 body: JSON.stringify({
                     model: 'qwen2.5-coder-1.5b',
-                    messages: [{ role: 'user', content: text }],
+                    session_id: currentSessionId,
+                    messages: currentSessionMessages,
                     stream: true
                 })
             });
@@ -147,6 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const parsed = JSON.parse(line.slice(6));
 
+                            // Sync backend session_id
+                            if (parsed.session_id) {
+                                currentSessionId = parsed.session_id;
+                            }
+
                             // Render 8-Minister Council Execution Chips on initial metadata chunk
                             if (!chipsRendered && parsed.council_trace && Array.isArray(parsed.council_trace)) {
                                 renderExecutionChips(assistantBubble, parsed.council_trace);
@@ -161,6 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch (e) {}
                     }
                 }
+            }
+
+            // Save assistant response into multi-turn memory
+            if (fullText) {
+                currentSessionMessages.push({ role: 'assistant', content: fullText });
             }
 
             loadSessions(); // Refresh session history list
@@ -295,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const history = await res.json();
                 messagesList.innerHTML = '';
                 welcomeScreen.style.display = 'none';
+                currentSessionMessages = history.map(msg => ({ role: msg.role, content: msg.content }));
                 history.forEach(msg => {
                     appendMessage(msg.role, msg.content);
                 });

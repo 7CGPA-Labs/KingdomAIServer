@@ -140,6 +140,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 1.0
     stream: Optional[bool] = True
+    session_id: Optional[str] = None
 
 class CompletionRequest(BaseModel):
     model: Optional[str] = "granite-code-128m"
@@ -162,7 +163,8 @@ async def chat_completions(req: ChatCompletionRequest):
         stream_gen = orch.generate_chat_stream(
             messages=dict_messages,
             model=req.model or "qwen2.5-coder-1.5b",
-            temperature=req.temperature or 0.7
+            temperature=req.temperature or 0.7,
+            session_id=req.session_id
         )
         return create_sse_response(stream_gen)
     else:

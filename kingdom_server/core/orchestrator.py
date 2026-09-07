@@ -116,6 +116,16 @@ class KingdomOrchestrator:
         created_ts = int(time.time())
         completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
+        # Hydrate full multi-turn session history from MemoryVault if session_id exists and messages array only has 1 turn
+        if session_id and len(messages) <= 1:
+            stored_history = self.memory_vault.get_session_history(session_id)
+            if stored_history:
+                history_msgs = [{"role": msg["role"], "content": msg["content"]} for msg in stored_history]
+                user_content = messages[-1].get("content", "") if messages else ""
+                if not history_msgs or history_msgs[-1]["content"] != user_content:
+                    history_msgs.append({"role": "user", "content": user_content})
+                messages = history_msgs
+
         user_content = messages[-1].get("content", "") if messages else ""
 
         # Check Prompt Response Cache for Sub-2ms Fast Return
@@ -127,6 +137,7 @@ class KingdomOrchestrator:
                 "object": "chat.completion.chunk",
                 "created": created_ts,
                 "model": model,
+                "session_id": session_id,
                 "council_trace": [{"id": "cache", "name": "Response Cache", "detail": "Sub-2ms Hit", "status": "verified"}],
                 "choices": [{
                     "index": 0,
@@ -135,7 +146,7 @@ class KingdomOrchestrator:
                 }]
             }
             yield f"data: {json.dumps(cached_chunk)}\n\n"
-            end_chunk = {"id": completion_id, "object": "chat.completion.chunk", "created": created_ts, "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            end_chunk = {"id": completion_id, "object": "chat.completion.chunk", "created": created_ts, "model": model, "session_id": session_id, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
             yield f"data: {json.dumps(end_chunk)}\n\n"
             yield "data: [DONE]\n\n"
             self.memory_vault.add_session_message(session_id, "user", user_content)
@@ -208,6 +219,7 @@ class KingdomOrchestrator:
             "object": "chat.completion.chunk",
             "created": created_ts,
             "model": model,
+            "session_id": session_id,
             "council_trace": council_trace,
             "choices": [{
                 "index": 0,
