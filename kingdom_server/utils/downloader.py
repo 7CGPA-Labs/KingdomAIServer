@@ -171,19 +171,7 @@ class ModelDownloader:
                     },
                     "num_attention_heads": 12,
                     "num_key_value_heads": 2,
-                    "num_hidden_layers": 28,
-                    "session_options": {
-                        "intra_op_num_threads": 2,
-                        "inter_op_num_threads": 2,
-                        "execution_mode": "ORT_SEQUENTIAL",
-                        "graph_optimization_level": "ORT_ENABLE_ALL"
-                    }
-                },
-                "session_options": {
-                    "intra_op_num_threads": 2,
-                    "inter_op_num_threads": 2,
-                    "execution_mode": "ORT_SEQUENTIAL",
-                    "graph_optimization_level": "ORT_ENABLE_ALL"
+                    "num_hidden_layers": 28
                 },
                 "eos_token_id": 151643,
                 "pad_token_id": 151643,
@@ -209,6 +197,7 @@ class ModelDownloader:
         }
 
         should_write = False
+        config_to_write = default_genai_config
         if not genai_config_path.exists() or genai_config_path.stat().st_size == 0 or self.is_html_block_page(genai_config_path):
             should_write = True
         else:
@@ -221,23 +210,24 @@ class ModelDownloader:
                 if "search" in data and data["search"].get("past_present_share_buffer") is True:
                     data["search"]["past_present_share_buffer"] = False
                     repaired = True
-                if "model" in data and "session_options" not in data["model"]:
-                    data["model"]["session_options"] = {
-                        "intra_op_num_threads": 2,
-                        "inter_op_num_threads": 2,
-                        "execution_mode": "ORT_SEQUENTIAL",
-                        "graph_optimization_level": "ORT_ENABLE_ALL"
-                    }
+                if "model" in data and "session_options" in data["model"]:
+                    del data["model"]["session_options"]
+                    repaired = True
+                if "model" in data and isinstance(data["model"], dict) and "decoder" in data["model"] and isinstance(data["model"]["decoder"], dict) and "session_options" in data["model"]["decoder"]:
+                    del data["model"]["decoder"]["session_options"]
+                    repaired = True
+                if "session_options" in data:
+                    del data["session_options"]
                     repaired = True
                 if repaired:
-                    default_genai_config = data
+                    config_to_write = data
                     should_write = True
             except Exception:
                 should_write = True
 
         if should_write:
             try:
-                genai_config_path.write_text(json.dumps(default_genai_config, indent=4), encoding="utf-8")
+                genai_config_path.write_text(json.dumps(config_to_write, indent=4), encoding="utf-8")
                 logger.info("Provisioned/Repaired genai_config.json for ONNX Runtime GenAI")
             except Exception as e:
                 logger.debug(f"Failed to write genai_config.json: {e}")
