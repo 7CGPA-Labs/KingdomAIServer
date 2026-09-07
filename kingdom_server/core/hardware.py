@@ -21,21 +21,21 @@ class NPUHandler(ExecutionProviderHandler):
     def handle(self, available_providers: List[str]) -> Tuple[str, str]:
         for ep in ["OpenVINOExecutionProvider", "QNNExecutionProvider"]:
             if ep in available_providers:
-                logger.info(f"Selected NPU Execution Provider: {ep}")
+                logger.debug(f"Selected NPU Execution Provider: {ep}")
                 return (ep, "NPU Acceleration")
         return super().handle(available_providers)
 
 class DirectMLHandler(ExecutionProviderHandler):
     def handle(self, available_providers: List[str]) -> Tuple[str, str]:
         if "DmlExecutionProvider" in available_providers:
-            logger.info("Selected DirectML Execution Provider (DirectX 12 GPU)")
+            logger.debug("Selected DirectML Execution Provider (DirectX 12 GPU)")
             return ("DmlExecutionProvider", "DirectML GPU (DirectX 12)")
         return super().handle(available_providers)
 
 class CPUHandler(ExecutionProviderHandler):
     def handle(self, available_providers: List[str]) -> Tuple[str, str]:
         if "CPUExecutionProvider" in available_providers:
-            logger.info("Selected CPU Execution Provider (AVX2)")
+            logger.debug("Selected CPU Execution Provider (AVX2)")
             return ("CPUExecutionProvider", "CPU (AVX2)")
         return super().handle(available_providers)
 
@@ -45,6 +45,8 @@ class HardwareAccelerationEngine:
     def __init__(self):
         # Build the chain: NPU -> DirectML -> CPU
         self.chain = NPUHandler(DirectMLHandler(CPUHandler()))
+        self._cached_onnx_provider: Optional[Tuple[str, str]] = None
+        self._cached_genai_backend: Optional[str] = None
 
     def get_available_providers(self) -> List[str]:
         try:
@@ -57,15 +59,21 @@ class HardwareAccelerationEngine:
 
     def resolve_onnx_provider(self) -> Tuple[str, str]:
         """Resolves the best ONNX execution provider according to 3-tier fallback."""
-        providers = self.get_available_providers()
-        return self.chain.handle(providers)
+        if self._cached_onnx_provider is None:
+            providers = self.get_available_providers()
+            self._cached_onnx_provider = self.chain.handle(providers)
+            logger.info(f"Hardware Acceleration Engine initialized: {self._cached_onnx_provider[1]}")
+        return self._cached_onnx_provider
 
     def resolve_genai_backend(self) -> str:
         """Determines hardware backend for onnxruntime-genai-directml."""
-        providers = self.get_available_providers()
-        if "DmlExecutionProvider" in providers:
-            return "ONNX Runtime GenAI DirectML (DirectX 12 GPU)"
-        return "ONNX Runtime GenAI CPU (AVX2 Fallback)"
+        if self._cached_genai_backend is None:
+            providers = self.get_available_providers()
+            if "DmlExecutionProvider" in providers:
+                self._cached_genai_backend = "ONNX Runtime GenAI DirectML (DirectX 12 GPU)"
+            else:
+                self._cached_genai_backend = "ONNX Runtime GenAI CPU (AVX2 Fallback)"
+        return self._cached_genai_backend
 
     def get_shader_cache_dir(self) -> Path:
         from kingdom_server.utils import get_base_dir
