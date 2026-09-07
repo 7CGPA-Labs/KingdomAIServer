@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create Assistant Message Bubble for Streaming Tokens
         const assistantBubble = appendMessage('assistant', '');
         const contentDiv = assistantBubble.querySelector('.message-content');
+        let chipsRendered = false;
 
         try {
             const response = await fetch('/v1/chat/completions', {
@@ -130,9 +131,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (line.startsWith('data: ') && !line.includes('[DONE]')) {
                         try {
                             const parsed = JSON.parse(line.slice(6));
+
+                            // Render 8-Minister Council Execution Chips on initial metadata chunk
+                            if (!chipsRendered && parsed.council_trace && Array.isArray(parsed.council_trace)) {
+                                renderExecutionChips(assistantBubble, parsed.council_trace);
+                                chipsRendered = true;
+                            }
+
                             const delta = parsed.choices[0]?.delta?.content || '';
                             fullText += delta;
                             contentDiv.innerHTML = formatMarkdown(fullText);
+                            attachCodeCopyHandlers(contentDiv);
                             scrollToBottom();
                         } catch (e) {}
                     }
@@ -146,6 +155,30 @@ document.addEventListener('DOMContentLoaded', () => {
             isGenerating = false;
             sendBtn.disabled = false;
         }
+    }
+
+    // Render Live Minister Execution Pipeline Chips
+    function renderExecutionChips(bubbleElement, trace) {
+        if (!trace || trace.length === 0) return;
+        const chipsDiv = document.createElement('div');
+        chipsDiv.className = 'execution-chips-bar';
+        trace.forEach(item => {
+            const chip = document.createElement('span');
+            chip.className = `exec-chip ${item.status || 'active'}`;
+            let icon = '⚡';
+            if (item.id === 'minister_1') icon = '💡';
+            else if (item.id === 'minister_2') icon = '🔍';
+            else if (item.id === 'minister_3') icon = '🎯';
+            else if (item.id === 'minister_4') icon = '🧩';
+            else if (item.id === 'boss_qwen2.5') icon = '👑';
+            else if (item.id === 'minister_6') icon = '🛡️';
+            else if (item.id === 'minister_7') icon = '🔒';
+            else if (item.id === 'minister_8') icon = '🎨';
+            chip.innerHTML = `<span class="chip-icon">${icon}</span> <strong>${item.name}</strong>: <span class="chip-detail">${item.detail}</span>`;
+            chipsDiv.appendChild(chip);
+        });
+        const content = bubbleElement.querySelector('.message-content');
+        bubbleElement.insertBefore(chipsDiv, content);
     }
 
     // Append Message Helper
@@ -164,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bubble.appendChild(avatar);
         bubble.appendChild(content);
         messagesList.appendChild(bubble);
+        attachCodeCopyHandlers(content);
         scrollToBottom();
         return bubble;
     }
@@ -173,18 +207,61 @@ document.addEventListener('DOMContentLoaded', () => {
         container.scrollTop = container.scrollHeight;
     }
 
-    // Client-Side Markdown Formatter
+    // Client-Side Markdown Formatter with Code Block Copy Button
     function formatMarkdown(str) {
         if (!str) return '';
         let formatted = str
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<pre><code>${code.trim()}</code></pre>`;
+                const language = lang || 'code';
+                return `<div class="code-block-wrapper">
+                    <div class="code-header">
+                        <span class="code-lang">${language}</span>
+                        <button class="copy-code-btn" data-code="${encodeURIComponent(code)}">📋 Copy</button>
+                    </div>
+                    <pre><code class="language-${language}">${code.trim()}</code></pre>
+                </div>`;
             })
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\n/g, '<br>');
         return formatted;
+    }
+
+    // Attach 1-Click Copy Event Listeners to Code Blocks
+    function attachCodeCopyHandlers(container) {
+        container.querySelectorAll('.copy-code-btn').forEach(btn => {
+            if (!btn.dataset.bound) {
+                btn.dataset.bound = 'true';
+                btn.addEventListener('click', () => {
+                    const rawCode = decodeURIComponent(btn.getAttribute('data-code'));
+                    navigator.clipboard.writeText(rawCode).then(() => {
+                        const origText = btn.textContent;
+                        btn.textContent = '✔ Copied!';
+                        btn.classList.add('copied');
+                        showToast('Code copied to clipboard!');
+                        setTimeout(() => {
+                            btn.textContent = origText;
+                            btn.classList.remove('copied');
+                        }, 2000);
+                    });
+                });
+            }
+        });
+    }
+
+    // Toast Notification System
+    function showToast(msg) {
+        let toast = document.getElementById('appToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'appToast';
+            toast.className = 'app-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.classList.add('visible');
+        setTimeout(() => toast.classList.remove('visible'), 2500);
     }
 
     // Fetch and Load Saved Sessions from MemoryVault
@@ -262,24 +339,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('telemVaultVectors').textContent = `${vault.total_vectors_indexed || 0} Indexed`;
                 document.getElementById('telemVaultSessions').textContent = `${vault.total_sessions || 0} Saved`;
 
-                // Update Models Table
+                // Update Models Table with Minister Council Titles
                 const tbody = document.getElementById('modelsTableBody');
                 tbody.innerHTML = '';
                 const modelList = [
-                    { name: 'qwen2.5-coder-1.5b-onnx', tier: bossTier },
-                    { name: 'all-MiniLM-L6-v2.onnx', tier: dmlTier },
-                    { name: 'bge-small-en-v1.5.onnx', tier: dmlTier },
-                    { name: 'bge-reranker-base.onnx', tier: dmlTier },
-                    { name: 'codeberta-base.onnx', tier: dmlTier },
-                    { name: 'granite-code-128m.onnx', tier: dmlTier },
-                    { name: 'nli-deberta-v3-small.onnx', tier: dmlTier },
-                    { name: 'codebert-vulnerability.onnx', tier: dmlTier },
-                    { name: 'MobileDiffusion-LCM.onnx', tier: dmlTier },
+                    { role: '👑 Main Boss LLM', name: 'qwen2.5-coder-1.5b-onnx', tier: bossTier },
+                    { role: '💡 Minister 1 (Intent Router)', name: 'all-MiniLM-L6-v2.onnx', tier: dmlTier },
+                    { role: '🔍 Minister 2 (Repo Embedder)', name: 'bge-small-en-v1.5.onnx', tier: dmlTier },
+                    { role: '🎯 Minister 3 (Re-Ranker)', name: 'bge-reranker-base.onnx', tier: dmlTier },
+                    { role: '🧩 Minister 4 (Code Parser)', name: 'codeberta-base.onnx', tier: dmlTier },
+                    { role: '⚡ Minister 5 (Speed Autocomplete)', name: 'granite-code-128m.onnx', tier: dmlTier },
+                    { role: '🛡️ Minister 6 (Fact Checker)', name: 'nli-deberta-v3-small.onnx', tier: dmlTier },
+                    { role: '🔒 Minister 7 (Security Auditor)', name: 'codebert-vulnerability.onnx', tier: dmlTier },
+                    { role: '🎨 Minister 8 (Asset & Diagram)', name: 'MobileDiffusion-LCM.onnx', tier: dmlTier },
                 ];
 
                 modelList.forEach(m => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${m.name}</td><td>${m.tier}</td><td style="color: #10b981; font-weight: bold;">ONLINE</td>`;
+                    tr.innerHTML = `<td><strong>${m.role}</strong><br><span style="font-size: 0.78rem; color: #94a3b8;">${m.name}</span></td><td>${m.tier}</td><td style="color: #10b981; font-weight: bold;">● ONLINE (DirectML)</td>`;
                     tbody.appendChild(tr);
                 });
             }

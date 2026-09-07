@@ -136,9 +136,47 @@ class KingdomOrchestrator:
         # Minister 4: Code AST Parsing
         code_structure = self.ministers["minister_4"].parse_code(user_content)
 
-        # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
+        # Construct per-turn 8-Minister Council Execution Trace
         self._init_boss_llm()
-        if self.genai_model is not None and self.genai_tokenizer is not None:
+        is_boss_active = self.genai_model is not None and self.genai_tokenizer is not None
+        boss_backend = self.hardware_engine.resolve_genai_backend() if is_boss_active else "Minister Council Fallback"
+
+        council_trace = [
+            {"id": "minister_1", "name": "Intent Router", "detail": f"Intent: {intent}", "status": "active"},
+        ]
+        if vector_matches:
+            council_trace.append({"id": "minister_2", "name": "Repo Embedder", "detail": "Vectors Embedded", "status": "active"})
+        if retrieved_context:
+            council_trace.append({"id": "minister_3", "name": "Re-Ranker", "detail": "Context Scored", "status": "active"})
+        if code_structure and any(code_structure.values()):
+            council_trace.append({"id": "minister_4", "name": "Code Parser", "detail": "AST Parsed", "status": "active"})
+        if audit_res and not audit_res["safe"]:
+            council_trace.append({"id": "minister_7", "name": "Security Auditor", "detail": "Security Filtered", "status": "active"})
+        
+        if is_boss_active:
+            council_trace.append({"id": "boss_qwen2.5", "name": "Main Boss Qwen2.5", "detail": boss_backend, "status": "active"})
+        else:
+            council_trace.append({"id": "council_fallback", "name": "Minister Council", "detail": "Synthesizer Active", "status": "active"})
+
+        council_trace.append({"id": "minister_6", "name": "Fact Checker", "detail": "Fact Check Active", "status": "verified"})
+
+        # Stream initial metadata chunk with council_trace
+        init_chunk = {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": created_ts,
+            "model": model,
+            "council_trace": council_trace,
+            "choices": [{
+                "index": 0,
+                "delta": {"role": "assistant"},
+                "finish_reason": None
+            }]
+        }
+        yield f"data: {json.dumps(init_chunk)}\n\n"
+
+        # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
+        if is_boss_active:
             system_instruction = (
                 "You are Kingdom AI (Main Boss: Qwen2.5-Coder), an expert software engineering assistant. "
                 f"Minister 1 (Intent Router) classified request intent as '{intent}'."

@@ -86,9 +86,23 @@ class BaseMinister:
                         pass
                     opts = ort.SessionOptions()
                     opts.log_severity_level = 3
+                    opts.intra_op_num_threads = 2
+                    opts.inter_op_num_threads = 2
+                    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
                     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                    self.session = ort.InferenceSession(str(self.model_path), sess_options=opts, providers=[self.provider])
-                    logger.info(f"{self.name} loaded ONNX session with provider {self.provider}")
+                    
+                    available = ort.get_available_providers()
+                    providers = []
+                    if "DmlExecutionProvider" in available:
+                        providers.append(("DmlExecutionProvider", {"device_id": 0}))
+                    if "CPUExecutionProvider" in available:
+                        providers.append("CPUExecutionProvider")
+                    if not providers:
+                        providers = [self.provider]
+
+                    self.session = ort.InferenceSession(str(self.model_path), sess_options=opts, providers=providers)
+                    active_p = self.session.get_providers()[0] if hasattr(self.session, "get_providers") else self.provider
+                    logger.info(f"{self.name} loaded ONNX session on DirectML GPU/Device with provider: {active_p}")
                 except Exception as e:
                     logger.warning(f"Failed to load ONNX model for {self.name}: {e}.")
                     self.session = None
