@@ -36,16 +36,26 @@ from kingdom_server.utils.telemetry import HardwareTelemetry
 from kingdom_server.utils.verifier import ModelVerifier
 from kingdom_server.utils import get_log_path
 
+class HealthEndpointLogFilter(logging.Filter):
+    """Filters out repetitive /health endpoint HTTP access logs from server.log."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return "/health" not in msg
+
 # Configure file logging to %LocalAppData%\KingdomAIServer\server.log
 log_file = get_log_path()
+file_handler = logging.FileHandler(str(log_file), mode="a", encoding="utf-8")
+file_handler.addFilter(HealthEndpointLogFilter())
+
+stream_handler = logging.StreamHandler()
+stream_handler.addFilter(HealthEndpointLogFilter())
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(str(log_file), mode="a", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+    handlers=[file_handler, stream_handler]
 )
+logging.getLogger("uvicorn.access").addFilter(HealthEndpointLogFilter())
 
 logger = logging.getLogger("kingdom.server")
 
@@ -249,12 +259,20 @@ async def health_check():
 
     model_status = orch.get_model_status() if orch else {}
 
+    council_roles = {
+        "main_boss": orch.boss_prompt_role if orch else "Main Boss active."
+    }
+    if orch and orch.ministers:
+        for k, m in orch.ministers.items():
+            council_roles[k] = getattr(m, "prompt_role", f"{m.name} active.")
+
     return {
         "status": "active",
         "version": "1.0.0",
         "address": "http://127.0.0.1:58420",
         "telemetry": telemetry,
         "silicon_tiers": tiers,
+        "council_roles": council_roles,
         "models": {
             "total": summary["total"],
             "online": summary["valid"],

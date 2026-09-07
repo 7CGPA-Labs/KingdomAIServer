@@ -9,7 +9,7 @@ import logging
 import threading
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
-from kingdom_server.utils import get_models_dir
+from kingdom_server.utils import get_models_dir, load_role_prompt
 from kingdom_server.core.hardware import HardwareAccelerationEngine
 
 logger = logging.getLogger("kingdom.ministers")
@@ -61,9 +61,11 @@ class WorkspacePathJail:
 
 class BaseMinister:
     """Base class for all 8 Ministers."""
-    def __init__(self, name: str, model_filename: str, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None, lazy_load: bool = True):
+    def __init__(self, name: str, model_filename: str, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None, lazy_load: bool = True, role_id: str = ""):
         self.name = name
         self.model_filename = model_filename
+        self.role_id = role_id
+        self.prompt_role = load_role_prompt(role_id) if role_id else f"Role for {name} active."
         self.models_dir = Path(models_dir) if models_dir else get_models_dir()
         self.model_path = self.models_dir / model_filename
         self.hardware_engine = hardware_engine
@@ -138,7 +140,7 @@ class BaseMinister:
 class Minister1IntentRouter(BaseMinister):
     """Minister 1: Intent Router (all-MiniLM-L6-v2.onnx) - 1-3 ms latency."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 1 (Intent Router)", "all-MiniLM-L6-v2.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 1 (Intent Router)", "all-MiniLM-L6-v2.onnx", hardware_engine, models_dir, role_id="minister_1")
 
     def route_intent(self, text: str) -> str:
         text_lower = text.lower()
@@ -158,7 +160,7 @@ class Minister1IntentRouter(BaseMinister):
 class Minister2RepoEmbedder(BaseMinister):
     """Minister 2: Repo Embedder (bge-small-en-v1.5.onnx) - 5-10 ms latency, 384-dim float vectors."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 2 (Repo Embedder)", "bge-small-en-v1.5.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 2 (Repo Embedder)", "bge-small-en-v1.5.onnx", hardware_engine, models_dir, role_id="minister_2")
 
     def embed(self, text: str) -> List[float]:
         if self.is_onnx_loaded and self.session is not None:
@@ -188,7 +190,7 @@ class Minister2RepoEmbedder(BaseMinister):
 class Minister3ReRanker(BaseMinister):
     """Minister 3: Re-Ranker (bge-reranker-base.onnx) - 10-18 ms latency."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 3 (Re-Ranker)", "bge-reranker-base.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 3 (Re-Ranker)", "bge-reranker-base.onnx", hardware_engine, models_dir, role_id="minister_3")
 
     def rerank(self, query: str, documents: List[str]) -> List[Tuple[str, float]]:
         query_words = set(re.findall(r"\w+", query.lower()))
@@ -205,7 +207,7 @@ class Minister3ReRanker(BaseMinister):
 class Minister4CodeParser(BaseMinister):
     """Minister 4: Code Parser (codeberta-base.onnx) - 8-15 ms latency."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 4 (Code Parser)", "codeberta-base.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 4 (Code Parser)", "codeberta-base.onnx", hardware_engine, models_dir, role_id="minister_4")
 
     def parse_code(self, code: str) -> Dict[str, Any]:
         functions = re.findall(r"(?:def|func)\s+([a-zA-Z_]\w*)\s*\(", code)
@@ -222,7 +224,7 @@ class Minister4CodeParser(BaseMinister):
 class Minister5SpeedAutocomplete(BaseMinister):
     """Minister 5: Speed Autocomplete (granite-code-128m.onnx) - Sub-30ms single-line tab autocomplete."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 5 (Speed Autocomplete)", "granite-code-128m.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 5 (Speed Autocomplete)", "granite-code-128m.onnx", hardware_engine, models_dir, role_id="minister_5")
 
     def autocomplete(self, prefix: str, suffix: str = "") -> str:
         if self.is_onnx_loaded and self.session is not None:
@@ -246,7 +248,7 @@ class Minister5SpeedAutocomplete(BaseMinister):
 class Minister6FactChecker(BaseMinister):
     """Minister 6: Fact Checker (nli-deberta-v3-small.onnx) - 8-12 ms latency."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 6 (Fact Checker)", "nli-deberta-v3-small.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 6 (Fact Checker)", "nli-deberta-v3-small.onnx", hardware_engine, models_dir, role_id="minister_6")
 
     def verify_facts(self, code_or_text: str) -> Dict[str, Any]:
         hallucinated_candidates = []
@@ -265,7 +267,7 @@ class Minister6FactChecker(BaseMinister):
 class Minister7SecurityAuditor(BaseMinister):
     """Minister 7: Security Auditor (codebert-vulnerability.onnx) - 10-15 ms latency."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 7 (Security Auditor)", "codebert-vulnerability.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 7 (Security Auditor)", "codebert-vulnerability.onnx", hardware_engine, models_dir, role_id="minister_7")
 
     def audit(self, code_snippet: str) -> Dict[str, Any]:
         issues = []
@@ -286,7 +288,7 @@ class Minister7SecurityAuditor(BaseMinister):
 class Minister8AssetGenerator(BaseMinister):
     """Minister 8: Asset & Diagram Generator (MobileDiffusion-LCM.onnx)."""
     def __init__(self, hardware_engine: HardwareAccelerationEngine, models_dir: Optional[Path] = None):
-        super().__init__("Minister 8 (Asset & Diagram Generator)", "MobileDiffusion-LCM.onnx", hardware_engine, models_dir)
+        super().__init__("Minister 8 (Asset & Diagram Generator)", "MobileDiffusion-LCM.onnx", hardware_engine, models_dir, role_id="minister_8")
 
     def generate_diagram(self, prompt: str) -> str:
         return f"""```mermaid

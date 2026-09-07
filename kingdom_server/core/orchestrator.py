@@ -10,7 +10,7 @@ from typing import AsyncGenerator, List, Dict, Any, Optional
 from kingdom_server.core.hardware import HardwareAccelerationEngine
 from kingdom_server.core.ministers import MinisterFactory, BaseMinister
 from kingdom_server.core.memory_vault import MemoryVault
-from kingdom_server.utils import get_models_dir
+from kingdom_server.utils import get_models_dir, load_role_prompt
 
 import threading
 
@@ -24,6 +24,7 @@ class KingdomOrchestrator:
         self.hardware_engine = HardwareAccelerationEngine()
         self.minister_factory = MinisterFactory(self.hardware_engine, self.models_dir)
         self.ministers = self.minister_factory.create_all_ministers()
+        self.boss_prompt_role = load_role_prompt("main_boss")
         self.memory_vault = MemoryVault(db_path=db_path)
         self.genai_model = None
         self.genai_tokenizer = None
@@ -218,12 +219,20 @@ class KingdomOrchestrator:
 
         # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
         if is_boss_active:
-            system_instruction = (
-                "You are Kingdom AI (Main Boss: Qwen2.5-Coder), an expert software engineering assistant. "
-                f"Minister 1 (Intent Router) classified request intent as '{intent}'."
-            )
+            m1_role = getattr(self.ministers["minister_1"], "prompt_role", "Intent Router active.")
+            m6_role = getattr(self.ministers["minister_6"], "prompt_role", "Fact Checker active.")
+
+            system_instruction = f"{self.boss_prompt_role}\n\n[Council Intelligence Briefing]:\n- Minister 1 (Intent Router): Classified request intent as '{intent}' ({m1_role})."
+            if security_warning:
+                system_instruction += f"\n- Minister 7 (Security Auditor Alert): {security_warning}"
             if retrieved_context:
-                system_instruction += f"{retrieved_context}\n"
+                system_instruction += f"\n- Memory & Search Context (Ministers 2 & 3 / WebCrawler):\n{retrieved_context}"
+            if code_structure and any(code_structure.values()):
+                system_instruction += f"\n- Minister 4 (Code Parser AST Analysis): Functions={code_structure.get('functions', [])}, Classes={code_structure.get('classes', [])}, Imports={code_structure.get('imports', [])}, LOC={code_structure.get('loc', 0)}"
+            if intent == "diagram":
+                diagram_tpl = self.ministers["minister_8"].generate_diagram(user_content)
+                system_instruction += f"\n- Minister 8 (Asset Generator Blueprint):\n{diagram_tpl}"
+            system_instruction += f"\n- Minister 6 (Fact Checker Directive): {m6_role}\n"
 
             # Sliding Context Window: Prune older messages if history is long to fit inside ONNX KV Cache (4096 max limit)
             recent_messages = list(messages)
@@ -314,6 +323,13 @@ class KingdomOrchestrator:
                     except Exception:
                         pass
 
+                fact_res = self.ministers["minister_6"].verify_facts(full_text)
+                if not fact_res["verified"] or fact_res.get("hallucination_score", 0) > 0.8:
+                    flagged = ", ".join(fact_res.get("flagged", [])) if fact_res.get("flagged") else "phantom package"
+                    disclaimer = f"\n\n[Fact Check Note by Minister 6: Flagged potential {flagged}]"
+                    full_text += disclaimer
+                    yield f"data: {json.dumps({'id': completion_id, 'object': 'chat.completion.chunk', 'created': created_ts, 'model': model, 'choices': [{'index': 0, 'delta': {'content': disclaimer}, 'finish_reason': None}]})}\n\n"
+
                 end_chunk = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
@@ -327,10 +343,6 @@ class KingdomOrchestrator:
                 }
                 yield f"data: {json.dumps(end_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
-
-                fact_res = self.ministers["minister_6"].verify_facts(full_text)
-                if not fact_res["verified"]:
-                    full_text += "\n\n[Fact Check Warning by Minister 6]: Potential unverified patterns detected."
 
                 self.memory_vault.store_cached_response(user_content, full_text, query_vec)
                 self.memory_vault.add_session_message(session_id, "user", user_content)
