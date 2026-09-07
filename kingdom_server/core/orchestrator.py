@@ -7,6 +7,7 @@ import json
 import uuid
 import logging
 from typing import AsyncGenerator, List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
 from kingdom_server.core.hardware import HardwareAccelerationEngine
 from kingdom_server.core.ministers import MinisterFactory, BaseMinister
 from kingdom_server.core.memory_vault import MemoryVault
@@ -153,41 +154,56 @@ class KingdomOrchestrator:
             self.memory_vault.add_session_message(session_id, "assistant", cached_reply)
             return
 
-        # Minister 1: Intent Classification (ONNX Runtime)
-        intent = self.route_request(user_content)
+        # Non-Serialized Parallel Minister Council Execution (ThreadPoolExecutor)
+        with ThreadPoolExecutor(max_workers=8, thread_name_prefix="minister-worker") as pool:
+            future_intent = pool.submit(self.route_request, user_content)
+            future_audit = pool.submit(self.audit_security, user_content)
+            future_ast = pool.submit(self.ministers["minister_4"].parse_code, user_content)
+            
+            future_web = None
+            if "search" in user_content.lower() or "http://" in user_content.lower() or "https://" in user_content.lower():
+                try:
+                    import re
+                    from kingdom_server.core.crawler import WebCrawler
+                    found_urls = re.findall(r'https?://[^\s]+', user_content)
+                    if found_urls:
+                        future_web = pool.submit(WebCrawler().fetch_and_parse, found_urls[0])
+                except Exception:
+                    pass
 
-        # On-Demand SSRF-Protected Web Crawler RAG Integration
-        web_context = ""
-        if intent == "web_search" or "search" in user_content.lower() or "http://" in user_content.lower() or "https://" in user_content.lower():
-            try:
-                import re
-                from kingdom_server.core.crawler import WebCrawler
-                found_urls = re.findall(r'https?://[^\s]+', user_content)
-                if found_urls:
-                    crawl_res = WebCrawler().fetch_and_parse(found_urls[0])
+            intent = future_intent.result()
+            audit_res = future_audit.result()
+            code_structure = future_ast.result()
+
+            vector_matches = self.memory_vault.search_similar(query_vec, k=3)
+            future_rerank = None
+            if vector_matches:
+                docs = [m["document"] for m in vector_matches if m["score"] > 0.3]
+                if docs:
+                    future_rerank = pool.submit(self.ministers["minister_3"].rerank, user_content, docs)
+
+            web_context = ""
+            if future_web:
+                try:
+                    crawl_res = future_web.result(timeout=3.0)
                     if crawl_res and crawl_res.get("text"):
                         web_context = f"\n\n[Live Web Search Context]:\n{crawl_res['text'][:1500]}\n"
-            except Exception as e:
-                logger.debug(f"Web crawler execution error: {e}")
+                except Exception as e:
+                    logger.debug(f"Parallel Web crawler error: {e}")
 
-        # Minister 7: Security Vulnerability Audit
-        audit_res = self.audit_security(user_content)
+            retrieved_context = web_context
+            if future_rerank:
+                try:
+                    ranked_docs = future_rerank.result(timeout=1.0)
+                    if ranked_docs:
+                        retrieved_context += "\n\n[Cognitive Memory Context by Minister 3 Re-Ranker]:\n" + "\n".join([doc[0] for doc in ranked_docs])
+                except Exception as e:
+                    logger.debug(f"Parallel Re-ranker error: {e}")
+
         security_warning = ""
         if not audit_res["safe"]:
             warning_details = ", ".join([v["detail"] for v in audit_res["vulnerabilities"]])
             security_warning = f"\n\n[Security Alert by Minister 7]: Potential vulnerabilities detected ({warning_details})."
-
-        # Minister 2 & Minister 3: Dense Semantic Vector Embedding & RAG Re-Ranking
-        vector_matches = self.memory_vault.search_similar(query_vec, k=3)
-        retrieved_context = web_context
-        if vector_matches:
-            docs = [m["document"] for m in vector_matches if m["score"] > 0.3]
-            ranked_docs = self.ministers["minister_3"].rerank(user_content, docs)
-            if ranked_docs:
-                retrieved_context += "\n\n[Cognitive Memory Context by Minister 3 Re-Ranker]:\n" + "\n".join([doc[0] for doc in ranked_docs])
-
-        # Minister 4: Code AST Parsing
-        code_structure = self.ministers["minister_4"].parse_code(user_content)
 
         # Construct per-turn 8-Minister Council Execution Trace
         self._init_boss_llm()
@@ -231,20 +247,18 @@ class KingdomOrchestrator:
 
         # 1. Main Boss Model Execution (Dynamic ONNX GenAI DirectML Execution)
         if is_boss_active:
-            m1_role = getattr(self.ministers["minister_1"], "prompt_role", "Intent Router active.")
-            m6_role = getattr(self.ministers["minister_6"], "prompt_role", "Fact Checker active.")
-
-            system_instruction = f"{self.boss_prompt_role}\n\n[Council Intelligence Briefing]:\n- Minister 1 (Intent Router): Classified request intent as '{intent}' ({m1_role})."
+            self.boss_prompt_role = load_role_prompt("main_boss")
+            system_instruction = f"{self.boss_prompt_role}\n\n[Council Telemetry]: Intent='{intent}'."
             if security_warning:
                 system_instruction += f"\n- Minister 7 (Security Auditor Alert): {security_warning}"
             if retrieved_context:
-                system_instruction += f"\n- Memory & Search Context (Ministers 2 & 3 / WebCrawler):\n{retrieved_context}"
+                system_instruction += f"\n- Memory & Search Context:\n{retrieved_context}"
             if code_structure and any(code_structure.values()):
-                system_instruction += f"\n- Minister 4 (Code Parser AST Analysis): Functions={code_structure.get('functions', [])}, Classes={code_structure.get('classes', [])}, Imports={code_structure.get('imports', [])}, LOC={code_structure.get('loc', 0)}"
+                system_instruction += f"\n- Minister 4 (Code AST Structure): Functions={code_structure.get('functions', [])}, Classes={code_structure.get('classes', [])}, Imports={code_structure.get('imports', [])}, LOC={code_structure.get('loc', 0)}"
             if intent == "diagram":
                 diagram_tpl = self.ministers["minister_8"].generate_diagram(user_content)
-                system_instruction += f"\n- Minister 8 (Asset Generator Blueprint):\n{diagram_tpl}"
-            system_instruction += f"\n- Minister 6 (Fact Checker Directive): {m6_role}\n"
+                system_instruction += f"\n- Minister 8 (Mermaid Blueprint):\n{diagram_tpl}"
+            system_instruction += "\n"
 
             # Sliding Context Window: Prune older messages if history is long to fit inside ONNX KV Cache (4096 max limit)
             recent_messages = list(messages)
