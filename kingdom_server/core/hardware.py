@@ -3,6 +3,7 @@ Hardware acceleration fallback engine implementing Chain of Responsibility patte
 Cascading Resolution: [OpenVINOExecutionProvider / QNNExecutionProvider -> DmlExecutionProvider -> CPUExecutionProvider]
 """
 from typing import List, Optional, Tuple
+from pathlib import Path
 import logging
 
 logger = logging.getLogger("kingdom.hardware")
