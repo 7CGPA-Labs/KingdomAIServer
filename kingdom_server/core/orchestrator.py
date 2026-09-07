@@ -65,6 +65,9 @@ class KingdomOrchestrator:
                     logger.debug(f"Error provisioning ONNX config files: {e}")
 
                 try:
+                    import os
+                    os.environ.setdefault("OMP_NUM_THREADS", "2")
+                    os.environ.setdefault("ONNXRUNTIME_NUM_THREADS", "2")
                     import onnxruntime_genai as og
                     backend = self.hardware_engine.resolve_genai_backend()
                     self.genai_model = og.Model(str(genai_path))
@@ -219,7 +222,7 @@ class KingdomOrchestrator:
                 except Exception:
                     num_input_tokens = 500
 
-                safe_max_length = min(3840, num_input_tokens + 512)
+                safe_max_length = min(4096, num_input_tokens + 2048)
 
                 params = og.GeneratorParams(self.genai_model)
                 params.set_search_options(max_length=safe_max_length, temperature=temperature)
@@ -244,6 +247,7 @@ class KingdomOrchestrator:
                 while not generator.is_done():
                     generator.generate_next_token()
                     next_tokens = generator.get_next_tokens()
+                    delta_text = ""
                     if len(next_tokens) > 0:
                         new_token = next_tokens[0]
                         delta_text = tokenizer_stream.decode(new_token)
@@ -261,6 +265,16 @@ class KingdomOrchestrator:
                             }]
                         }
                         yield f"data: {json.dumps(chunk_data)}\n\n"
+
+                # Flush any leftover characters from tokenizer_stream
+                if hasattr(tokenizer_stream, "flush"):
+                    try:
+                        final_flush = tokenizer_stream.flush()
+                        if final_flush:
+                            full_text += final_flush
+                            yield f"data: {json.dumps({'id': completion_id, 'object': 'chat.completion.chunk', 'created': created_ts, 'model': model, 'choices': [{'index': 0, 'delta': {'content': final_flush}, 'finish_reason': None}]})}\n\n"
+                    except Exception:
+                        pass
 
                 end_chunk = {
                     "id": completion_id,

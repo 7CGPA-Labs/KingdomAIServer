@@ -171,7 +171,19 @@ class ModelDownloader:
                     },
                     "num_attention_heads": 12,
                     "num_key_value_heads": 2,
-                    "num_hidden_layers": 28
+                    "num_hidden_layers": 28,
+                    "session_options": {
+                        "intra_op_num_threads": 2,
+                        "inter_op_num_threads": 2,
+                        "execution_mode": "ORT_SEQUENTIAL",
+                        "graph_optimization_level": "ORT_ENABLE_ALL"
+                    }
+                },
+                "session_options": {
+                    "intra_op_num_threads": 2,
+                    "inter_op_num_threads": 2,
+                    "execution_mode": "ORT_SEQUENTIAL",
+                    "graph_optimization_level": "ORT_ENABLE_ALL"
                 },
                 "eos_token_id": 151643,
                 "pad_token_id": 151643,
@@ -208,6 +220,14 @@ class ModelDownloader:
                     repaired = True
                 if "search" in data and data["search"].get("past_present_share_buffer") is True:
                     data["search"]["past_present_share_buffer"] = False
+                    repaired = True
+                if "model" in data and "session_options" not in data["model"]:
+                    data["model"]["session_options"] = {
+                        "intra_op_num_threads": 2,
+                        "inter_op_num_threads": 2,
+                        "execution_mode": "ORT_SEQUENTIAL",
+                        "graph_optimization_level": "ORT_ENABLE_ALL"
+                    }
                     repaired = True
                 if repaired:
                     default_genai_config = data
