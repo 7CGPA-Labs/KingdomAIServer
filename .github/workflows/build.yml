@@ -50,5 +50,10 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
         run: |
-          gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64" || gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
+          if (gh release view v1.0.0 2>$null) {
+              gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
+          } else {
+              gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64"
+          }
