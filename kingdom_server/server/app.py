@@ -267,11 +267,19 @@ async def health_check():
 
 # WebUI Application Static & API Routes
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
+
+class UncachedStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
 webui_static_dir = Path(__file__).parent.parent / "webui" / "static"
 if webui_static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(webui_static_dir)), name="static")
+    app.mount("/static", UncachedStaticFiles(directory=str(webui_static_dir)), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -279,7 +287,10 @@ async def serve_webui():
     """Serves Kingdom AI Browser-Based Open WebUI Application."""
     index_file = webui_static_dir / "index.html"
     if index_file.exists():
-        return FileResponse(str(index_file))
+        return FileResponse(
+            str(index_file),
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+        )
     return HTMLResponse("<h2>Kingdom AI Server Active (http://127.0.0.1:58420)</h2>")
 
 
