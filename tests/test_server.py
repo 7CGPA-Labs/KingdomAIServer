@@ -3,6 +3,7 @@ Integration tests for FastAPI OpenAI-compatible endpoints.
 """
 import pytest
 from fastapi.testclient import TestClient
+from kingdom_server import __version__
 from kingdom_server.server.app import app
 
 client = TestClient(app)
@@ -13,7 +14,7 @@ def test_health_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "active"
-    assert data["version"] == "1.0.0"
+    assert data["version"] == __version__
     assert "telemetry" in data
     assert "silicon_tiers" in data
     assert "models" in data

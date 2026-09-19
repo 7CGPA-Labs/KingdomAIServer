@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kingdom-ai-server"
-version = "1.0.0"
+version = "1.1.0"
 description = "Dedicated local OpenAI-Compatible AI Server for Continue.dev"
 authors = [{ name = "Kingdom AI Server Team" }]
 readme = "README.md"

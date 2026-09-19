@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Kingdom AI Server",
     description="Dedicated Local OpenAI-Compatible Server for Continue.dev",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -270,7 +270,7 @@ async def health_check():
 
     return {
         "status": "active",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "address": "http://127.0.0.1:58420",
         "telemetry": telemetry,
         "silicon_tiers": tiers,
