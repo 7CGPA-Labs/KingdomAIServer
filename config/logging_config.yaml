@@ -1,0 +1,37 @@
+# Kingdom AI Server V2 Logging Configuration
+
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  standard:
+    format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
+  compact:
+    format: "[%(levelname)s] %(message)s"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: compact
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: standard
+    filename: "data/cache/kingdom_server.log"
+    maxBytes: 10485760 # 10 MB
+    backupCount: 3
+    encoding: "utf-8"
+
+loggers:
+  kingdom:
+    level: INFO
+    handlers: [console, file]
+    propagate: false
+
+root:
+  level: INFO
+  handlers: [console]

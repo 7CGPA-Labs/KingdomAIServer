@@ -1,0 +1,52 @@
+# Kingdom AI Server V2 Model & Hardware Configuration
+
+server:
+  host: "127.0.0.1"
+  port: 58420
+  bearer_token_path: "%LocalAppData%\\KingdomAIServer\\.token"
+  cspa_defense_enabled: true
+  cors_allowed_origins: []
+
+hardware:
+  execution_provider: "DirectML" # Options: DirectML, CPU
+  directml_device_id: 0
+  cpu_fallback_avx2: true
+  max_static_vram_mb: 1480      # Hard ceiling: <= 1.48 GB static VRAM
+  context_window_tokens: 4096
+
+main_boss:
+  model_id: "qwen2.5-coder-1.5b-instruct"
+  repo_id: "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF"
+  filename: "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+  quantization: "Q4_K_M"
+  vram_budget_mb: 1100
+  threads: 4
+  temperature_default: 0.7
+  temperature_fim: 0.0
+
+council_ministers:
+  minister_1_embedder:
+    model_id: "bge-small-en-v1.5"
+    repo_id: "BAAI/bge-small-en-v1.5"
+    filename: "bge-small-en-v1.5-q4_k_m.gguf"
+    vram_budget_mb: 35
+    embedding_dimension: 384
+  
+  minister_2_reranker:
+    model_id: "bge-reranker-base"
+    repo_id: "BAAI/bge-reranker-base"
+    filename: "bge-reranker-base-q4_k_m.gguf"
+    vram_budget_mb: 110
+    top_k_chunks: 3
+
+  minister_3_vision:
+    model_id: "SDXS-512"
+    vram_budget_mb: 230
+    nfe_steps: 1
+    image_size: 512
+
+native_utilities:
+  tree_sitter_ast: true
+  manifest_import_linter: true
+  regex_vulnerability_scanner: true
+  heuristic_rule_router: true
