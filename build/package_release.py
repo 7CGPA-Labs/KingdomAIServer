@@ -22,14 +22,15 @@ def create_release_archive():
     staging_dir.mkdir(parents=True)
 
     # 1. Copy source codebase package
-    src_dir = staging_dir / "src"
-    src_dir.mkdir(parents=True, exist_ok=True)
+    codebase_dir = staging_dir / "src"
+    codebase_dir.mkdir(parents=True, exist_ok=True)
     for item in ["src", "webui", "config", "pyproject.toml", "README.md", "LICENSE", "main.py", "start_server.py", "download_models.py"]:
         target = project_root / item
+        dest = codebase_dir / item
         if target.is_dir():
-            shutil.copytree(target, src_dir / item)
+            shutil.copytree(target, dest)
         elif target.is_file():
-            shutil.copy(target, src_dir / item)
+            shutil.copy(target, dest)
 
     # 2. Copy Deploy-KingdomServer.ps1 script
     deploy_script = project_root / "Deploy-KingdomServer.ps1"
@@ -40,16 +41,11 @@ def create_release_archive():
     models_dir = staging_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / "README.txt").write_text(
-        "Place the 9 ONNX model files/directories here:\n"
-        "- qwen2.5-coder-1.5b-onnx/\n"
-        "- all-MiniLM-L6-v2.onnx\n"
-        "- bge-small-en-v1.5.onnx\n"
-        "- bge-reranker-base.onnx\n"
-        "- codeberta-base.onnx\n"
-        "- granite-code-128m.onnx\n"
-        "- nli-deberta-v3-small.onnx\n"
-        "- codebert-vulnerability.onnx\n"
-        "- MobileDiffusion-LCM.onnx\n",
+        "Place the V2 model files here (or run python download_models.py):\n"
+        "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
+        "- bge-small-en-v1.5-q4_k_m.gguf\n"
+        "- bge-reranker-base-q4_k_m.gguf\n"
+        "- sdxs-512-int8.onnx\n",
         encoding="utf-8"
     )
 
