@@ -6,7 +6,7 @@ import os
 import secrets
 from pathlib import Path
 from typing import Optional
-from kingdom_server.utils import get_base_dir
+from src.utils import get_base_dir
 
 _TOKEN_FILE = get_base_dir() / ".token"
 

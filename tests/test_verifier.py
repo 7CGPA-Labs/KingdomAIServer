@@ -3,7 +3,7 @@ Unit tests for model file verifier and integrity checker (V2 Engine).
 """
 import pytest
 from pathlib import Path
-from kingdom_server.utils.verifier import ModelVerifier, MODEL_MANIFEST
+from src.utils.verifier import ModelVerifier, MODEL_MANIFEST
 
 def test_model_manifest_completeness():
     """Verify all 4 V2 models (Main Boss GGUF + 3 Ministers) are specified in MODEL_MANIFEST."""

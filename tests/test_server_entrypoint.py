@@ -2,8 +2,8 @@
 Unit tests for server entrypoint and Continue.dev config helper (V2 Engine).
 """
 import pytest
-from kingdom_server.utils.continue_config import repair_continue_config
-from kingdom_server.utils.downloader import MODEL_HF_SPECS
+from src.utils.continue_config import repair_continue_config
+from src.utils.downloader import MODEL_HF_SPECS
 
 def test_repair_continue_config(tmp_path, monkeypatch):
     """Test pure-Python Continue.dev configuration repair."""

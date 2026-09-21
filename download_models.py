@@ -27,7 +27,7 @@ except ImportError:
             cmd = [str(venv_py), str(Path(__file__).resolve())] + sys.argv[1:]
             sys.exit(subprocess.call(cmd))
 
-from kingdom_server.utils.downloader import ModelDownloader
+from src.utils.downloader import ModelDownloader
 
 if __name__ == "__main__":
     print("======================================================================")

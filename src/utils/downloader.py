@@ -63,8 +63,8 @@ from rich.progress import (
 )
 from rich.console import Console
 
-from kingdom_server.utils import get_models_dir
-from kingdom_server.utils.verifier import MODEL_MANIFEST, ModelVerifier
+from src.utils import get_models_dir
+from src.utils.verifier import MODEL_MANIFEST, ModelVerifier
 
 logger = logging.getLogger("kingdom.downloader")
 console = Console(safe_box=True)

@@ -9,9 +9,9 @@ import threading
 from pathlib import Path
 from typing import AsyncGenerator, List, Dict, Any, Optional
 
-from kingdom_server.core.hardware import HardwareAccelerationEngine
-from kingdom_server.core.ministers import MinisterFactory, BaseMinister
-from kingdom_server.utils import get_models_dir, load_role_prompt
+from src.core.hardware import HardwareAccelerationEngine
+from src.core.ministers import MinisterFactory, BaseMinister
+from src.utils import get_models_dir, load_role_prompt
 from src.core.local_llm import LlamaCppOrchestrator
 from src.core.council import LeanCouncilManager
 from src.prompts.templates import HeuristicIntentRouter

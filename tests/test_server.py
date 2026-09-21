@@ -3,8 +3,8 @@ Integration tests for FastAPI OpenAI-compatible endpoints.
 """
 import pytest
 from fastapi.testclient import TestClient
-from kingdom_server import __version__
-from kingdom_server.server.app import app
+from src import __version__
+from src.inference.inference_engine import app
 
 client = TestClient(app)
 
@@ -40,7 +40,7 @@ def test_payload_size_limit_middleware():
 
 def test_workspace_path_jail():
     """Test WorkspacePathJail blocks traversal into sensitive user/system directories."""
-    from kingdom_server.core.ministers import WorkspacePathJail, WorkspacePathJailError
+    from src.core.ministers import WorkspacePathJail, WorkspacePathJailError
     with pytest.raises(WorkspacePathJailError):
         WorkspacePathJail.validate_path("C:\\Users\\test\\.ssh\\id_rsa")
 

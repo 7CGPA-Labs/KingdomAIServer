@@ -10,8 +10,8 @@ import threading
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 
-from kingdom_server.utils import get_models_dir, load_role_prompt
-from kingdom_server.core.hardware import HardwareAccelerationEngine
+from src.utils import get_models_dir, load_role_prompt
+from src.core.hardware import HardwareAccelerationEngine
 from src.core.council import LeanCouncilManager, SDXS512VisionEngine
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker

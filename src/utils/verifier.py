@@ -5,7 +5,7 @@ import hashlib
 import os
 from pathlib import Path
 from typing import Dict, Any, List
-from kingdom_server.utils import get_models_dir
+from src.utils import get_models_dir
 
 # V2 Architecture Model Manifest (Main Boss GGUF + Lean 3-Minister Council)
 MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {

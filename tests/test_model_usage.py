@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from kingdom_server.core.hardware import HardwareAccelerationEngine
-from kingdom_server.core.ministers import MinisterFactory, BaseMinister
-from kingdom_server.core.orchestrator import KingdomOrchestrator
+from src.core.hardware import HardwareAccelerationEngine
+from src.core.ministers import MinisterFactory, BaseMinister
+from src.core.orchestrator import KingdomOrchestrator
 from src.core.local_llm import LlamaCppOrchestrator
 
 def test_ministers_onnx_loaded_property(tmp_path):

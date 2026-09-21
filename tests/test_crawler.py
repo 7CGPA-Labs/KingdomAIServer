@@ -2,7 +2,7 @@
 Unit tests for SSRF-safe HTTP informant crawler.
 """
 import pytest
-from kingdom_server.core.crawler import SSRFCrawler, SSRFProtectionError
+from src.core.crawler import SSRFCrawler, SSRFProtectionError
 
 def test_ssrf_blocked_loopback_ips():
     """Verify loopback IPv4 and IPv6 addresses are blocked."""

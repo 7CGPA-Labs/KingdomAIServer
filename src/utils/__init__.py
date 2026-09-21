@@ -45,7 +45,7 @@ def get_roles_dir() -> Path:
     roles_dir = get_base_dir() / "roles"
     roles_dir.mkdir(parents=True, exist_ok=True)
     
-    bundled_roles_dir = Path(__file__).parent.parent / "roles"
+    bundled_roles_dir = Path(__file__).parent.parent / "prompts" / "roles"
     if bundled_roles_dir.exists():
         for role_file in bundled_roles_dir.glob("*.txt"):
             target_file = roles_dir / role_file.name
@@ -66,7 +66,7 @@ def load_role_prompt(role_name: str) -> str:
         except Exception:
             pass
 
-    bundled_file = Path(__file__).parent.parent / "roles" / f"{role_name}.txt"
+    bundled_file = Path(__file__).parent.parent / "prompts" / "roles" / f"{role_name}.txt"
     if bundled_file.exists():
         try:
             return bundled_file.read_text(encoding="utf-8").strip()

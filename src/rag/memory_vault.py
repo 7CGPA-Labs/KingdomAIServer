@@ -8,7 +8,7 @@ import time
 import math
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-from kingdom_server.utils import get_db_path
+from src.utils import get_db_path
 
 class MemoryVault:
     """Repository Pattern implementation for SQLite vector memory persistence."""
