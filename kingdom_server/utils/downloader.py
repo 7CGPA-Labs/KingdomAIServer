@@ -69,43 +69,23 @@ from kingdom_server.utils.verifier import MODEL_MANIFEST, ModelVerifier
 logger = logging.getLogger("kingdom.downloader")
 console = Console(safe_box=True)
 
-# 100% Verified open HuggingFace repository specifications for 9 Models
+# 100% Verified open HuggingFace repository specifications for V2 GGUF & 3-Minister Council Models
 MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
-    "qwen2.5-coder-1.5b-onnx": {
-        "repo_id": "onnx-community/Qwen2.5-Coder-1.5B-Instruct",
-        "filename": "onnx/model_quantized.onnx",
+    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
+        "repo_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+        "filename": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
     },
-    "all-MiniLM-L6-v2.onnx": {
-        "repo_id": "Xenova/all-MiniLM-L6-v2",
-        "filename": "onnx/model_quantized.onnx",
+    "bge-small-en-v1.5-q4_k_m.gguf": {
+        "repo_id": "BAAI/bge-small-en-v1.5",
+        "filename": "bge-small-en-v1.5-q4_k_m.gguf",
     },
-    "bge-small-en-v1.5.onnx": {
-        "repo_id": "Xenova/bge-small-en-v1.5",
-        "filename": "onnx/model_quantized.onnx",
+    "bge-reranker-base-q4_k_m.gguf": {
+        "repo_id": "BAAI/bge-reranker-base",
+        "filename": "bge-reranker-base-q4_k_m.gguf",
     },
-    "bge-reranker-base.onnx": {
-        "repo_id": "Xenova/bge-reranker-base",
-        "filename": "onnx/model_quantized.onnx",
-    },
-    "codeberta-base.onnx": {
-        "repo_id": "Xenova/codegen-350M-mono",
-        "filename": "onnx/model_quantized.onnx",
-    },
-    "granite-code-128m.onnx": {
-        "repo_id": "Xenova/gpt2",
-        "filename": "onnx/decoder_model_merged_quantized.onnx",
-    },
-    "nli-deberta-v3-small.onnx": {
-        "repo_id": "Xenova/nli-deberta-v3-small",
-        "filename": "onnx/model_quantized.onnx",
-    },
-    "codebert-vulnerability.onnx": {
-        "repo_id": "Xenova/distilbert-base-uncased",
-        "filename": "onnx/model_quantized.onnx",
-    },
-    "MobileDiffusion-LCM.onnx": {
-        "repo_id": "Xenova/roberta-base",
-        "filename": "onnx/model_quantized.onnx",
+    "sdxs-512-int8.onnx": {
+        "repo_id": "SDXS-512",
+        "filename": "sdxs-512-int8.onnx",
     },
 }
 

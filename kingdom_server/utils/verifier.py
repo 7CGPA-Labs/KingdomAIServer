@@ -1,5 +1,5 @@
 """
-Model file verification module for SHA-256 integrity checks and pre-flight diagnostics.
+Model file verification module for SHA-256 integrity checks and pre-flight diagnostics (V2 Engine).
 """
 import hashlib
 import os
@@ -7,80 +7,40 @@ from pathlib import Path
 from typing import Dict, Any, List
 from kingdom_server.utils import get_models_dir
 
-# 9 Models Specification Manifest
+# V2 Architecture Model Manifest (Main Boss GGUF + Lean 3-Minister Council)
 MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
-    "qwen2.5-coder-1.5b-onnx": {
-        "id": "boss_qwen2.5",
-        "name": "Senior Software Engineer (Main Boss)",
-        "model_id": "Qwen2.5-Coder-1.5B-Instruct-ONNX",
+    "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
+        "id": "main_boss_qwen2.5",
+        "name": "Senior Software Engineer (Main Boss GGUF)",
+        "model_id": "Qwen2.5-Coder-1.5B-Instruct-GGUF",
         "approx_size_mb": 1100,
-        "type": "onnx-genai",
+        "type": "gguf",
         "sha256": None,
     },
-    "all-MiniLM-L6-v2.onnx": {
+    "bge-small-en-v1.5-q4_k_m.gguf": {
         "id": "minister_1",
-        "name": "Minister 1 (Intent Router)",
-        "model_id": "all-MiniLM-L6-v2",
-        "approx_size_mb": 25,
-        "type": "onnx",
-        "sha256": None,
-    },
-    "bge-small-en-v1.5.onnx": {
-        "id": "minister_2",
-        "name": "Minister 2 (Repo Embedder)",
+        "name": "Minister 1: Workspace Embedder (BGE-Small)",
         "model_id": "bge-small-en-v1.5",
-        "approx_size_mb": 60,
-        "type": "onnx",
+        "approx_size_mb": 35,
+        "type": "gguf",
         "sha256": None,
     },
-    "bge-reranker-base.onnx": {
-        "id": "minister_3",
-        "name": "Minister 3 (Re-Ranker)",
+    "bge-reranker-base-q4_k_m.gguf": {
+        "id": "minister_2",
+        "name": "Minister 2: Context Re-Ranker (BGE-ReRanker)",
         "model_id": "bge-reranker-base",
         "approx_size_mb": 110,
-        "type": "onnx",
+        "type": "gguf",
         "sha256": None,
     },
-    "codeberta-base.onnx": {
-        "id": "minister_4",
-        "name": "Minister 4 (Code Parser)",
-        "model_id": "codeberta-base",
-        "approx_size_mb": 125,
-        "type": "onnx",
+    "sdxs-512-int8.onnx": {
+        "id": "minister_3",
+        "name": "Minister 3: High-Speed Vision Engine (SDXS-512)",
+        "model_id": "SDXS-512",
+        "approx_size_mb": 230,
+        "type": "onnx-int8",
         "sha256": None,
-    },
-    "granite-code-128m.onnx": {
-        "id": "minister_5",
-        "name": "Minister 5 (Speed Autocomplete)",
-        "model_id": "granite-code-128m",
-        "approx_size_mb": 130,
-        "type": "onnx",
-        "sha256": None,
-    },
-    "nli-deberta-v3-small.onnx": {
-        "id": "minister_6",
-        "name": "Minister 6 (Fact Checker)",
-        "model_id": "nli-deberta-v3-small",
-        "approx_size_mb": 90,
-        "type": "onnx",
-        "sha256": None,
-    },
-    "codebert-vulnerability.onnx": {
-        "id": "minister_7",
-        "name": "Minister 7 (Security Auditor)",
-        "model_id": "codebert-vulnerability",
-        "approx_size_mb": 125,
-        "type": "onnx",
-        "sha256": None,
-    },
-    "MobileDiffusion-LCM.onnx": {
-        "id": "minister_8",
-        "name": "Minister 8 (Asset & Diagram Generator)",
-        "model_id": "MobileDiffusion-LCM",
-        "approx_size_mb": 280,
-        "type": "onnx",
-        "sha256": None,
-    },
+    }
 }
 
 class ModelVerifier:
@@ -112,20 +72,6 @@ class ModelVerifier:
             return result
 
         if target_file.is_dir():
-            # Auto-flatten double-nested extraction folder (e.g. qwen2.5-coder-1.5b-onnx/qwen2.5-coder-1.5b-onnx/)
-            subdirs = [d for d in target_file.iterdir() if d.is_dir()]
-            if len(subdirs) == 1 and not (target_file / "model.onnx").exists():
-                nested_dir = subdirs[0]
-                try:
-                    import shutil
-                    for item in nested_dir.iterdir():
-                        dest = target_file / item.name
-                        if not dest.exists():
-                            shutil.move(item, dest)
-                    shutil.rmtree(nested_dir, ignore_errors=True)
-                except Exception:
-                    pass
-
             total_bytes = sum(f.stat().st_size for f in target_file.glob("**/*") if f.is_file())
             size_mb = round(total_bytes / (1024 * 1024), 2)
             result["actual_mb"] = size_mb
