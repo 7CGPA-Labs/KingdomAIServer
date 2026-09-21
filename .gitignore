@@ -10,7 +10,7 @@ env/
 .venv
 
 # Build & Dist
-build/kingdom/
+build/
 dist/
 dist_models/
 release/
@@ -23,9 +23,12 @@ htmlcov/
 .mypy_cache/
 
 # Local Data & Logs
-vault.db
-vault.db-wal
-vault.db-shm
+data/cache/
+data/embeddings/
+data/vectordb/
+*.db
+*.db-wal
+*.db-shm
 *.log
 models/*.gguf
 models/*.onnx

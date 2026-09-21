@@ -1,5 +1,5 @@
 """
-Kingdom AI Server - Pure Python Server Launcher.
+Kingdom AI Server V2 - Main Entrypoint Launcher.
 Starts the FastAPI OpenAI Server on http://127.0.0.1:58420 and auto-opens the Open WebUI in default browser.
 Usage:
     python main.py
@@ -16,10 +16,10 @@ try:
 except ImportError:
     script_dir = Path(__file__).parent.resolve()
     possible_venvs = [
-        script_dir.parent / "venv" / "Scripts" / "python.exe",
         script_dir / "venv" / "Scripts" / "python.exe",
-        script_dir.parent / "venv" / "bin" / "python",
+        script_dir.parent / "venv" / "Scripts" / "python.exe",
         script_dir / "venv" / "bin" / "python",
+        script_dir.parent / "venv" / "bin" / "python",
     ]
     for venv_py in possible_venvs:
         if venv_py.exists():
@@ -28,7 +28,7 @@ except ImportError:
             sys.exit(subprocess.call(cmd))
 
     print("❌ Error: 'uvicorn' is not installed in the current Python environment.")
-    print("Please activate your virtual environment or run via start_server.cmd")
+    print("Please activate your virtual environment or run via scripts/setup_env.ps1")
     sys.exit(1)
 
 # Enforce UTF-8 console output encoding on Windows
@@ -41,33 +41,32 @@ if sys.platform == "win32":
 
 import threading
 import time
+from src.config import get_model_config
 
 def start_server():
-    print("======================================================================")
-    print(" 👑 KINGDOM AI SERVER & OPEN WEBUI (Enterprise Edition) • v1.0.0")
-    print(" Dedicated Local OpenAI-Compatible Server for Continue.dev & WebUI")
-    print(" Status: ● ACTIVE  |  Endpoint: http://127.0.0.1:58420")
-    print("======================================================================")
-    
-    # Auto-provision any missing model weights
-    try:
-        from kingdom_server.utils.downloader import ModelDownloader
-        ModelDownloader().auto_provision_missing()
-    except Exception as e:
-        print(f"⚠️ Model auto-provisioning check warning: {e}")
+    config = get_model_config()
+    server_cfg = config.get("server", {})
+    host = server_cfg.get("host", "127.0.0.1")
+    port = server_cfg.get("port", 58420)
 
-    # Auto-launch default browser to Open WebUI after Uvicorn starts listening
+    print("======================================================================")
+    print(" 👑 KINGDOM AI SERVER & OPEN WEBUI (V2 Enterprise Edition) • v2.0.0")
+    print(" Dedicated Local OpenAI-Compatible Server for Continue.dev & WebUI")
+    print(f" Status: ● ACTIVE  |  Endpoint: http://{host}:{port}")
+    print(" Static VRAM Budget: <= 1.48 GB (DirectML GPU / CPU AVX2 Fallback)")
+    print("======================================================================")
+
     def _open_browser():
         time.sleep(1.5)
         try:
-            webbrowser.open("http://127.0.0.1:58420")
+            webbrowser.open(f"http://{host}:{port}")
         except Exception:
             pass
 
     threading.Thread(target=_open_browser, daemon=True).start()
 
     # Start FastAPI Uvicorn Server
-    uvicorn.run("kingdom_server.server.app:app", host="127.0.0.1", port=58420, reload=False)
+    uvicorn.run("src.inference.inference_engine:app", host=host, port=port, reload=False)
 
 if __name__ == "__main__":
     start_server()
