@@ -96,6 +96,8 @@ async def security_guardrails_middleware(request: Request, call_next):
 
     return await call_next(request)
 
+from src.processing.cache import ResponseCacheDB
+
 # Singleton Engine Handles
 orchestrator = LlamaCppOrchestrator()
 scheduler = PriorityInferenceScheduler()
@@ -104,6 +106,7 @@ council = LeanCouncilManager()
 preprocessor = Preprocessor()
 embedder = BGEEmbedder()
 persona_chain = AgentPersonaChain()
+cache_db = ResponseCacheDB()
 
 # Request Pydantic Schemas
 class CompletionRequest(BaseModel):
@@ -212,11 +215,21 @@ async def list_models(auth: bool = Depends(verify_bearer_token)):
         ]
     }
 
+@app.get("/v1/cache/stats")
+async def cache_stats(auth: bool = Depends(verify_bearer_token)):
+    """Return ResponseCacheDB hit ratio and storage metrics."""
+    return cache_db.get_stats()
+
 @app.post("/v1/completions")
 async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
     """OpenAI-compatible /v1/completions endpoint for FIM Tab Autocomplete (<35 ms TTFT target)."""
     prefix = req.prefix or req.prompt or ""
     suffix = req.suffix or ""
+
+    cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
+    cached_resp = cache_db.get(cache_key)
+    if cached_resp:
+        return cached_resp
 
     start_time = time.perf_counter()
 
@@ -227,7 +240,7 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
     created_time = int(time.time())
-    return {
+    response_data = {
         "id": f"cmpl-{created_time}",
         "object": "text_completion",
         "created": created_time,
@@ -244,6 +257,9 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
         "latency_ms": elapsed_ms
     }
 
+    cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
+    return response_data
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(verify_bearer_token)):
     """OpenAI-compatible /v1/chat/completions endpoint supporting streaming SSE and JSON."""
@@ -257,6 +273,13 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
         return StreamingResponse(_stream_generator(), media_type="text/event-stream")
 
+    # Non-streaming cache check
+    prompt_summary = json.dumps(msgs)
+    cache_key = ResponseCacheDB.compute_cache_key(req.model, prompt_summary, "", req.temperature, req.max_tokens)
+    cached_resp = cache_db.get(cache_key)
+    if cached_resp:
+        return cached_resp
+
     def _execute():
         prompt = orchestrator.format_chat_prompt(msgs)
         return orchestrator.generate_completion(prompt, max_tokens=req.max_tokens, temperature=req.temperature)
@@ -264,7 +287,7 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
     res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
     created_time = int(time.time())
 
-    return {
+    response_data = {
         "id": f"chatcmpl-{created_time}",
         "object": "chat.completion",
         "created": created_time,
@@ -281,6 +304,9 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
         ],
         "usage": res.get("usage", {"prompt_tokens": 20, "completion_tokens": 20})
     }
+
+    cache_db.put(cache_key, res["text"], response_data, query_type="CHAT")
+    return response_data
 
 @app.post("/v1/embeddings")
 async def embeddings(req: EmbeddingRequest, auth: bool = Depends(verify_bearer_token)):
