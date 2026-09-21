@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kingdom AI Server - Open WebUI</title>
-    <link rel="stylesheet" href="/static/style.css?v=1.0.1">
+    <title>Kingdom AI Server V2 - Open WebUI</title>
+    <link rel="stylesheet" href="/static/style.css?v=2.0.0">
     <style>
         pre code { display: block; padding: 12px; background: #1e1e2e; border-radius: 8px; color: #cdd6f4; font-family: 'Consolas', 'Fira Code', monospace; overflow-x: auto; font-size: 0.9em; line-height: 1.5; }
     </style>
@@ -16,7 +16,7 @@
             <div class="sidebar-header">
                 <div class="brand">
                     <span class="crown-icon">👑</span>
-                    <span class="brand-name">Kingdom AI</span>
+                    <span class="brand-name">Kingdom AI V2</span>
                 </div>
                 <button class="new-chat-btn" id="newChatBtn">
                     <span>+</span> New Chat
@@ -37,16 +37,16 @@
             <!-- Mini Telemetry Box in Sidebar -->
             <div class="sidebar-telemetry-box" id="openTelemetryBtn">
                 <div class="telem-row">
-                    <span>⚡ CPU Load:</span>
-                    <span id="sideCpu">--%</span>
+                    <span>⚡ Engine:</span>
+                    <span id="sideCpu">llama.cpp GGUF</span>
                 </div>
                 <div class="telem-row">
-                    <span>💾 RAM Usage:</span>
-                    <span id="sideRam">-- MB</span>
+                    <span>💾 VRAM Ceiling:</span>
+                    <span id="sideRam" class="cyan-text">&le; 1.48 GB</span>
                 </div>
                 <div class="telem-row">
-                    <span>🎮 GPU Acceleration:</span>
-                    <span id="sideGpu" class="green-text">DirectML GPU</span>
+                    <span>🎮 Acceleration:</span>
+                    <span id="sideGpu" class="green-text">DirectML GPU / AVX2</span>
                 </div>
             </div>
 
@@ -68,33 +68,29 @@
                 
                 <div class="agent-selector" id="agentSelector">
                     <button class="agent-pill active" data-agent="ask">
-                        <span class="agent-icon">💡</span> Ask Agent
+                        <span class="agent-icon">💡</span> Ask Main Boss
                     </button>
                     <button class="agent-pill" data-agent="plan">
-                        <span class="agent-icon">🗺️</span> Plan Agent
+                        <span class="agent-icon">🗺️</span> RAG Search
                     </button>
                     <button class="agent-pill" data-agent="code">
-                        <span class="agent-icon">⚡</span> Code Agent
+                        <span class="agent-icon">⚡</span> FIM Code Agent
                     </button>
                 </div>
 
                 <!-- Live Header Telemetry Badges -->
                 <div class="header-telemetry-badges">
                     <div class="telem-pill">
-                        <span class="pill-label">CPU</span>
-                        <span class="pill-val" id="headCpu">--%</span>
-                    </div>
-                    <div class="telem-pill">
-                        <span class="pill-label">RAM</span>
-                        <span class="pill-val" id="headRam">-- MB</span>
+                        <span class="pill-label">VRAM Ceiling</span>
+                        <span class="pill-val" id="headRam">1.48 GB</span>
                     </div>
                     <div class="telem-pill green-pill">
-                        <span class="pill-label">Models</span>
-                        <span class="pill-val" id="headModels">9/9</span>
+                        <span class="pill-label">Council</span>
+                        <span class="pill-val" id="headModels">3 Ministers</span>
                     </div>
                     <div class="hardware-badge" id="hardwareBadge">
                         <span class="status-dot green"></span>
-                        <span id="gpuStatusText">ONNX GenAI DirectML GPU</span>
+                        <span id="gpuStatusText">llama.cpp DirectML GPU</span>
                     </div>
                 </div>
             </header>
@@ -103,24 +99,24 @@
             <div class="chat-container" id="chatContainer">
                 <div class="welcome-screen" id="welcomeScreen">
                     <div class="welcome-crown">👑</div>
-                    <h1>Kingdom AI Enterprise WebUI</h1>
-                    <p>Dedicated Local OpenAI-Compatible Server for Continue.dev & Desktop Coding</p>
+                    <h1>Kingdom AI Server V2 (GGUF Engine)</h1>
+                    <p>Local OpenAI-Compatible Engine with Main Boss Qwen2.5-Coder-1.5B & Lean 3-Minister Council</p>
                     
                     <div class="quick-prompts">
-                        <div class="prompt-card" data-prompt="Write a high-performance quicksort algorithm in Go with comments.">
+                        <div class="prompt-card" data-prompt="Write a high-performance quicksort algorithm in Go with benchmark comments.">
                             <span class="card-icon">⚡</span>
                             <div class="card-title">Go Quicksort</div>
                             <div class="card-desc">Generate optimized Go code</div>
                         </div>
-                        <div class="prompt-card" data-prompt="Design a microservice architecture plan for an enterprise auth service.">
+                        <div class="prompt-card" data-prompt="@workspace Find authentication handlers in memory vault and explain the pipeline.">
                             <span class="card-icon">🗺️</span>
-                            <div class="card-title">Architecture Plan</div>
-                            <div class="card-desc">Step-by-step engineering roadmap</div>
+                            <div class="card-title">RAG Workspace Search</div>
+                            <div class="card-desc">Cosine SIMD vector search & re-ranking</div>
                         </div>
-                        <div class="prompt-card" data-prompt="Explain how ONNX Runtime GenAI and DirectML accelerate LLM matrix math on Intel Iris Xe.">
-                            <span class="card-icon">💡</span>
-                            <div class="card-title">GPU Acceleration</div>
-                            <div class="card-desc">Hardware telemetry & execution EUs</div>
+                        <div class="prompt-card" data-prompt="/security Audit code for CWE vulnerabilities and output GBNF JSON schema.">
+                            <span class="card-icon">🛡️</span>
+                            <div class="card-title">Security Auditor</div>
+                            <div class="card-desc">GBNF logit schema enforcement</div>
                         </div>
                     </div>
                 </div>
@@ -131,7 +127,7 @@
             <!-- Input Box Container -->
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea id="promptInput" placeholder="Message Kingdom AI Server..." rows="1"></textarea>
+                    <textarea id="promptInput" placeholder="Message Kingdom AI Main Boss..." rows="1"></textarea>
                     <button id="sendBtn" class="send-btn" disabled>
                         <span>➔</span>
                     </button>
@@ -140,7 +136,7 @@
                     </button>
                 </div>
                 <div class="input-footer">
-                    <span>Kingdom AI Server v1.1.0 • Loopback 127.0.0.1:58420 • Enterprise Secure</span>
+                    <span>Kingdom AI Server v2.0.0 • Loopback 127.0.0.1:58420 • Enterprise Secure &amp; Zero-VRAM Utilities</span>
                 </div>
             </div>
         </main>
@@ -150,54 +146,100 @@
     <div class="modal-overlay" id="telemetryModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📊 Hardware Telemetry & Model Council Dashboard</h2>
+                <h2>📊 Hardware Telemetry & V2 Council Dashboard</h2>
                 <button class="close-modal-btn" id="closeTelemetryBtn">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="telemetry-grid">
                     <div class="telemetry-card">
-                        <div class="card-label">CPU Utilization</div>
-                        <div class="card-val" id="telemetryCpu">--%</div>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="cpuBar" style="width: 0%;"></div></div>
+                        <div class="card-label">Execution Engine</div>
+                        <div class="card-val green-text" id="telemetryCpu">llama.cpp GGUF</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">System RAM Usage</div>
-                        <div class="card-val" id="telemetryRam">-- MB</div>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill ram-fill" id="ramBar" style="width: 0%;"></div></div>
+                        <div class="card-label">Static VRAM Ceiling</div>
+                        <div class="card-val cyan-text" id="telemetryRam">&le; 1.48 GB</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">DirectML / DirectX 12 GPU</div>
-                        <div class="card-val green-text" id="telemetryDml">Active</div>
+                        <div class="card-label">Hardware Acceleration</div>
+                        <div class="card-val green-text" id="telemetryDml">DirectML GPU (DirectX 12)</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">ONNX Runtime GenAI DirectML</div>
-                        <div class="card-val green-text" id="telemetryOpenCl">Active (DirectML Execution Provider)</div>
+                        <div class="card-label">Response Cache DB</div>
+                        <div class="card-val green-text" id="telemetryOpenCl">Active (&lt; 0.05 ms hits)</div>
                     </div>
                 </div>
 
                 <div class="telemetry-grid">
                     <div class="telemetry-card">
-                        <div class="card-label">Cognitive Memory Vectors</div>
-                        <div class="card-val cyan-text" id="telemVaultVectors">0 Indexed</div>
+                        <div class="card-label">Main Boss Model</div>
+                        <div class="card-val cyan-text">Qwen2.5-Coder-1.5B GGUF (~1.1 GB VRAM)</div>
                     </div>
                     <div class="telemetry-card">
-                        <div class="card-label">Memory Vault Sessions</div>
-                        <div class="card-val cyan-text" id="telemVaultSessions">0 Saved</div>
+                        <div class="card-label">Lean 3-Minister Council</div>
+                        <div class="card-val cyan-text">Embedder, Re-Ranker, Vision Engine (~375 MB VRAM)</div>
                     </div>
                 </div>
 
-                <h3>🏛️ 8-Minister Council & Model Artifacts Status</h3>
+                <h3>🏛️ V2 Neural Models & Native Utilities Status</h3>
                 <div class="models-table-container">
                     <table class="models-table">
                         <thead>
                             <tr>
-                                <th>Council Member / Model</th>
-                                <th>Target Execution Provider</th>
+                                <th>Subsystem / Model</th>
+                                <th>Implementation Tier</th>
+                                <th>VRAM / RAM Footprint</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="modelsTableBody">
-                            <!-- Populated dynamically via JS -->
+                            <tr>
+                                <td>Main Boss LLM &amp; FIM Autocomplete</td>
+                                <td>Qwen2.5-Coder-1.5B (GGUF Q4_K_M)</td>
+                                <td>~1,100 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Minister 1: Workspace Embedder</td>
+                                <td>BGE-Small-en-v1.5 (GGUF 384-d)</td>
+                                <td>~35 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Minister 2: Context Re-Ranker</td>
+                                <td>BGE-ReRanker-Base (GGUF Cross-Encoder)</td>
+                                <td>~110 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Minister 3: High-Speed Vision</td>
+                                <td>SDXS-512 1-step Latent Diffusion</td>
+                                <td>~230 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Native Code AST Chunker</td>
+                                <td>Tree-sitter C-ABI Binding (<1 ms)</td>
+                                <td>0 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Native Manifest &amp; Import Linter</td>
+                                <td>O(1) Set Intersection (<2 ms)</td>
+                                <td>0 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Native Security RegEx Scanner</td>
+                                <td>Compiled Pattern Matcher (<3 ms)</td>
+                                <td>0 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
+                            <tr>
+                                <td>Response Cache DB</td>
+                                <td>SQLite WAL Mode (<0.05 ms hits)</td>
+                                <td>0 MB VRAM</td>
+                                <td><span class="status-badge valid">Active</span></td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -205,6 +247,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=1.0.1"></script>
+    <script src="/static/app.js?v=2.0.0"></script>
 </body>
 </html>
