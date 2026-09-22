@@ -44,7 +44,7 @@ graph TD
 | **Response Cache DB** | SQLite WAL Cache (`data/cache/`) | In-Memory Hash + Disk | SQLite WAL Engine | 0 MB VRAM (<2 MB RAM) | **< 0.05 ms** |
 | **Minister 1: Embedder** | `bge-small-en-v1.5` | GGUF (384-dim dense) | `llama.cpp` Vector Engine | ~35 MB VRAM / RAM | 4–8 ms |
 | **Minister 2: Re-Ranker** | `bge-reranker-small` | GGUF Cross-Encoder | `llama.cpp` Re-Ranker Engine | ~110 MB VRAM / RAM | 10–16 ms |
-| **Minister 3: Vision** | `SDXS-512-0.9-1step` | INT8 Latent Diffusion | DirectML / ONNX Runtime | ~230 MB VRAM / RAM | 40–90 ms |
+| **Minister 3: Vision** | `SDXS-512-0.9-1step` | INT8 Latent Diffusion | DirectML / llama.cpp GGUF | ~230 MB VRAM / RAM | 40–90 ms |
 | **Zero-VRAM Native Utilities** | Tree-sitter / Linter / RegEx | C-ABI Native Libraries | Native CPU Execution | **0 MB VRAM** (<5 MB RAM) | **< 1–3 ms** |
 
 ---

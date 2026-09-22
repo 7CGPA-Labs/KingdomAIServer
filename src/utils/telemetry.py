@@ -21,7 +21,7 @@ def _query_dxgi_gpu() -> dict:
         return _DXGI_CACHE
 
     if sys.platform != "win32":
-        _DXGI_CACHE = {"name": "ONNX DirectML Accelerator", "vram_total_gb": 4.0}
+        _DXGI_CACHE = {"name": "llama.cpp DirectML Accelerator", "vram_total_gb": 4.0}
         return _DXGI_CACHE
 
     try:
@@ -93,7 +93,7 @@ def _query_dxgi_gpu() -> dict:
     except Exception:
         pass
 
-    _DXGI_CACHE = {"name": "ONNX DirectML Accelerator", "vram_total_gb": 4.0}
+    _DXGI_CACHE = {"name": "llama.cpp DirectML Accelerator", "vram_total_gb": 4.0}
     return _DXGI_CACHE
 
 

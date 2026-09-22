@@ -33,12 +33,12 @@ MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
         "type": "gguf",
         "sha256": None,
     },
-    "sdxs-512-int8.onnx": {
+    "sdxs-512-0.9-1step-int8.gguf": {
         "id": "minister_3",
         "name": "Minister 3: High-Speed Vision Engine (SDXS-512)",
         "model_id": "SDXS-512",
         "approx_size_mb": 230,
-        "type": "onnx-int8",
+        "type": "gguf-int8",
         "sha256": None,
     }
 }

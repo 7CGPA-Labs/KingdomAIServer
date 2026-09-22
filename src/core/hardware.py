@@ -25,9 +25,8 @@ class HardwareManager:
 
         has_directml = False
         try:
-            import onnxruntime as ort
-            providers = ort.get_available_providers()
-            has_directml = "DmlExecutionProvider" in providers
+            import llama_cpp
+            has_directml = True
         except ImportError:
             pass
 
@@ -88,7 +87,7 @@ class HardwareAccelerationEngine:
             return ["DmlExecutionProvider", "CPUExecutionProvider"]
         return ["CPUExecutionProvider"]
 
-    def resolve_onnx_provider(self) -> Tuple[str, str]:
+    def resolve_execution_provider(self) -> Tuple[str, str]:
         providers = self.get_available_providers()
         return self.chain.handle(providers)
 
@@ -105,7 +104,7 @@ class HardwareAccelerationEngine:
     def get_active_tiers(self) -> Dict[str, Any]:
         diag = self.hw_manager.detect_environment()
         return {
-            "onnx_provider": "DirectML" if diag["directml_supported"] else "CPU",
+            "execution_provider": "DirectML" if diag["directml_supported"] else "CPU",
             "ministers_tier": diag["selected_provider"],
             "boss_tier": f"llama.cpp GGUF ({diag['selected_provider']})",
             "vram_ceiling_mb": STATIC_VRAM_CEILING_MB,

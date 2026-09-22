@@ -46,7 +46,7 @@ class KingdomOrchestrator:
     def get_model_status(self) -> Dict[str, bool]:
         status = {"boss_qwen2.5": self.is_boss_loaded}
         for k, m in self.ministers.items():
-            status[m.model_filename] = m.is_onnx_loaded
+            status[m.model_filename] = m.is_model_loaded
         return status
 
     def route_request(self, user_prompt: str) -> str:

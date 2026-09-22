@@ -373,16 +373,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update Top Header Telemetry Badges
                 headCpu.textContent = `${cpuVal}%`;
                 headRam.textContent = `${ramVal} MB`;
-                headModels.textContent = `${models.online || 9}/${models.total || 9}`;
+                headModels.textContent = `${models.online || 4}/${models.total || 4}`;
 
-                const dmlTier = tiers.ministers_tier || 'DirectML GPU (DirectX 12)';
-                const bossTier = tiers.boss_tier || 'ONNX Runtime GenAI DirectML';
-                gpuStatusText.textContent = bossTier.includes('DirectML') || bossTier.includes('GenAI') ? bossTier : dmlTier;
+                const dmlTier = tiers.ministers_tier || 'DirectML GPU / CPU AVX2';
+                const bossTier = tiers.boss_tier || 'llama.cpp GGUF Engine';
+                gpuStatusText.textContent = bossTier;
 
                 // Update Sidebar Mini Telemetry Widget
                 sideCpu.textContent = `${cpuVal}%`;
                 sideRam.textContent = `${ramVal} MB`;
-                sideGpu.textContent = bossTier.includes('DirectML') ? 'DirectML GPU' : 'CPU Acceleration';
+                sideGpu.textContent = bossTier.includes('DirectML') ? 'DirectML GPU' : 'llama.cpp GGUF';
 
                 // Update Modal Telemetry Dashboard
                 document.getElementById('telemetryCpu').textContent = `${cpuVal}%`;
@@ -397,24 +397,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('telemVaultVectors').textContent = `${vault.total_vectors_indexed || 0} Indexed`;
                 document.getElementById('telemVaultSessions').textContent = `${vault.total_sessions || 0} Saved`;
 
-                // Update Models Table with Minister Council Titles
+                // Update Models Table with Main Boss & Lean 3-Minister Council GGUF Specs
                 const tbody = document.getElementById('modelsTableBody');
                 tbody.innerHTML = '';
                 const modelList = [
-                    { role: '👑 Main Boss LLM', name: 'qwen2.5-coder-1.5b-onnx', tier: bossTier },
-                    { role: '💡 Minister 1 (Intent Router)', name: 'all-MiniLM-L6-v2.onnx', tier: dmlTier },
-                    { role: '🔍 Minister 2 (Repo Embedder)', name: 'bge-small-en-v1.5.onnx', tier: dmlTier },
-                    { role: '🎯 Minister 3 (Re-Ranker)', name: 'bge-reranker-base.onnx', tier: dmlTier },
-                    { role: '🧩 Minister 4 (Code Parser)', name: 'codeberta-base.onnx', tier: dmlTier },
-                    { role: '⚡ Minister 5 (Speed Autocomplete)', name: 'granite-code-128m.onnx', tier: dmlTier },
-                    { role: '🛡️ Minister 6 (Fact Checker)', name: 'nli-deberta-v3-small.onnx', tier: dmlTier },
-                    { role: '🔒 Minister 7 (Security Auditor)', name: 'codebert-vulnerability.onnx', tier: dmlTier },
-                    { role: '🎨 Minister 8 (Asset & Diagram)', name: 'MobileDiffusion-LCM.onnx', tier: dmlTier },
+                    { role: '👑 Main Boss LLM', name: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', tier: bossTier },
+                    { role: '💡 Minister 1 (Workspace Embedder)', name: 'bge-small-en-v1.5-q4_k_m.gguf', tier: dmlTier },
+                    { role: '🎯 Minister 2 (Context Re-Ranker)', name: 'bge-reranker-base-q4_k_m.gguf', tier: dmlTier },
+                    { role: '🎨 Minister 3 (High-Speed Vision Engine)', name: 'sdxs-512-0.9-1step-int8.gguf', tier: dmlTier },
                 ];
 
                 modelList.forEach(m => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td><strong>${m.role}</strong><br><span style="font-size: 0.78rem; color: #94a3b8;">${m.name}</span></td><td>${m.tier}</td><td style="color: #10b981; font-weight: bold;">● ONLINE (DirectML)</td>`;
+                    tr.innerHTML = `<td><strong>${m.role}</strong><br><span style="font-size: 0.78rem; color: #94a3b8;">${m.name}</span></td><td>${m.tier}</td><td style="color: #10b981; font-weight: bold;">● ONLINE (GGUF / DirectML)</td>`;
                     tbody.appendChild(tr);
                 });
             }

@@ -11,7 +11,7 @@ def test_model_manifest_completeness():
     assert "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" in MODEL_MANIFEST
     assert "bge-small-en-v1.5-q4_k_m.gguf" in MODEL_MANIFEST
     assert "bge-reranker-base-q4_k_m.gguf" in MODEL_MANIFEST
-    assert "sdxs-512-int8.onnx" in MODEL_MANIFEST
+    assert "sdxs-512-0.9-1step-int8.gguf" in MODEL_MANIFEST
 
 def test_model_verifier_missing_files(tmp_path):
     """Test model verifier reports missing status when models dir is empty."""

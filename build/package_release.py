@@ -45,7 +45,7 @@ def create_release_archive():
         "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
         "- bge-small-en-v1.5-q4_k_m.gguf\n"
         "- bge-reranker-base-q4_k_m.gguf\n"
-        "- sdxs-512-int8.onnx\n",
+        "- sdxs-512-0.9-1step-int8.gguf\n",
         encoding="utf-8"
     )
 

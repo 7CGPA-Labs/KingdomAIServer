@@ -105,7 +105,7 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     
     if (Test-Path "$SourceDir\pyproject.toml") {
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore onnxruntime-directml onnxruntime-genai-directml
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore llama-cpp-python
     }
     $Deployed = $true
 }

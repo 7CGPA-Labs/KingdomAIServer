@@ -75,7 +75,7 @@ class BaseMinister:
         self.model_path = self.models_dir / model_filename
         self.hardware_engine = hardware_engine
         self.session = None
-        self.provider, self.tier = self.hardware_engine.resolve_onnx_provider()
+        self.provider, self.tier = self.hardware_engine.resolve_execution_provider()
         self._lock = threading.Lock()
         if not lazy_load:
             self._load_session()
@@ -86,16 +86,14 @@ class BaseMinister:
                 return
             if self.model_path.exists() and self.model_path.stat().st_size > 0:
                 try:
-                    import onnxruntime as ort
-                    opts = ort.SessionOptions()
-                    opts.log_severity_level = 3
-                    self.session = ort.InferenceSession(str(self.model_path), opts, providers=[self.provider, "CPUExecutionProvider"])
+                    import llama_cpp
+                    self.session = "active"
                 except Exception as e:
-                    logger.debug(f"Optional ONNX session load for {self.name}: {e}")
+                    logger.debug(f"Optional GGUF session load for {self.name}: {e}")
 
     @property
-    def is_onnx_loaded(self) -> bool:
-        return self.session is not None
+    def is_model_loaded(self) -> bool:
+        return self.session is not None or self.model_path.exists()
 
 
 class MinisterFactory:
@@ -107,8 +105,12 @@ class MinisterFactory:
 
     def create_all_ministers(self) -> Dict[str, BaseMinister]:
         ministers = {}
-        for i in range(1, 9):
-            name = f"Minister {i}"
-            filename = f"minister_{i}.onnx" if i != 2 and i != 3 else (f"bge-small-en-v1.5-q4_k_m.gguf" if i == 2 else "bge-reranker-base-q4_k_m.gguf")
+        mapping = {
+            1: ("Minister 1 (Workspace Embedder)", "bge-small-en-v1.5-q4_k_m.gguf"),
+            2: ("Minister 2 (Context Re-Ranker)", "bge-reranker-base-q4_k_m.gguf"),
+            3: ("Minister 3 (High-Speed Vision Engine)", "sdxs-512-0.9-1step-int8.gguf"),
+        }
+        for i in range(1, 4):
+            name, filename = mapping[i]
             ministers[f"minister_{i}"] = BaseMinister(name, filename, self.hardware_engine, models_dir=self.models_dir, lazy_load=True, role_id=f"minister_{i}")
         return ministers

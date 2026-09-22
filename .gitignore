@@ -32,7 +32,7 @@ data/vectordb/
 *.db-shm
 *.log
 models/*.gguf
-models/*.onnx
+models/*.bin
 !models/README.txt
 
 # OS / IDE

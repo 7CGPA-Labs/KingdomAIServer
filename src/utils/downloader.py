@@ -1,7 +1,7 @@
 """
 Thin-Client Model Auto-Provisioning module using PowerShell WebClient, truststore, huggingface_hub, urllib, and curl.exe streaming.
 Zero heavy dependencies (no torch, transformers, or large ML frameworks).
-Downloads GGUF and ONNX models directly into %LocalAppData%\\KingdomAIServer\\models\\
+Downloads GGUF models directly into %LocalAppData%\\KingdomAIServer\\models\\
 with rich.progress multi-bar UI (displaying transfer speed MB/s, ETA, progress),
 followed by post-download SHA-256 integrity verification.
 Supports company-issued corporate laptops with Zscaler proxy inspection, PAC auto-discovery, and GitHub Release Mirror Fallbacks.
@@ -83,9 +83,9 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
         "repo_id": "BAAI/bge-reranker-base",
         "filename": "bge-reranker-base-q4_k_m.gguf",
     },
-    "sdxs-512-int8.onnx": {
+    "sdxs-512-0.9-1step-int8.gguf": {
         "repo_id": "SDXS-512",
-        "filename": "sdxs-512-int8.onnx",
+        "filename": "sdxs-512-0.9-1step-int8.gguf",
     },
 }
 
@@ -107,168 +107,91 @@ class ModelDownloader:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.verifier = ModelVerifier(self.models_dir)
 
-    def provision_qwen_onnx_config_files(self, target_dir: Path):
-        """Provisions genai_config.json and tokenizers for ONNX GenAI inside qwen2.5-coder-1.5b-onnx/ directory."""
-        target_dir.mkdir(parents=True, exist_ok=True)
-        config_files = ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
-        repo_id = "onnx-community/Qwen2.5-Coder-1.5B-Instruct"
-
-        for cf in config_files:
-            file_path = target_dir / cf
-            if not file_path.exists() or file_path.stat().st_size == 0 or self.is_html_block_page(file_path):
-                urls = [
-                    f"https://huggingface.co/{repo_id}/resolve/main/{cf}",
-                    f"https://huggingface.co/{repo_id}/raw/main/{cf}"
-                ]
-                for url in urls:
-                    try:
-                        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KingdomAIServer/1.0"})
-                        with urllib.request.urlopen(req, timeout=15) as resp:
-                            if resp.status in (200, 302):
-                                content = resp.read()
-                                if not content.lower().startswith(b"version https://git-lfs"):
-                                    file_path.write_bytes(content)
-                                    logger.info(f"Downloaded valid ONNX GenAI config asset: {cf} ({len(content)} bytes)")
-                                    break
-                    except Exception as e:
-                        logger.debug(f"Failed to fetch {cf} from {url}: {e}")
-
-        # Ensure genai_config.json exists and is valid for onnxruntime-genai model loading
-        genai_config_path = target_dir / "genai_config.json"
-        import json
-        default_genai_config = {
-            "model": {
-                "bos_token_id": 151643,
-                "context_length": 4096,
-                "decoder": {
-                    "filename": "model.onnx",
-                    "head_size": 128,
-                    "hidden_size": 1536,
-                    "inputs": {
-                        "input_ids": "input_ids",
-                        "position_ids": "position_ids",
-                        "attention_mask": "attention_mask"
-                    },
-                    "num_attention_heads": 12,
-                    "num_key_value_heads": 2,
-                    "num_hidden_layers": 28
-                },
-                "eos_token_id": 151643,
-                "pad_token_id": 151643,
-                "type": "qwen2",
-                "vocab_size": 151936
-            },
-            "search": {
-                "diversity_penalty": 0.0,
-                "do_sample": True,
-                "early_stopping": True,
-                "length_penalty": 1.0,
-                "max_length": 4096,
-                "min_length": 0,
-                "no_repeat_ngram_size": 0,
-                "num_beams": 1,
-                "num_return_sequences": 1,
-                "past_present_share_buffer": False,
-                "repetition_penalty": 1.0,
-                "temperature": 0.7,
-                "top_k": 50,
-                "top_p": 0.9
-            }
-        }
-
-        should_write = False
-        config_to_write = default_genai_config
-        if not genai_config_path.exists() or genai_config_path.stat().st_size == 0 or self.is_html_block_page(genai_config_path):
-            should_write = True
-        else:
-            try:
-                data = json.loads(genai_config_path.read_text(encoding="utf-8"))
-                repaired = False
-                if "model" in data and "decoder" in data["model"] and "type" in data["model"]["decoder"]:
-                    del data["model"]["decoder"]["type"]
-                    repaired = True
-                if "search" in data and data["search"].get("past_present_share_buffer") is True:
-                    data["search"]["past_present_share_buffer"] = False
-                    repaired = True
-                if "model" in data and "session_options" in data["model"]:
-                    del data["model"]["session_options"]
-                    repaired = True
-                if "model" in data and isinstance(data["model"], dict) and "decoder" in data["model"] and isinstance(data["model"]["decoder"], dict) and "session_options" in data["model"]["decoder"]:
-                    del data["model"]["decoder"]["session_options"]
-                    repaired = True
-                if "session_options" in data:
-                    del data["session_options"]
-                    repaired = True
-                if repaired:
-                    config_to_write = data
-                    should_write = True
-            except Exception:
-                should_write = True
-
-        if should_write:
-            try:
-                genai_config_path.write_text(json.dumps(config_to_write, indent=4), encoding="utf-8")
-                logger.info("Provisioned/Repaired genai_config.json for ONNX Runtime GenAI")
-            except Exception as e:
-                logger.debug(f"Failed to write genai_config.json: {e}")
-
     def _finalize_model_file(self, temp_target: Path, target_filename: str):
-        """Finalizes downloaded binary or zip archive into single file or ONNX GenAI directory structure."""
+        """Finalizes downloaded binary GGUF model into target path."""
         target_path = self.models_dir / target_filename
-        if target_filename == "qwen2.5-coder-1.5b-onnx":
-            if target_path.exists():
-                if target_path.is_file():
-                    target_path.unlink(missing_ok=True)
-                elif target_path.is_dir():
-                    shutil.rmtree(target_path, ignore_errors=True)
-            target_path.mkdir(parents=True, exist_ok=True)
-
-            is_zip = False
-            try:
-                import zipfile
-                if zipfile.is_zipfile(temp_target):
-                    with zipfile.ZipFile(temp_target, 'r') as zip_ref:
-                        zip_ref.extractall(target_path)
-                    is_zip = True
-                    logger.info("Successfully extracted qwen2.5-coder-1.5b-onnx.zip into directory structure")
-            except Exception as e:
-                logger.debug(f"Zip extraction check failed: {e}")
-
-            if not is_zip:
-                final_binary = target_path / "model.onnx"
-                if final_binary.exists():
-                    final_binary.unlink(missing_ok=True)
-                shutil.move(temp_target, final_binary)
+        if target_path.exists():
+            if target_path.is_dir():
+                shutil.rmtree(target_path, ignore_errors=True)
             else:
-                if temp_target.exists():
-                    temp_target.unlink(missing_ok=True)
+                target_path.unlink(missing_ok=True)
+        shutil.move(temp_target, target_path)
 
-            # Flatten nested extracted subfolders if zip created a top-level parent folder
-            subdirs = [d for d in target_path.iterdir() if d.is_dir()]
-            if len(subdirs) == 1 and not (target_path / "model.onnx").exists():
-                nested_dir = subdirs[0]
-                for item in nested_dir.iterdir():
-                    dest = target_path / item.name
-                    if dest.exists():
-                        if dest.is_dir(): shutil.rmtree(dest, ignore_errors=True)
-                        else: dest.unlink(missing_ok=True)
-                    shutil.move(item, dest)
-                shutil.rmtree(nested_dir, ignore_errors=True)
+    def download_model_via_hf(self, target_filename: str, progress_ui: Optional[Any] = None, task_id: Optional[Any] = None) -> bool:
+        """Downloads single model artifact with multi-source fallback (HuggingFace Hub -> Direct HTTPS -> Mirror)."""
+        spec = MODEL_HF_SPECS.get(target_filename)
+        if not spec:
+            return False
 
-            # Rename model_quantized.onnx to model.onnx if necessary
-            quantized_bin = target_path / "model_quantized.onnx"
-            model_bin = target_path / "model.onnx"
-            if quantized_bin.exists() and not model_bin.exists():
-                shutil.move(quantized_bin, model_bin)
+        repo_id = spec["repo_id"]
+        filename = spec["filename"]
+        temp_target = self.models_dir / f"{target_filename}.part"
 
-            self.provision_qwen_onnx_config_files(target_path)
-        else:
-            if target_path.exists():
-                if target_path.is_dir():
-                    shutil.rmtree(target_path, ignore_errors=True)
-                else:
-                    target_path.unlink(missing_ok=True)
-            shutil.move(temp_target, target_path)
+        # 1. Direct HuggingFace Hub download
+        try:
+            downloaded = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                local_dir=self.models_dir,
+                local_dir_use_symlinks=False,
+                resume_download=True
+            )
+            if os.path.exists(downloaded) and not self.is_html_block_page(Path(downloaded)):
+                self._finalize_model_file(Path(downloaded), target_filename)
+                return True
+        except Exception as e:
+            logger.debug(f"HF Hub download failed for {target_filename}: {e}")
+
+        # 2. Direct HTTPS fallback URL stream
+        direct_url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+        if self.download_with_urllib(direct_url, temp_target, progress_ui, task_id):
+            if temp_target.exists() and not self.is_html_block_page(temp_target):
+                self._finalize_model_file(temp_target, target_filename)
+                return True
+
+        # 3. GitHub Mirror fallback URL stream
+        mirror_url = f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v2.0.0-models/{target_filename}"
+        if self.download_with_urllib(mirror_url, temp_target, progress_ui, task_id):
+            if temp_target.exists() and not self.is_html_block_page(temp_target):
+                self._finalize_model_file(temp_target, target_filename)
+                return True
+
+        return False
+
+    def download_with_urllib(self, url: str, temp_target: Path, progress_ui: Optional[Any] = None, task_id: Optional[Any] = None) -> bool:
+        """Downloads file via urllib with SSL verification bypass and progress updates."""
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 KingdomAIServer/1.0",
+            "Accept": "*/*",
+        }
+        try:
+            if temp_target.exists():
+                temp_target.unlink(missing_ok=True)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=600) as response:
+                if response.status in (200, 302):
+                    total_bytes = int(response.headers.get("Content-Length", 0))
+                    if progress_ui and task_id is not None and total_bytes > 0:
+                        progress_ui.update(task_id, total=total_bytes, completed=0)
+
+                    with open(temp_target, "wb") as f:
+                        while True:
+                            chunk = response.read(1024 * 128)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            if progress_ui and task_id is not None:
+                                progress_ui.update(task_id, advance=len(chunk))
+                    return True
+        except Exception as e:
+            logger.debug(f"urllib download failed for {url}: {e}")
+            if temp_target.exists():
+                temp_target.unlink(missing_ok=True)
+        return False
 
     def is_html_block_page(self, filepath: Path) -> bool:
         """Checks if a downloaded file is an HTML proxy block page or Git LFS pointer text file."""
@@ -489,28 +412,11 @@ class ModelDownloader:
                 except Exception:
                     pass
 
-        # Check if qwen2.5-coder-1.5b-onnx is currently a single file instead of a directory
-        qwen_path = self.models_dir / "qwen2.5-coder-1.5b-onnx"
-        if qwen_path.exists() and qwen_path.is_file():
-            try:
-                min_bytes = int(MODEL_MANIFEST["qwen2.5-coder-1.5b-onnx"]["approx_size_mb"] * 1024 * 1024 * 0.4)
-                if qwen_path.stat().st_size >= min_bytes:
-                    temp_bin = self.models_dir / "qwen_temp.part"
-                    shutil.move(qwen_path, temp_bin)
-                    self._finalize_model_file(temp_bin, "qwen2.5-coder-1.5b-onnx")
-                else:
-                    qwen_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.warning(f"Error converting qwen file to folder: {e}")
-
-        if qwen_path.exists() and qwen_path.is_dir():
-            self.provision_qwen_onnx_config_files(qwen_path)
-
         summary = self.verifier.get_summary()
         missing_models = [m for m in summary["details"] if m["status"] != "valid"]
 
         if not missing_models:
-            console.print("[bold green]✔ All 9 model artifacts present in %LocalAppData%\\KingdomAIServer\\models[/bold green]")
+            console.print(f"[bold green]✔ All {summary['total']} GGUF model artifacts present in {self.models_dir}[/bold green]")
             return {}
 
         console.print(f"\n[bold gold1]📦 THIN-CLIENT MODEL AUTO-PROVISIONING (Zscaler & Corporate Resilient)[/bold gold1]")

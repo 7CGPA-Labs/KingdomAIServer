@@ -11,33 +11,28 @@ from src.core.ministers import MinisterFactory, BaseMinister
 from src.core.orchestrator import KingdomOrchestrator
 from src.core.local_llm import LlamaCppOrchestrator
 
-def test_ministers_onnx_loaded_property(tmp_path):
-    """Verify is_onnx_loaded reports False when model files are missing and True when loaded."""
+def test_ministers_model_loaded_property(tmp_path):
+    """Verify is_model_loaded reports False when model files are missing and True when loaded."""
     hw_engine = HardwareAccelerationEngine()
     factory = MinisterFactory(hw_engine, models_dir=tmp_path)
     ministers = factory.create_all_ministers()
 
     for key, minister in ministers.items():
-        assert minister.is_onnx_loaded is False, f"{minister.name} should report is_onnx_loaded=False when file missing"
+        assert minister.is_model_loaded is False, f"{minister.name} should report is_model_loaded=False when file missing"
 
-def test_ministers_mock_onnx_session(tmp_path):
-    """Verify that when ONNX session is active, is_onnx_loaded reports True."""
+def test_ministers_mock_model_session(tmp_path):
+    """Verify that when GGUF model session is active, is_model_loaded reports True."""
     hw_engine = HardwareAccelerationEngine()
     
-    dummy_model_file = tmp_path / "minister_1.onnx"
-    dummy_model_file.write_bytes(b"dummy onnx bytes")
+    dummy_model_file = tmp_path / "bge-small-en-v1.5-q4_k_m.gguf"
+    dummy_model_file.write_bytes(b"dummy gguf bytes")
 
-    mock_ort = MagicMock()
-    mock_session_cls = MagicMock()
-    mock_instance = MagicMock()
-    mock_session_cls.return_value = mock_instance
-    mock_ort.InferenceSession = mock_session_cls
-
-    with patch.dict("sys.modules", {"onnxruntime": mock_ort}):
+    mock_llama = MagicMock()
+    with patch.dict("sys.modules", {"llama_cpp": mock_llama}):
         minister1 = MinisterFactory(hw_engine, models_dir=tmp_path).create_all_ministers()["minister_1"]
         minister1._load_session()
-        assert minister1.is_onnx_loaded is True
-        assert minister1.session == mock_instance
+        assert minister1.is_model_loaded is True
+        assert minister1.session == "active"
 
 def test_orchestrator_boss_model_usage(tmp_path):
     """Verify orchestrator tracks whether Main Boss GGUF model is loaded or using fallback."""
