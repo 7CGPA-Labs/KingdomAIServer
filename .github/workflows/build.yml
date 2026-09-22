@@ -29,7 +29,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -e .
-          python -m pip install pytest pillow pystray truststore huggingface_hub onnxruntime-directml onnxruntime-genai-directml
+          python -m pip install pytest pillow pystray truststore huggingface_hub llama-cpp-python
 
       - name: Run Verification & Test Suite
         run: |
@@ -46,14 +46,14 @@ jobs:
           path: release/KingdomServer-win64-full.zip
           retention-days: 30
 
-      - name: Publish Release Bundle (v1.0.0)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Publish Release Bundle (v2.0.0)
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v1.1.0') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          if (gh release view v1.0.0 2>$null) {
-              gh release upload v1.0.0 release/KingdomServer-win64-full.zip --clobber
+          if (gh release view v2.0.0 2>$null) {
+              gh release upload v2.0.0 release/KingdomServer-win64-full.zip --clobber
           } else {
-              gh release create v1.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v1.0.0 Release" --notes "Zero-Admin Enterprise WebUI & Python Server Bundle for Windows x64"
+              gh release create v2.0.0 release/KingdomServer-win64-full.zip --title "Kingdom AI Server & Open WebUI v2.0.0 Release" --notes "Zero-Admin Enterprise WebUI & llama.cpp GGUF Python Server Bundle (V2 Architecture) for Windows x64"
           }
