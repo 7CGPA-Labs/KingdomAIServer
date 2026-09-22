@@ -76,16 +76,16 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
         "filename": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
     },
     "bge-small-en-v1.5-q4_k_m.gguf": {
-        "repo_id": "BAAI/bge-small-en-v1.5",
+        "repo_id": "CompendiumLabs/bge-small-en-v1.5-gguf",
         "filename": "bge-small-en-v1.5-q4_k_m.gguf",
     },
     "bge-reranker-base-q4_k_m.gguf": {
-        "repo_id": "BAAI/bge-reranker-base",
+        "repo_id": "sabafallah/bge-reranker-base-Q4_K_M-GGUF",
         "filename": "bge-reranker-base-q4_k_m.gguf",
     },
     "sdxs-512-0.9-1step-int8.gguf": {
-        "repo_id": "SDXS-512",
-        "filename": "sdxs-512-0.9-1step-int8.gguf",
+        "repo_id": "concedo/sdxs-512-tinySDdistilled-GGUF",
+        "filename": "sdxs-512-tinySDdistilled_Q8_0.gguf",
     },
 }
 
