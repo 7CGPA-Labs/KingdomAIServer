@@ -50,7 +50,7 @@ def test_gate1_silicon_provider_diagnostics():
     assert diag["platform"] is not None
     assert diag["cpu_cores"] >= 1
     assert diag["vram_ceiling_mb"] == 1480
-    assert "DirectML" in diag["selected_provider"] or "CPU" in diag["selected_provider"]
+    assert "Vulkan" in diag["selected_provider"] or "OpenCL" in diag["selected_provider"] or "GPU" in diag["selected_provider"]
 
 
 # ==============================================================================

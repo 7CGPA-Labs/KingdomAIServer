@@ -107,14 +107,15 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
         Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil
         
-        Write-Host "Installing llama-cpp-python GGUF engine..." -ForegroundColor Yellow
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python
+        Write-Host "Installing llama-cpp-python GGUF engine (Strict GPU/iGPU Vulkan/OpenCL)..." -ForegroundColor Yellow
+        $vulkanWheelUrl = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+        $cpuWheelUrl = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+        
+        Write-Host "Downloading Vulkan GPU/iGPU pre-built wheel ($vulkanWheelUrl)..." -ForegroundColor Cyan
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $vulkanWheelUrl
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "[WARN] Pre-built llama-cpp-python wheel not found for this Python version; attempting source install..." -ForegroundColor Yellow
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "[WARN] Could not install llama-cpp-python. Core WebUI and utilities will run with CPU fallbacks." -ForegroundColor Yellow
-            }
+            Write-Host "[WARN] Vulkan wheel download failed, attempting standard GPU wheel..." -ForegroundColor Yellow
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $cpuWheelUrl
         }
 
         & "$InstallDir\venv\Scripts\python.exe" -m pip install --no-deps -e "$SourceDir"

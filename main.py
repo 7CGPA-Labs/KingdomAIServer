@@ -15,6 +15,7 @@ try:
     import uvicorn
 except ImportError:
     script_dir = Path(__file__).parent.resolve()
+    current_py = Path(sys.executable).resolve()
     possible_venvs = [
         script_dir / "venv" / "Scripts" / "python.exe",
         script_dir.parent / "venv" / "Scripts" / "python.exe",
@@ -22,13 +23,13 @@ except ImportError:
         script_dir.parent / "venv" / "bin" / "python",
     ]
     for venv_py in possible_venvs:
-        if venv_py.exists():
+        if venv_py.exists() and venv_py.resolve() != current_py:
             print(f"🔄 Switching to virtual environment Python: {venv_py}")
             cmd = [str(venv_py), str(Path(__file__).resolve())] + sys.argv[1:]
             sys.exit(subprocess.call(cmd))
 
-    print("❌ Error: 'uvicorn' is not installed in the current Python environment.")
-    print("Please activate your virtual environment or run via scripts/setup_env.ps1")
+    print(f"❌ Error: 'uvicorn' is not installed in Python environment ({sys.executable}).")
+    print("Please install requirements: pip install -e .")
     sys.exit(1)
 
 # Enforce UTF-8 console output encoding on Windows

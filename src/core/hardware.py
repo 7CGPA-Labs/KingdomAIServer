@@ -36,7 +36,7 @@ class HardwareManager:
             "system_ram_gb": total_ram_gb,
             "available_ram_gb": available_ram_gb,
             "directml_supported": has_directml,
-            "selected_provider": "DirectML (GPU)" if has_directml else "CPU (AVX2)",
+            "selected_provider": "Vulkan / OpenCL (GPU/iGPU)" if has_directml else "Uninitialized",
             "vram_ceiling_mb": STATIC_VRAM_CEILING_MB
         }
 

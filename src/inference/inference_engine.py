@@ -143,11 +143,33 @@ class DiagramRequest(BaseModel):
 class SecurityAuditRequest(BaseModel):
     code: str
 
+# Mount Open WebUI static files
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+curr_file = Path(__file__).resolve()
+possible_webui_dirs = [
+    curr_file.parent.parent.parent / "webui" / "static",
+    curr_file.parent.parent / "webui" / "static",
+    Path("webui/static").resolve(),
+]
+webui_dir = None
+for candidate in possible_webui_dirs:
+    if candidate.exists() and (candidate / "index.html").exists():
+        webui_dir = candidate
+        break
+
+if webui_dir:
+    app.mount("/static", StaticFiles(directory=str(webui_dir)), name="static")
+
 # Endpoints
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root_webui():
     """Serves Open WebUI dashboard application."""
+    if webui_dir and (webui_dir / "index.html").exists():
+        return HTMLResponse(content=(webui_dir / "index.html").read_text(encoding="utf-8"))
+
     html_content = """<!DOCTYPE html>
 <html>
 <head>

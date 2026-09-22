@@ -23,7 +23,7 @@ def test_webui_index_endpoint():
     """Test / root endpoint returns WebUI HTML application."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "Kingdom AI Server - Open WebUI" in response.text
+    assert "Kingdom AI" in response.text and "Open WebUI" in response.text
 
 def test_webui_api_sessions():
     """Test /api/sessions endpoint returns session history list."""
