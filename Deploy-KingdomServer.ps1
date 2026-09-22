@@ -105,7 +105,7 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     
     if (Test-Path "$SourceDir\pyproject.toml") {
         Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil huggingface_hub
         
         Write-Host "Installing llama-cpp-python GGUF engine (Strict GPU/iGPU Vulkan/OpenCL)..." -ForegroundColor Yellow
         $vulkanWheelUrl = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
