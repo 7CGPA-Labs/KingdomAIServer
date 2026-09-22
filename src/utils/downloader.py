@@ -229,7 +229,7 @@ class ModelDownloader:
 
         # Build resilient multi-source Mirror URLs
         urls_to_try = []
-        mirror_filename = "qwen2.5-coder-1.5b-onnx.zip" if target_filename == "qwen2.5-coder-1.5b-onnx" else target_filename
+        mirror_filename = target_filename
 
         # 1. Custom Mirror URL set by corporate IT or user via KINGDOM_MODELS_MIRROR_URL
         custom_mirror = os.environ.get("KINGDOM_MODELS_MIRROR_URL")
@@ -239,7 +239,7 @@ class ModelDownloader:
 
         # 2. GitHub Release Mirror URL (Bypasses Zscaler domain blocks on corporate developer laptops)
         if not os.environ.get("SKIP_GITHUB_MIRROR"):
-            urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0-models/{mirror_filename}")
+            urls_to_try.append(f"https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v2.0.0-models/{mirror_filename}")
 
         # 3. Primary Hugging Face LFS CDN URL
         urls_to_try.append(hf_hub_url(repo_id=repo_id, filename=hf_filename))
@@ -452,9 +452,8 @@ class ModelDownloader:
                 if not success:
                     progress.update(t_id, description=f"[red]Failed ({m['name']})[/red]")
 
-        # Clean up temporary .cache, .tmp, .part, and onnx subfolders
+        # Clean up temporary .cache, .tmp, and .part subfolders
         shutil.rmtree(self.models_dir / ".cache", ignore_errors=True)
-        shutil.rmtree(self.models_dir / "onnx", ignore_errors=True)
         for p in self.models_dir.glob("*.tmp"):
             try: p.unlink(missing_ok=True)
             except Exception: pass
