@@ -104,8 +104,20 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     }
     
     if (Test-Path "$SourceDir\pyproject.toml") {
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary -e "$SourceDir"
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary truststore llama-cpp-python
+        Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil
+        
+        Write-Host "Installing llama-cpp-python GGUF engine..." -ForegroundColor Yellow
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary --only-binary=:all: llama-cpp-python
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] Pre-built llama-cpp-python wheel not found for this Python version; attempting source install..." -ForegroundColor Yellow
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary llama-cpp-python
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[WARN] Could not install llama-cpp-python. Core WebUI and utilities will run with CPU fallbacks." -ForegroundColor Yellow
+            }
+        }
+
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --no-deps -e "$SourceDir"
     }
     $Deployed = $true
 }
