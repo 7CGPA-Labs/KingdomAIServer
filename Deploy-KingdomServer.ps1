@@ -53,7 +53,7 @@ if ($ScriptDir -and (Test-Path "$ScriptDir\kingdom_bin")) {
 # 2. If not local, attempt downloading release asset from GitHub
 if (-not $Deployed) {
     $ZipPath = "$env:TEMP\KingdomServer-win64-full.zip"
-    $ReleaseUrl = "https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v1.0.0/KingdomServer-win64-full.zip"
+    $ReleaseUrl = "https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v2.0.0/KingdomServer-win64-full.zip"
     
     Write-Host "Downloading release bundle from GitHub..." -ForegroundColor Yellow
     try {
