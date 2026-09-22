@@ -5,7 +5,7 @@ on:
 
 jobs:
   publish-models:
-    name: Download & Publish ONNX Model Binaries (v1.0.0-models)
+    name: Download & Publish GGUF Model Binaries (v2.0.0-models)
     runs-on: windows-latest
 
     permissions:
@@ -30,22 +30,18 @@ jobs:
           python -m pip install -e .
           python -m pip install huggingface_hub truststore httpx rich
 
-      - name: Download Model Artifacts from Source (HuggingFace / ONNX Community)
+      - name: Download Model Artifacts from Source (HuggingFace Hub)
         env:
           SKIP_GITHUB_MIRROR: "1"
         run: |
-          python -c "from kingdom_server.utils.downloader import ModelDownloader; from pathlib import Path; ModelDownloader(Path('dist_models')).auto_provision_missing()"
+          python -c "from src.utils.downloader import ModelDownloader; from pathlib import Path; ModelDownloader(Path('dist_models')).auto_provision_missing()"
 
-      - name: Publish Models to GitHub Release Mirror (v1.0.0-models)
+      - name: Publish Models to GitHub Release Mirror (v2.0.0-models)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          if (Test-Path "dist_models/qwen2.5-coder-1.5b-onnx") {
-              Compress-Archive -Path "dist_models/qwen2.5-coder-1.5b-onnx/*" -DestinationPath "dist_models/qwen2.5-coder-1.5b-onnx.zip" -Force
-              Remove-Item -Path "dist_models/qwen2.5-coder-1.5b-onnx" -Recurse -Force
+          if (gh release view v2.0.0-models 2>$null) {
+              gh release delete v2.0.0-models -y --cleanup-tag
           }
-          if (gh release view v1.0.0-models 2>$null) {
-              gh release delete v1.0.0-models -y --cleanup-tag
-          }
-          gh release create v1.0.0-models dist_models/* --title "Kingdom AI Server Model Weights Mirror" --notes "Pre-built INT4 Quantized ONNX and INT8 ONNX model binary artifacts for corporate proxy fallbacks"
+          gh release create v2.0.0-models dist_models/* --title "Kingdom AI Server GGUF Model Weights Mirror" --notes "Pre-built Main Boss GGUF and Lean 3-Minister Council model binary artifacts for corporate proxy fallbacks"
