@@ -87,7 +87,7 @@ if (-not $Deployed) {
 # 3. Setup Python virtual environment & package installation
 Write-Host "[CORPORATE-FALLBACK] Setting up Python virtual environment..." -ForegroundColor Cyan
 $SourceDir = "$InstallDir\src"
-$TargetBranch = if ($env:KINGDOM_BRANCH) { $env:KINGDOM_BRANCH } else { "v1.1.0" }
+$TargetBranch = if ($env:KINGDOM_BRANCH) { $env:KINGDOM_BRANCH } else { "v2.0.0" }
 if (-not (Test-Path $SourceDir)) {
     if (Get-Command git -ErrorAction SilentlyContinue) {
         git clone -b $TargetBranch https://github.com/7CGPA-Labs/KingdomAIServer.git $SourceDir -q
