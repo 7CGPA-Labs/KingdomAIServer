@@ -1,69 +1,112 @@
 """
-Build packaging script creating KingdomServer-win64-full.zip release archive.
+Build packaging script creating KingdomServer-win64-full.zip release archive using zipapp (.pyz).
 """
 import os
 import shutil
 import zipfile
+import compileall
+import zipapp
 from pathlib import Path
 
 def create_release_archive():
     project_root = Path(__file__).resolve().parent.parent
-    dist_dir = project_root / "dist" / "kingdom"
     build_out_dir = project_root / "release"
     build_out_dir.mkdir(parents=True, exist_ok=True)
     
     zip_path = build_out_dir / "KingdomServer-win64-full.zip"
     print(f"Creating release package at: {zip_path}")
 
-    # Prepare staging directory
+    # Prepare staging directories
     staging_dir = build_out_dir / "KingdomServer-win64-full"
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True)
+    
+    bin_dir = staging_dir / "bin"
+    bin_dir.mkdir(parents=True)
 
-    # 1. Copy source codebase package
-    codebase_dir = staging_dir / "src"
-    codebase_dir.mkdir(parents=True, exist_ok=True)
-    for item in ["src", "config", "pyproject.toml", "README.md", "LICENSE", "main.py", "start_server.py", "download_models.py"]:
+    # 1. Prepare ZipApp staging
+    zipapp_stage = build_out_dir / "zipapp_stage"
+    if zipapp_stage.exists():
+        shutil.rmtree(zipapp_stage)
+    zipapp_stage.mkdir(parents=True)
+
+    for item in ["src", "config"]:
         target = project_root / item
-        dest = codebase_dir / item
-        if target.is_dir():
-            shutil.copytree(target, dest)
-        elif target.is_file():
-            shutil.copy(target, dest)
+        if target.exists():
+            shutil.copytree(target, zipapp_stage / item)
+    
+    for item in ["main.py", "start_server.py", "download_models.py"]:
+        target = project_root / item
+        if target.exists():
+            shutil.copy(target, zipapp_stage / item)
 
-    # 2. Copy Deploy-KingdomServer.ps1 script
+    # Write router __main__.py for the zipapp
+    main_py_content = """import sys
+import os
+
+if len(sys.argv) > 1:
+    cmd = sys.argv[1].lower()
+    if cmd == "server":
+        from main import start_server
+        start_server()
+    elif cmd == "cli":
+        from src.cli import terminal_ui
+        terminal_ui.main()
+    elif cmd == "download":
+        from src.utils import downloader
+        downloader.main()
+    else:
+        print(f"Unknown command: {cmd}")
+else:
+    from main import start_server
+    start_server()
+"""
+    (zipapp_stage / "__main__.py").write_text(main_py_content, encoding="utf-8")
+
+    # Compile zipapp contents to non-editable bytecode
+    print("Compiling ZipApp contents to .pyc...")
+    compileall.compile_dir(zipapp_stage, force=True, legacy=True, quiet=1)
+    for py_file in zipapp_stage.rglob("*.py"):
+        py_file.unlink()
+    for pycache in zipapp_stage.rglob("__pycache__"):
+        if pycache.is_dir():
+            shutil.rmtree(pycache)
+
+    # Create the zipapp
+    pyz_path = bin_dir / "kingdom.pyz"
+    print(f"Bundling into {pyz_path}...")
+    zipapp.create_archive(source=zipapp_stage, target=pyz_path)
+    shutil.rmtree(zipapp_stage)
+
+    # 2. Copy Deploy script
     deploy_script = project_root / "Deploy-KingdomServer.ps1"
     if deploy_script.exists():
         shutil.copy(deploy_script, staging_dir / "Deploy-KingdomServer.ps1")
 
-    # 3. Compile everything to non-editable Python bytecode (.pyc)
-    import compileall
-    print("Compiling source code to non-editable bytecode (.pyc)...")
-    # legacy=True puts the .pyc files right next to the .py files instead of inside __pycache__
-    compileall.compile_dir(staging_dir, force=True, legacy=True, quiet=1)
-
-    # Remove all original .py source files to secure the codebase
-    for py_file in staging_dir.rglob("*.py"):
-        py_file.unlink()
-        
-    # Clean up any residual __pycache__ directories
-    for pycache in staging_dir.rglob("__pycache__"):
-        if pycache.is_dir():
-            shutil.rmtree(pycache)
-
-    # 4. Create models directory placeholder
+    # 3. Create model README
     models_dir = staging_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / "README.txt").write_text(
-        "Place the V2 model files here (or run python download_models.py):\n"
+        "Place the V2 model files here (or run download_models.cmd):\n"
         "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
         "- bge-small-en-v1.5-q4_k_m.gguf\n"
         "- bge-reranker-base-q4_k_m.gguf\n",
         encoding="utf-8"
     )
 
-    # 4. Zip everything up into KingdomServer-win64-full.zip
+    # 4. Create local .cmd wrappers in bin/ for testing or manual execution
+    (bin_dir / "start_server.cmd").write_text(
+        "@echo off\nsetlocal\nset PYTHONUTF8=1\ncd /d \"%~dp0..\"\npython \"%~dp0kingdom.pyz\" server %*\n", encoding="utf-8"
+    )
+    (bin_dir / "kingdom_cli.cmd").write_text(
+        "@echo off\nsetlocal\nset PYTHONUTF8=1\ncd /d \"%~dp0..\"\npython \"%~dp0kingdom.pyz\" cli %*\n", encoding="utf-8"
+    )
+    (bin_dir / "download_models.cmd").write_text(
+        "@echo off\nsetlocal\nset PYTHONUTF8=1\ncd /d \"%~dp0..\"\npython \"%~dp0kingdom.pyz\" download %*\n", encoding="utf-8"
+    )
+
+    # 5. Zip the final structure
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(staging_dir):
             for file in files:

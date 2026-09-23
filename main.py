@@ -51,10 +51,10 @@ def start_server():
     port = server_cfg.get("port", 58420)
 
     print("======================================================================")
-    print(" 👑 KINGDOM AI SERVER & OPEN WEBUI (V2 Enterprise Edition) • v2.0.0")
-    print(" Dedicated Local OpenAI-Compatible Server for Continue.dev & WebUI")
+    print(" 👑 KINGDOM AI SERVER (V2 Headless Edition) • v2.0.0")
+    print(" Dedicated Local OpenAI-Compatible Server for Continue.dev")
     print(f" Status: ● ACTIVE  |  Endpoint: http://{host}:{port}")
-    print(" Static VRAM Budget: <= 1.48 GB (DirectML GPU / CPU AVX2 Fallback)")
+    print(" Static VRAM Budget: <= 1.25 GB (DirectML GPU / CPU AVX2 Fallback)")
     print("======================================================================")
 
     def _open_browser():

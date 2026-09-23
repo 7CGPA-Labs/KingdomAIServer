@@ -6,7 +6,7 @@ Exposes ONLY /v1/completions and /v1/chat/completions for Continue.dev IDE exten
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List, Union
 import os
@@ -108,6 +108,8 @@ reranker = BGEReranker()
 persona_chain = AgentPersonaChain()
 cache_db = ResponseCacheDB()
 
+import jinja2
+
 # Request Pydantic Schemas (only what Continue.dev needs)
 class CompletionRequest(BaseModel):
     prompt: Optional[str] = None
@@ -128,6 +130,62 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     temperature: float = 0.7
     max_tokens: int = 512
+
+# =============================================================================
+# ENDPOINT 0: / — Jinja2 Server Status Page
+# =============================================================================
+
+INFO_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingdom AI Server V2</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 40px; display: flex; justify-content: center; }
+        .container { background-color: #1e293b; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); max-width: 600px; width: 100%; border: 1px solid #334155; }
+        h1 { color: #38bdf8; margin-top: 0; }
+        .status { display: inline-block; background-color: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; margin-bottom: 20px; }
+        .metric { margin: 10px 0; padding: 10px; background-color: #0f172a; border-radius: 6px; display: flex; justify-content: space-between; }
+        .metric span.label { color: #94a3b8; }
+        .metric span.value { font-family: monospace; color: #f1f5f9; }
+        .endpoints { margin-top: 20px; color: #cbd5e1; }
+        code { background-color: #0f172a; padding: 2px 6px; border-radius: 4px; color: #fbbf24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👑 Kingdom AI Server V2</h1>
+        <div class="status">● System Active & Ready</div>
+        
+        <div class="metric"><span class="label">Architecture</span><span class="value">Headless OpenAI Gateway</span></div>
+        <div class="metric"><span class="label">VRAM Ceiling</span><span class="value">{{ vram_ceiling }} MB</span></div>
+        <div class="metric"><span class="label">Active GPU Provider</span><span class="value">{{ gpu_provider }}</span></div>
+        <div class="metric"><span class="label">Main Model Loaded</span><span class="value">{{ is_loaded }}</span></div>
+        
+        <div class="endpoints">
+            <h3>Active Endpoints:</h3>
+            <p><code>POST /v1/completions</code> (Continue.dev FIM Tab Autocomplete)</p>
+            <p><code>POST /v1/chat/completions</code> (Continue.dev Chat Sidebar)</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+@app.get("/")
+async def root_info_page():
+    """Renders a lightweight inline Jinja2 status page."""
+    hw = HardwareManager()
+    diag = hw.detect_environment()
+    template = jinja2.Template(INFO_TEMPLATE)
+    html_content = template.render(
+        vram_ceiling=STATIC_VRAM_CEILING_MB,
+        gpu_provider=diag.get("selected_provider", "Unknown"),
+        is_loaded="✅ Yes" if orchestrator.is_loaded else "❌ No (Lazy load)"
+    )
+    return HTMLResponse(content=html_content, status_code=200)
 
 # =============================================================================
 # ENDPOINT 1: /v1/completions — FIM Tab Autocomplete for Continue.dev
