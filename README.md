@@ -18,17 +18,17 @@ V2 drops the bulky WebUI and large VRAM requirements, operating completely headl
 
 ```mermaid
 graph TD
-    User[Continue.dev or Terminal CLI] -->|HTTP / SSE Port 58420| Server[FastAPI Server Gateway]
-    Server -->|Instant Cache Hit <0.05ms| Cache[Response Cache DB: SQLite WAL]
-    Server -->|DirectML / CPU Engine| Engine[llama.cpp GGUF Engine]
-    Engine -->|llama-cpp-python| Boss[Main Boss LLM: Qwen2.5-Coder 1.5B]
-    Engine -->|llama.cpp Embedder| M1[Minister 1: Vector Embedder BGE-Small]
-    Engine -->|llama.cpp ReRanker| M2[Minister 2: Context Re-Ranker]
+    User["Continue.dev or Terminal CLI"] -->|"HTTP / SSE Port 58420"| Server["FastAPI Server Gateway"]
+    Server -->|"Instant Cache Hit (under 0.05ms)"| Cache["Response Cache DB (SQLite WAL)"]
+    Server -->|"DirectML / CPU Engine"| Engine["llama.cpp GGUF Engine"]
+    Engine -->|"llama-cpp-python"| Boss["Main Boss LLM (Qwen2.5-Coder 1.5B)"]
+    Engine -->|"llama.cpp Embedder"| M1["Minister 1 (Vector Embedder BGE-Small)"]
+    Engine -->|"llama.cpp ReRanker"| M2["Minister 2 (Context Re-Ranker)"]
 
-    Server -->|Zero-VRAM Utilities| Utils[Native CPU Pipeline]
-    Utils --> U1[Tree-sitter AST Parser]
-    Utils --> U2[SQLite Vector Store]
-    Utils --> U3[Heuristic Intent Router]
+    Server -->|"Zero-VRAM Utilities"| Utils["Native CPU Pipeline"]
+    Utils --> U1["Tree-sitter AST Parser"]
+    Utils --> U2["SQLite Vector Store"]
+    Utils --> U3["Heuristic Intent Router"]
 ```
 
 ---
