@@ -41,11 +41,10 @@ def create_release_archive():
         if target.exists():
             shutil.copy(target, zipapp_stage / item)
 
-    # Compile zipapp contents to non-editable bytecode
-    print("Compiling ZipApp contents to .pyc...")
-    compileall.compile_dir(zipapp_stage, force=True, legacy=True, quiet=1)
-    for py_file in zipapp_stage.rglob("*.py"):
-        py_file.unlink()
+    # We must KEEP the .py files inside the .pyz bundle. 
+    # Python bytecode (.pyc) has a strict "magic number" tied to the exact minor version of Python (e.g., 3.11 vs 3.12).
+    # If we delete the .py files, the .pyz will ONLY run on the exact Python version used by GitHub Actions.
+    # By leaving the .py files inside the .pyz, the bundle remains a single file but is universally compatible.
     for pycache in zipapp_stage.rglob("__pycache__"):
         if pycache.is_dir():
             shutil.rmtree(pycache)
