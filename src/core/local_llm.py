@@ -9,11 +9,17 @@ import threading
 from typing import Dict, Any, Generator, Optional, List
 from src.processing.tokenizer import FIMFormatter, format_fim_prompt
 
+from src.utils import get_models_dir
+
 class LlamaCppOrchestrator:
     """Orchestrates Main Boss GGUF LLM execution (Qwen2.5-Coder-1.5B)."""
 
     def __init__(self, model_path: Optional[str] = None, n_ctx: int = 4096, n_gpu_layers: int = -1):
-        self.model_path = model_path
+        if model_path is None:
+            self.model_path = str(get_models_dir() / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
+        else:
+            self.model_path = model_path
+            
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
         self.is_loaded = False
@@ -50,6 +56,9 @@ class LlamaCppOrchestrator:
     ) -> Dict[str, Any]:
         """Execute single-turn generation or completion request."""
         start = time.perf_counter()
+        
+        if not self.is_loaded:
+            self.load_model()
 
         with self._lock:
             if self._llm:
@@ -63,7 +72,7 @@ class LlamaCppOrchestrator:
                 text = output["choices"][0]["text"]
                 usage = output.get("usage", {"prompt_tokens": len(prompt) // 4, "completion_tokens": len(text) // 4})
             else:
-                text = "// GGUF model uninitialized - placeholder response"
+                text = "// GGUF model uninitialized - placeholder response. Please verify model weights."
                 usage = {"prompt_tokens": 10, "completion_tokens": 10}
 
         elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -111,6 +120,9 @@ class LlamaCppOrchestrator:
         """Stream SSE chat completion chunks."""
         prompt = self.format_chat_prompt(messages)
         created_time = int(time.time())
+
+        if not self.is_loaded:
+            self.load_model()
 
         with self._lock:
             if self._llm:
