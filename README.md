@@ -86,7 +86,7 @@ Add the following configuration to your `~/.continue/config.json`:
       "provider": "openai",
       "model": "qwen2.5-coder-1.5b",
       "apiBase": "http://127.0.0.1:58420/v1",
-      "apiKey": "EMPTY"
+      "apiKey": "local-token"
     }
   ],
   "tabAutocompleteModel": {
@@ -94,7 +94,7 @@ Add the following configuration to your `~/.continue/config.json`:
     "provider": "openai",
     "model": "qwen2.5-coder-1.5b",
     "apiBase": "http://127.0.0.1:58420/v1",
-    "apiKey": "EMPTY"
+    "apiKey": "local-token"
   }
 }
 ```
