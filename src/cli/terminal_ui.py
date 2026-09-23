@@ -77,7 +77,7 @@ class KingdomCLI:
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
-        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /index <path>  /quit[/dim]")
+        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /index <path>  /clearindex  /audit  /quit[/dim]")
         console.print("[dim]Type your message and press Enter to chat.[/dim]")
         console.print()
 
@@ -225,6 +225,15 @@ class KingdomCLI:
                     target_path = user_input[7:].strip()
                     self.index_workspace(target_path)
                     continue
+                elif user_input.lower() == "/clearindex":
+                    from src.rag.vector_store import VectorStore
+                    vs = VectorStore()
+                    vs.clear_vault()
+                    console.print("[success]Vector Store (RAG memory) cleared successfully.[/success]")
+                    continue
+                elif user_input.lower() == "/audit":
+                    self.audit_workspace()
+                    continue
                 elif user_input.lower() == "/clear":
                     self.chat_history.clear()
                     console.clear()
@@ -297,6 +306,56 @@ class KingdomCLI:
                         pass
 
         console.print(f"[success]Indexing complete! {files_indexed} files and {chunks_indexed} chunks added to Vector Store.[/success]")
+
+    def audit_workspace(self):
+        """Run VulnerabilityScanner on all chunks in the Vector Store."""
+        from pathlib import Path
+        from src.rag.vector_store import VectorStore
+        from src.processing.preprocessor import VulnerabilityScanner
+        from rich.table import Table
+
+        vs = VectorStore()
+        scanner = VulnerabilityScanner()
+        chunks = vs.get_all_chunks()
+        
+        if not chunks:
+            console.print("[warning]Vector Store is empty. Use /index <path> to index a codebase first.[/warning]")
+            return
+            
+        console.print(f"[info]Auditing {len(chunks)} chunks in Vector Store...[/info]")
+        
+        all_findings = []
+        with console.status("[bold cyan]Running Security Audit...[/bold cyan]", spinner="dots"):
+            for chunk in chunks:
+                findings = scanner.scan_security_issues(chunk["content"])
+                for f in findings:
+                    f["file_path"] = chunk["file_path"]
+                    # Add chunk line offset
+                    f["actual_line"] = f["line_number"] + chunk["line_start"] - 1
+                    all_findings.append(f)
+                    
+        if not all_findings:
+            console.print("[success]Audit complete! 0 vulnerabilities found.[/success]")
+            return
+            
+        table = Table(title="Security Audit Findings")
+        table.add_column("Severity", style="bold red")
+        table.add_column("File", style="cyan")
+        table.add_column("Line", style="yellow")
+        table.add_column("Description", style="white")
+        
+        for f in sorted(all_findings, key=lambda x: (x["severity"], x["file_path"])):
+            severity_label = f["severity"].upper()
+            color = "red" if severity_label == "CRITICAL" or severity_label == "HIGH" else "yellow"
+            table.add_row(
+                f"[{color}]{severity_label}[/{color}]",
+                Path(f["file_path"]).name,
+                str(f["actual_line"]),
+                f["description"]
+            )
+            
+        console.print(table)
+        console.print(f"[warning]Found {len(all_findings)} potential security issues.[/warning]")
 
 
 def main():

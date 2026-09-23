@@ -98,6 +98,22 @@ class VectorStore:
             r["search_time_ms"] = round(elapsed_ms, 2)
         return top_results
 
+    def get_all_chunks(self) -> List[Dict[str, Any]]:
+        """Retrieve all stored chunks for auditing or mass processing."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, file_path, content, line_start, line_end FROM memory_chunks")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            "id": r[0],
+            "file_path": r[1],
+            "content": r[2],
+            "line_start": r[3],
+            "line_end": r[4]
+        } for r in rows]
+
     def clear_vault(self) -> None:
         """Clear all stored memory chunks."""
         conn = sqlite3.connect(self.db_path)
