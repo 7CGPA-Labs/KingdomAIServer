@@ -7,9 +7,20 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any
 
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-CONFIG_DIR = PROJECT_ROOT / "config"
-DATA_DIR = PROJECT_ROOT / "data"
+from src.utils import get_base_dir
+
+_base = Path(__file__).parent.parent.resolve()
+
+# Split paths to handle running inside a read-only ZipApp (.pyz)
+if _base.is_file() and _base.suffix == '.pyz':
+    # Inside ZipApp: _base = ...\bin\kingdom.pyz
+    APP_ROOT = _base
+else:
+    # Running from raw source tree
+    APP_ROOT = _base
+
+CONFIG_DIR = APP_ROOT / "config"
+DATA_DIR = get_base_dir() / "data"
 
 def ensure_data_directories() -> None:
     """Create data subdirectories if missing."""
@@ -19,11 +30,22 @@ def ensure_data_directories() -> None:
 
 def load_yaml_config(file_name: str) -> Dict[str, Any]:
     """Load a YAML file from the config directory."""
-    config_path = CONFIG_DIR / file_name
-    if not config_path.exists():
-        return {}
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    if APP_ROOT.is_file() and APP_ROOT.suffix == '.pyz':
+        import zipfile
+        try:
+            with zipfile.ZipFile(APP_ROOT, 'r') as z:
+                with z.open(f"config/{file_name}") as f:
+                    return yaml.safe_load(f) or {}
+        except (KeyError, FileNotFoundError):
+            return {}
+        except Exception:
+            return {}
+    else:
+        config_path = CONFIG_DIR / file_name
+        if not config_path.exists():
+            return {}
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
 
 def get_model_config() -> Dict[str, Any]:
     """Return model and hardware configuration dictionary."""

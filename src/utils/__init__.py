@@ -45,19 +45,32 @@ def get_roles_dir() -> Path:
     roles_dir = get_base_dir() / "roles"
     roles_dir.mkdir(parents=True, exist_ok=True)
     
-    bundled_roles_dir = Path(__file__).parent.parent / "prompts" / "roles"
-    if bundled_roles_dir.exists():
-        for role_file in bundled_roles_dir.glob("*.txt"):
-            target_file = roles_dir / role_file.name
-            if not target_file.exists():
-                try:
-                    shutil.copy2(role_file, target_file)
-                except Exception:
-                    pass
+    app_root = Path(__file__).parent.parent.parent.resolve()
+    if app_root.is_file() and app_root.suffix == '.pyz':
+        import zipfile
+        try:
+            with zipfile.ZipFile(app_root, 'r') as z:
+                for file_info in z.infolist():
+                    if file_info.filename.startswith("src/prompts/roles/") and file_info.filename.endswith(".txt"):
+                        target_file = roles_dir / Path(file_info.filename).name
+                        if not target_file.exists():
+                            target_file.write_bytes(z.read(file_info.filename))
+        except Exception:
+            pass
+    else:
+        bundled_roles_dir = app_root / "src" / "prompts" / "roles"
+        if bundled_roles_dir.exists():
+            for role_file in bundled_roles_dir.glob("*.txt"):
+                target_file = roles_dir / role_file.name
+                if not target_file.exists():
+                    try:
+                        shutil.copy2(role_file, target_file)
+                    except Exception:
+                        pass
     return roles_dir
 
 def load_role_prompt(role_name: str) -> str:
-    """Load prompt role text for a given minister or boss (e.g., 'main_boss', 'minister_1')."""
+    """Load prompt role text for a given minister or boss."""
     roles_dir = get_roles_dir()
     role_file = roles_dir / f"{role_name}.txt"
     if role_file.exists():
@@ -65,13 +78,5 @@ def load_role_prompt(role_name: str) -> str:
             return role_file.read_text(encoding="utf-8").strip()
         except Exception:
             pass
-
-    bundled_file = Path(__file__).parent.parent / "prompts" / "roles" / f"{role_name}.txt"
-    if bundled_file.exists():
-        try:
-            return bundled_file.read_text(encoding="utf-8").strip()
-        except Exception:
-            pass
-
     return f"Role for {role_name} active."
 
