@@ -100,10 +100,8 @@ async def security_guardrails_middleware(request: Request, call_next):
 orchestrator = LlamaCppOrchestrator()
 scheduler = PriorityInferenceScheduler()
 router = HeuristicIntentRouter()
-preprocessor = Preprocessor()
 embedder = BGEEmbedder()
 reranker = BGEReranker()
-persona_chain = AgentPersonaChain()
 cache_db = ResponseCacheDB()
 
 import jinja2
