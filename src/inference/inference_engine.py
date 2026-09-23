@@ -161,6 +161,7 @@ INFO_TEMPLATE = """
         <div class="metric"><span class="label">VRAM Ceiling</span><span class="value">{{ vram_ceiling }} MB</span></div>
         <div class="metric"><span class="label">Active GPU Provider</span><span class="value">{{ gpu_provider }}</span></div>
         <div class="metric"><span class="label">Main Model Loaded</span><span class="value">{{ is_loaded }}</span></div>
+        <div class="metric"><span class="label">Bearer Token</span><span class="value">{{ bearer_token }}</span></div>
         
         <div class="endpoints">
             <h3>Active Endpoints:</h3>
@@ -181,7 +182,8 @@ async def root_info_page():
     html_content = template.render(
         vram_ceiling=STATIC_VRAM_CEILING_MB,
         gpu_provider=diag.get("selected_provider", "Unknown"),
-        is_loaded="✅ Yes" if orchestrator.is_loaded else "❌ No (Lazy load)"
+        is_loaded="✅ Yes" if orchestrator.is_loaded else "❌ No (Lazy load)",
+        bearer_token=LOCAL_BEARER_TOKEN
     )
     return HTMLResponse(content=html_content, status_code=200)
 
