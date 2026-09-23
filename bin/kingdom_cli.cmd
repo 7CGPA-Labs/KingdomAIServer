@@ -2,6 +2,7 @@
 REM Kingdom AI Server - Rich Terminal CLI Launcher
 REM Runs via corporate-approved python.exe (no .exe binaries)
 setlocal
+set PYTHONUTF8=1
 
 set SCRIPT_DIR=%~dp0
 set PROJECT_ROOT=%SCRIPT_DIR%..
