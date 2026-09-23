@@ -24,7 +24,7 @@ def create_release_archive():
     # 1. Copy source codebase package
     codebase_dir = staging_dir / "src"
     codebase_dir.mkdir(parents=True, exist_ok=True)
-    for item in ["src", "webui", "config", "pyproject.toml", "README.md", "LICENSE", "main.py", "start_server.py", "download_models.py"]:
+    for item in ["src", "config", "pyproject.toml", "README.md", "LICENSE", "main.py", "start_server.py", "download_models.py"]:
         target = project_root / item
         dest = codebase_dir / item
         if target.is_dir():
@@ -37,15 +37,29 @@ def create_release_archive():
     if deploy_script.exists():
         shutil.copy(deploy_script, staging_dir / "Deploy-KingdomServer.ps1")
 
-    # 3. Create models directory placeholder
+    # 3. Compile everything to non-editable Python bytecode (.pyc)
+    import compileall
+    print("Compiling source code to non-editable bytecode (.pyc)...")
+    # legacy=True puts the .pyc files right next to the .py files instead of inside __pycache__
+    compileall.compile_dir(staging_dir, force=True, legacy=True, quiet=1)
+
+    # Remove all original .py source files to secure the codebase
+    for py_file in staging_dir.rglob("*.py"):
+        py_file.unlink()
+        
+    # Clean up any residual __pycache__ directories
+    for pycache in staging_dir.rglob("__pycache__"):
+        if pycache.is_dir():
+            shutil.rmtree(pycache)
+
+    # 4. Create models directory placeholder
     models_dir = staging_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / "README.txt").write_text(
         "Place the V2 model files here (or run python download_models.py):\n"
         "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
         "- bge-small-en-v1.5-q4_k_m.gguf\n"
-        "- bge-reranker-base-q4_k_m.gguf\n"
-        "- sdxs-512-0.9-1step-int8.gguf\n",
+        "- bge-reranker-base-q4_k_m.gguf\n",
         encoding="utf-8"
     )
 

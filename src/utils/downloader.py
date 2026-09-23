@@ -69,7 +69,7 @@ from src.utils.verifier import MODEL_MANIFEST, ModelVerifier
 logger = logging.getLogger("kingdom.downloader")
 console = Console(safe_box=True)
 
-# 100% Verified open HuggingFace repository specifications for V2 GGUF & 3-Minister Council Models
+# 100% Verified open HuggingFace repository specifications for V2 GGUF & 2-Minister Council Models
 MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
     "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
         "repo_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
@@ -82,11 +82,7 @@ MODEL_HF_SPECS: Dict[str, Dict[str, str]] = {
     "bge-reranker-base-q4_k_m.gguf": {
         "repo_id": "sabafallah/bge-reranker-base-Q4_K_M-GGUF",
         "filename": "bge-reranker-base-q4_k_m.gguf",
-    },
-    "sdxs-512-0.9-1step-int8.gguf": {
-        "repo_id": "concedo/sdxs-512-tinySDdistilled-GGUF",
-        "filename": "sdxs-512-tinySDdistilled_Q8_0.gguf",
-    },
+    }
 }
 
 class ModelDownloader:

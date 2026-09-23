@@ -6,20 +6,19 @@ from pathlib import Path
 from src.utils.verifier import ModelVerifier, MODEL_MANIFEST
 
 def test_model_manifest_completeness():
-    """Verify all 4 V2 models (Main Boss GGUF + 3 Ministers) are specified in MODEL_MANIFEST."""
-    assert len(MODEL_MANIFEST) == 4
+    """Verify all 3 V2 models (Main Boss GGUF + 2 Ministers) are specified in MODEL_MANIFEST."""
+    assert len(MODEL_MANIFEST) == 3
     assert "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" in MODEL_MANIFEST
     assert "bge-small-en-v1.5-q4_k_m.gguf" in MODEL_MANIFEST
     assert "bge-reranker-base-q4_k_m.gguf" in MODEL_MANIFEST
-    assert "sdxs-512-0.9-1step-int8.gguf" in MODEL_MANIFEST
 
 def test_model_verifier_missing_files(tmp_path):
     """Test model verifier reports missing status when models dir is empty."""
     verifier = ModelVerifier(models_dir=tmp_path)
     summary = verifier.get_summary()
-    assert summary["total"] == 4
+    assert summary["total"] == 3
     assert summary["valid"] == 0
-    assert summary["missing"] == 4
+    assert summary["missing"] == 3
     assert summary["all_healthy"] is False
 
 def test_model_verifier_corrupt_file(tmp_path):

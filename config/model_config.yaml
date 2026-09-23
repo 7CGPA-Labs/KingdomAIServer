@@ -11,7 +11,7 @@ hardware:
   execution_provider: "DirectML" # Options: DirectML, CPU
   directml_device_id: 0
   cpu_fallback_avx2: true
-  max_static_vram_mb: 1480      # Hard ceiling: <= 1.48 GB static VRAM
+  max_static_vram_mb: 1250      # Hard ceiling: <= 1.25 GB static VRAM
   context_window_tokens: 4096
 
 main_boss:
@@ -38,12 +38,6 @@ council_ministers:
     filename: "bge-reranker-base-q4_k_m.gguf"
     vram_budget_mb: 110
     top_k_chunks: 3
-
-  minister_3_vision:
-    model_id: "SDXS-512"
-    vram_budget_mb: 230
-    nfe_steps: 1
-    image_size: 512
 
 native_utilities:
   tree_sitter_ast: true

@@ -123,12 +123,16 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     $Deployed = $true
 }
 
-# Create start_server.cmd and download_models.cmd launcher wrappers in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
-$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\start_server.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\start_server.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\start_server.py`" %*`r`n    )`r`n) else if exist `"%~dp0..\src\main.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\main.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\main.py`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m main %*`r`n    ) else (`r`n        python.exe -m main %*`r`n    )`r`n)"
+# Create .cmd launcher wrappers in bin (Bypasses Defender SmartScreen & AppLocker .exe blocks)
+$LauncherCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\start_server.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\start_server.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\start_server.py`" %*`r`n    )`r`n) else if exist `"%~dp0..\src\start_server.pyc`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\start_server.pyc`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\start_server.pyc`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m main %*`r`n    ) else (`r`n        python.exe -m main %*`r`n    )`r`n)"
 Set-Content -Path "$BinDir\start_server.cmd" -Value $LauncherCmd -Encoding ASCII
 
-$DownloadCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\download_models.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\download_models.py`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m src.utils.downloader %*`r`n    ) else (`r`n        python.exe -m src.utils.downloader %*`r`n    )`r`n)"
+$DownloadCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\src\download_models.py`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.py`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\download_models.py`" %*`r`n    )`r`n) else if exist `"%~dp0..\src\download_models.pyc`" (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0..\src\download_models.pyc`" %*`r`n    ) else (`r`n        python.exe `"%~dp0..\src\download_models.pyc`" %*`r`n    )`r`n) else (`r`n    if exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n        `"%~dp0..\venv\Scripts\python.exe`" -m src.utils.downloader %*`r`n    ) else (`r`n        python.exe -m src.utils.downloader %*`r`n    )`r`n)"
 Set-Content -Path "$BinDir\download_models.cmd" -Value $DownloadCmd -Encoding ASCII
+
+$CliCmd = "@echo off`r`nsetlocal`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" -m src.cli.terminal_ui %*`r`n) else (`r`n    python.exe -m src.cli.terminal_ui %*`r`n)"
+Set-Content -Path "$BinDir\kingdom_cli.cmd" -Value $CliCmd -Encoding ASCII
+
 
 # Unblock files against Windows Defender Zone.Identifier
 Write-Host "[4/5] Unblocking executable files from SmartScreen..." -ForegroundColor Cyan
@@ -140,10 +144,10 @@ Write-Host "[5/5] Creating user desktop shortcut and updating PATH..." -Foregrou
 try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI WebUI.lnk")
-    $Shortcut.TargetPath = "$BinDir\start_server.cmd"
+    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI Terminal.lnk")
+    $Shortcut.TargetPath = "$BinDir\kingdom_cli.cmd"
     $Shortcut.WorkingDirectory = $InstallDir
-    $Shortcut.Description = "Kingdom AI Server & Open WebUI Application"
+    $Shortcut.Description = "Kingdom AI Rich Terminal CLI"
     $Shortcut.Save()
     Write-Host "[OK] Desktop shortcut created successfully!" -ForegroundColor Green
 } catch {
@@ -159,13 +163,13 @@ if ($UserPath -notlike "*$BinDir*") {
 
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " KINGDOM AI SERVER & OPEN WEBUI DEPLOYMENT COMPLETE!" -ForegroundColor Green
+Write-Host " KINGDOM AI SERVER & TERMINAL CLI DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
-Write-Host " Open WebUI Endpoint    : http://127.0.0.1:58420" -ForegroundColor White
+Write-Host " Headless API Endpoint  : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
-Write-Host " Quick Launch Server Command:" -ForegroundColor Cyan
-Write-Host "   python main.py          # Start server & launch browser WebUI" -ForegroundColor Yellow
-Write-Host "   python start_server.py   # Alternative top-level launcher" -ForegroundColor Yellow
+Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
+Write-Host "   kingdom_cli             # Launch Rich Terminal CLI" -ForegroundColor Yellow
+Write-Host "   start_server            # Start headless uvicorn server for Continue.dev" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow

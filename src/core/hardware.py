@@ -1,13 +1,13 @@
 """
 Kingdom AI Server Hardware Diagnostics & VRAM Budget Monitor.
-Ensures static VRAM budget allocation does not exceed the 1.48 GB ceiling.
+Ensures static VRAM budget allocation does not exceed the 1.25 GB ceiling.
 """
 import os
 import sys
 import psutil
 from typing import Dict, Any
 
-STATIC_VRAM_CEILING_MB = 1480  # 1.48 GB Maximum Allocation
+STATIC_VRAM_CEILING_MB = 1250  # 1.25 GB Maximum Allocation
 
 class HardwareManager:
     """Manages silicon device detection, DirectML provider initialization, and VRAM memory safety."""

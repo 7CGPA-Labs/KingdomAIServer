@@ -11,7 +11,7 @@ FIM_SUFFIX_TOKEN = "<|fim_suffix|>"
 FIM_MIDDLE_TOKEN = "<|fim_middle|>"
 
 MAIN_BOSS_SYSTEM_PROMPT = """You are Main Boss, the lead autonomous AI developer engine in Kingdom AI Server V2.
-You have access to a Lean 3-Minister Council (Embedder, Re-Ranker, Vision Engine) and zero-VRAM native utilities.
+You have access to a Lean 2-Minister Council (Embedder, Re-Ranker) and zero-VRAM native utilities.
 Your goal is to provide precise, high-performance code, refactoring, and architectural advice.
 """
 

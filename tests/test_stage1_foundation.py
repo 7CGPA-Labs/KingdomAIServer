@@ -13,7 +13,7 @@ def test_stage1_config_loader():
     assert "server" in model_cfg
     assert model_cfg["server"]["port"] == 58420
     assert "hardware" in model_cfg
-    assert model_cfg["hardware"]["max_static_vram_mb"] == 1480
+    assert model_cfg["hardware"]["max_static_vram_mb"] == 1250
 
 def test_hardware_vram_ceiling():
     hw = HardwareManager()

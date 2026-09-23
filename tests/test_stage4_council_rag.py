@@ -1,11 +1,10 @@
 """
-Unit Tests & RAG Benchmarks for Stage 4: Lean 3-Minister Council & RAG Engine.
+Unit Tests & RAG Benchmarks for Stage 4: Lean 2-Minister Council & RAG Engine.
 Verifies:
 - Minister 1: BGEEmbedder 384-d dense vector generation & L2 normalization
 - VectorStore: SQLite WAL & Cosine distance retrieval
 - Minister 2: BGEReranker cross-attention candidate re-ranking
-- Minister 3: SDXS512VisionEngine 512x512 raster image rendering
-- LeanCouncilManager: End-to-end RAG pipeline (<20 ms latency, <=375 MB VRAM footprint)
+- LeanCouncilManager: End-to-end RAG pipeline (<20 ms latency, <=145 MB VRAM footprint)
 """
 import pytest
 import math
@@ -14,7 +13,7 @@ from pathlib import Path
 from src.rag.embedder import BGEEmbedder
 from src.rag.vector_store import VectorStore
 from src.rag.retriever import BGEReranker
-from src.core.council import SDXS512VisionEngine, LeanCouncilManager, TOTAL_COUNCIL_VRAM_FOOTPRINT_MB
+from src.core.council import LeanCouncilManager, TOTAL_COUNCIL_VRAM_FOOTPRINT_MB
 
 TEST_DB_PATH = "data/vectordb/test_cognitive_vault.db"
 
@@ -76,20 +75,11 @@ def test_minister_2_bge_reranker():
     assert len(top_chunks) == 2
     assert top_chunks[0]["file_path"] == "db.py"  # Higher re-rank score due to word overlap & filename match
 
-def test_minister_3_sdxs512_vision_engine():
-    vision = SDXS512VisionEngine()
-    asset = vision.generate_raster_preview("Flowchart of authentication pipeline")
-
-    assert asset["width"] == 512
-    assert asset["height"] == 512
-    assert asset["format"] == "png"
-    assert "data:image/png;base64," in asset["base64_data"]
-
 def test_lean_council_manager_rag_pipeline():
     council = LeanCouncilManager(db_path=TEST_DB_PATH)
     status = council.get_council_status()
 
-    assert status["vram_footprint_mb"] == 375
+    assert status["vram_footprint_mb"] == 145
     assert status["vram_ceiling_passed"] is True
 
     # Seed data into vector store

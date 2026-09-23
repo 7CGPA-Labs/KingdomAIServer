@@ -1,6 +1,6 @@
 """
-Lean 3-Minister Council & Native Utilities Adapter for V2 Engine.
-Wraps V2 Lean Council (Embedder, Re-Ranker, Vision) and Zero-VRAM Native Utilities while preserving backward compatibility.
+Lean 2-Minister Council & Native Utilities Adapter for V2 Engine.
+Wraps V2 Lean Council (Embedder, Re-Ranker) and Zero-VRAM Native Utilities while preserving backward compatibility.
 """
 import os
 import re
@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Tuple, Optional, Union
 
 from src.utils import get_models_dir, load_role_prompt
 from src.core.hardware import HardwareAccelerationEngine
-from src.core.council import LeanCouncilManager, SDXS512VisionEngine
+from src.core.council import LeanCouncilManager
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker
 from src.processing.chunking import TreeSitterChunker
@@ -107,10 +107,9 @@ class MinisterFactory:
         ministers = {}
         mapping = {
             1: ("Minister 1 (Workspace Embedder)", "bge-small-en-v1.5-q4_k_m.gguf"),
-            2: ("Minister 2 (Context Re-Ranker)", "bge-reranker-base-q4_k_m.gguf"),
-            3: ("Minister 3 (High-Speed Vision Engine)", "sdxs-512-0.9-1step-int8.gguf"),
+            2: ("Minister 2 (Context Re-Ranker)", "bge-reranker-base-q4_k_m.gguf")
         }
-        for i in range(1, 4):
+        for i in range(1, 3):
             name, filename = mapping[i]
             ministers[f"minister_{i}"] = BaseMinister(name, filename, self.hardware_engine, models_dir=self.models_dir, lazy_load=True, role_id=f"minister_{i}")
         return ministers

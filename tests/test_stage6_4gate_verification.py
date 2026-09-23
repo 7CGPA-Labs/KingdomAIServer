@@ -1,9 +1,9 @@
 """
 Complete 4-Gate Verification Test Suite for Kingdom AI Server V2.
 Validates system readiness across all four enterprise diagnostic gates:
-- Gate 1: Silicon & VRAM Budget Diagnostics (<= 1.48 GB VRAM ceiling)
+- Gate 1: Silicon & VRAM Budget Diagnostics (<= 1.25 GB VRAM ceiling)
 - Gate 2: Deterministic Native Utility Performance (Tree-sitter < 1ms, Linter < 2ms, Scanner < 3ms, Trimmer < 1ms)
-- Gate 3: 3-Minister Council & Latency Benchmarks (Embeddings < 8ms, Vector Search < 10ms, Re-ranking < 16ms, SDXS-512 < 100ms)
+- Gate 3: 2-Minister Council & Latency Benchmarks (Embeddings < 8ms, Vector Search < 10ms, Re-ranking < 16ms)
 - Gate 4: Security Perimeter & Protocol Compliance (SSE streaming, 413 Payload limit, CSPA Origin block, Path Jail)
 """
 import pytest
@@ -25,17 +25,17 @@ client = TestClient(app)
 # ==============================================================================
 
 def test_gate1_vram_budget_allocation_ceiling():
-    """Assert total resident static VRAM allocation stays <= 1.48 GB (1480 MB)."""
+    """Assert total resident static VRAM allocation stays <= 1.25 GB (1250 MB)."""
     hw = HardwareManager()
     mf = ModelFactory()
     council = LeanCouncilManager()
 
     main_vram = mf.config.get("main_boss", {}).get("vram_budget_mb", 1100)
-    council_vram = TOTAL_COUNCIL_VRAM_FOOTPRINT_MB  # 375 MB
+    council_vram = TOTAL_COUNCIL_VRAM_FOOTPRINT_MB  # 145 MB
 
     total_projected_vram = main_vram + council_vram
     assert total_projected_vram <= STATIC_VRAM_CEILING_MB
-    assert total_projected_vram == 1475  # 1.1 GB + 375 MB = 1475 MB <= 1480 MB
+    assert total_projected_vram == 1245  # 1100 + 145 = 1245 MB <= 1250 MB
 
     # Verify memory safety assertions
     assert hw.verify_vram_budget(total_projected_vram) is True
@@ -49,7 +49,7 @@ def test_gate1_silicon_provider_diagnostics():
 
     assert diag["platform"] is not None
     assert diag["cpu_cores"] >= 1
-    assert diag["vram_ceiling_mb"] == 1480
+    assert diag["vram_ceiling_mb"] == 1250
     assert "Vulkan" in diag["selected_provider"] or "OpenCL" in diag["selected_provider"] or "GPU" in diag["selected_provider"]
 
 
@@ -106,7 +106,7 @@ def test_gate2_context_trimmer_compression_ratio():
 
 
 # ==============================================================================
-# GATE 3: 3-MINISTER COUNCIL & LATENCY BENCHMARKS
+# GATE 3: 2-MINISTER COUNCIL & LATENCY BENCHMARKS
 # ==============================================================================
 
 def test_gate3_minister_1_embedding_latency():
@@ -147,17 +147,6 @@ def test_gate3_minister_2_reranking_latency():
     assert len(top_chunks) == 2
     assert elapsed_ms < 16.0
 
-def test_gate3_minister_3_vision_rendering_latency():
-    """Assert Minister 3 SDXS-512 vision asset generation executes in < 100 ms."""
-    council = LeanCouncilManager()
-
-    start = time.perf_counter()
-    asset = council.minister_3_vision.generate_raster_preview("Architecture diagram")
-    elapsed_ms = (time.perf_counter() - start) * 1000.0
-
-    assert asset["width"] == 512
-    assert elapsed_ms < 100.0
-
 
 # ==============================================================================
 # GATE 4: SECURITY PERIMETER & PROTOCOL COMPLIANCE
@@ -187,6 +176,6 @@ def test_gate4_payload_size_limit():
 def test_gate4_cspa_origin_header_block():
     """Assert requests with external browser Origin headers are blocked by CSPA defenses with HTTP 403."""
     headers = {"Origin": "https://malicious-website.com"}
-    response = client.get("/health", headers=headers)
+    response = client.post("/v1/completions", json={"prompt": "test", "max_tokens": 1}, headers=headers)
     assert response.status_code == 403
     assert "CSPA Violation" in response.json()["error"]["message"]

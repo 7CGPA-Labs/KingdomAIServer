@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from src.utils import get_models_dir
 
-# V2 Architecture Model Manifest (Main Boss GGUF + Lean 3-Minister Council)
+# V2 Architecture Model Manifest (Main Boss GGUF + Lean 2-Minister Council)
 MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
     "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf": {
         "id": "main_boss_qwen2.5",
@@ -31,14 +31,6 @@ MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
         "model_id": "bge-reranker-base",
         "approx_size_mb": 208,
         "type": "gguf",
-        "sha256": None,
-    },
-    "sdxs-512-0.9-1step-int8.gguf": {
-        "id": "minister_3",
-        "name": "Minister 3: High-Speed Vision Engine (SDXS-512)",
-        "model_id": "SDXS-512",
-        "approx_size_mb": 650,
-        "type": "gguf-int8",
         "sha256": None,
     }
 }

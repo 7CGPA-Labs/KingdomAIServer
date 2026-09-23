@@ -15,7 +15,7 @@ def test_repair_continue_config(tmp_path, monkeypatch):
 
 def test_downloader_hf_specs():
     """Test thin-client downloader specifications manifest for V2 GGUF & Lean Council models."""
-    assert len(MODEL_HF_SPECS) == 4
+    assert len(MODEL_HF_SPECS) == 3
     assert "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf" in MODEL_HF_SPECS
     assert MODEL_HF_SPECS["qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"]["repo_id"] == "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF"
     assert "bge-small-en-v1.5-q4_k_m.gguf" in MODEL_HF_SPECS

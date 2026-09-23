@@ -67,8 +67,4 @@ def test_api_caching_instant_hit():
     data2 = resp2.json()
     assert data2.get("cached") is True
 
-    # Check cache stats endpoint
-    stats_resp = client.get("/v1/cache/stats", headers=headers)
-    assert stats_resp.status_code == 200
-    stats = stats_resp.json()
-    assert stats["total_cache_hits"] >= 1
+

@@ -1,11 +1,12 @@
 """
-FastAPI Server Gateway & Priority Inference Scheduler for Kingdom AI Server V2.
+Headless OpenAI-Compatible REST Gateway & Priority Inference Scheduler for Kingdom AI Server V2.
 Enforces loopback-only binding, local Bearer secret auth, CSPA origin defense, 2 MB payload size limits, and dual priority queue for FIM.
+Exposes ONLY /v1/completions and /v1/chat/completions for Continue.dev IDE extension.
 """
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List, Union
 import os
@@ -14,13 +15,14 @@ import time
 import truststore
 
 from src.core.local_llm import LlamaCppOrchestrator
-from src.core.council import LeanCouncilManager
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
 from src.inference.priority_queue import PriorityInferenceScheduler, RequestPriority
 from src.prompts.templates import HeuristicIntentRouter
-from src.prompts.chain import SecurityAuditor, MermaidDiagramGenerator, AgentPersonaChain
+from src.prompts.chain import AgentPersonaChain
 from src.processing.preprocessor import Preprocessor
 from src.rag.embedder import BGEEmbedder
+from src.rag.retriever import BGEReranker
+from src.processing.cache import ResponseCacheDB
 
 # Inject enterprise Zscaler proxy truststore certificates into SSL
 try:
@@ -30,11 +32,11 @@ except Exception:
 
 app = FastAPI(
     title="Kingdom AI Server V2 Gateway",
-    description="Local OpenAI-Compatible Server for Continue.dev & WebUI",
+    description="Headless OpenAI-Compatible Server for Continue.dev",
     version="2.0.0"
 )
 
-# Enable CORS for Continue.dev & WebUI
+# Enable CORS for Continue.dev
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -96,19 +98,17 @@ async def security_guardrails_middleware(request: Request, call_next):
 
     return await call_next(request)
 
-from src.processing.cache import ResponseCacheDB
-
 # Singleton Engine Handles
 orchestrator = LlamaCppOrchestrator()
 scheduler = PriorityInferenceScheduler()
 router = HeuristicIntentRouter()
-council = LeanCouncilManager()
 preprocessor = Preprocessor()
 embedder = BGEEmbedder()
+reranker = BGEReranker()
 persona_chain = AgentPersonaChain()
 cache_db = ResponseCacheDB()
 
-# Request Pydantic Schemas
+# Request Pydantic Schemas (only what Continue.dev needs)
 class CompletionRequest(BaseModel):
     prompt: Optional[str] = None
     prefix: Optional[str] = None
@@ -129,118 +129,9 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int = 512
 
-class EmbeddingRequest(BaseModel):
-    input: Union[str, List[str]]
-    model: str = "bge-small-en-v1.5"
-
-class RAGSearchRequest(BaseModel):
-    query: str
-    top_k: int = 3
-
-class DiagramRequest(BaseModel):
-    description: str
-
-class SecurityAuditRequest(BaseModel):
-    code: str
-
-# Mount Open WebUI static files
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
-
-curr_file = Path(__file__).resolve()
-possible_webui_dirs = [
-    curr_file.parent.parent.parent / "webui" / "static",
-    curr_file.parent.parent / "webui" / "static",
-    Path("webui/static").resolve(),
-]
-webui_dir = None
-for candidate in possible_webui_dirs:
-    if candidate.exists() and (candidate / "index.html").exists():
-        webui_dir = candidate
-        break
-
-if webui_dir:
-    app.mount("/static", StaticFiles(directory=str(webui_dir)), name="static")
-
-# Endpoints
-
-@app.get("/", response_class=HTMLResponse)
-async def root_webui():
-    """Serves Open WebUI dashboard application."""
-    if webui_dir and (webui_dir / "index.html").exists():
-        return HTMLResponse(content=(webui_dir / "index.html").read_text(encoding="utf-8"))
-
-    html_content = """<!DOCTYPE html>
-<html>
-<head>
-    <title>Kingdom AI Server - Open WebUI</title>
-    <style>
-        body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem; }
-        .card { background: #1e293b; padding: 1.5rem; border-radius: 8px; max-width: 600px; margin: 0 auto; }
-        h1 { color: #38bdf8; margin-top: 0; }
-        .badge { background: #22c55e; color: #000; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>👑 Kingdom AI Server V2 (Enterprise Edition)</h1>
-        <p>Status: <span class="badge">ACTIVE</span></p>
-        <p>Endpoint: <code>http://127.0.0.1:58420</code></p>
-        <p>Models: <code>Qwen2.5-Coder-1.5B (GGUF)</code> | <code>BGE-Small-v1.5</code> | <code>SDXS-512</code></p>
-        <p>VRAM Ceiling: <code>&le; 1.48 GB</code> (DirectML GPU / CPU AVX2 Fallback)</p>
-    </div>
-</body>
-</html>"""
-    return HTMLResponse(content=html_content)
-
-@app.get("/api/sessions")
-async def list_sessions():
-    """WebUI sessions listing endpoint."""
-    return []
-
-@app.get("/health")
-async def health_check():
-    """V2 Server Health Endpoint."""
-    hw_mgr = HardwareManager()
-    diag = hw_mgr.detect_environment()
-
-    return {
-        "status": "active",
-        "engine": "Kingdom AI Server V2 (llama.cpp GGUF)",
-        "version": "2.0.0",
-        "vram_ceiling_gb": 1.48,
-        "is_model_loaded": orchestrator.is_loaded,
-        "telemetry": {
-            "vram_allocated_mb": hw_mgr.vram_allocated_mb,
-            "vram_ceiling_mb": STATIC_VRAM_CEILING_MB,
-            "available_ram_gb": diag["available_ram_gb"]
-        },
-        "silicon_tiers": {
-            "provider": diag["selected_provider"],
-            "directml_supported": diag["directml_supported"]
-        },
-        "models": {
-            "main_boss": "qwen2.5-coder-1.5b",
-            "council": council.get_council_status()["active_ministers"]
-        }
-    }
-
-@app.get("/v1/models")
-async def list_models(auth: bool = Depends(verify_bearer_token)):
-    """OpenAI-compatible models list endpoint."""
-    return {
-        "object": "list",
-        "data": [
-            {"id": "qwen2.5-coder-1.5b", "object": "model", "owned_by": "kingdom-v2"},
-            {"id": "granite-code-128m", "object": "model", "owned_by": "kingdom-v2"},
-            {"id": "bge-small-en-v1.5", "object": "model", "owned_by": "kingdom-v2"}
-        ]
-    }
-
-@app.get("/v1/cache/stats")
-async def cache_stats(auth: bool = Depends(verify_bearer_token)):
-    """Return ResponseCacheDB hit ratio and storage metrics."""
-    return cache_db.get_stats()
+# =============================================================================
+# ENDPOINT 1: /v1/completions — FIM Tab Autocomplete for Continue.dev
+# =============================================================================
 
 @app.post("/v1/completions")
 async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
@@ -282,9 +173,14 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
     return response_data
 
+# =============================================================================
+# ENDPOINT 2: /v1/chat/completions — Multi-turn Chat for Continue.dev
+# =============================================================================
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(verify_bearer_token)):
-    """OpenAI-compatible /v1/chat/completions endpoint supporting streaming SSE and JSON."""
+    """OpenAI-compatible /v1/chat/completions endpoint supporting streaming SSE and JSON.
+    Integrates HeuristicIntentRouter, BGEEmbedder (Minister 1), and BGEReranker (Minister 2) internally."""
     msgs = [{"role": m.role, "content": m.content} for m in req.messages]
 
     if req.stream:
@@ -295,15 +191,38 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
         return StreamingResponse(_stream_generator(), media_type="text/event-stream")
 
-    # Non-streaming cache check
+    # Non-streaming: cache check
     prompt_summary = json.dumps(msgs)
     cache_key = ResponseCacheDB.compute_cache_key(req.model, prompt_summary, "", req.temperature, req.max_tokens)
     cached_resp = cache_db.get(cache_key)
     if cached_resp:
         return cached_resp
 
+    # Route intent via HeuristicIntentRouter (< 0.05 ms)
+    last_user_msg = msgs[-1]["content"] if msgs else ""
+    route_info = router.route_intent(last_user_msg)
+
+    # Integrated RAG enrichment: Embed + VectorSearch + ReRank (Ministers 1 & 2)
+    context_chunks = []
+    if route_info["target_agent"] == "MINISTER_1_2_RAG":
+        try:
+            from src.rag.vector_store import VectorStore
+            query_vec = embedder.embed_query(last_user_msg)
+            vs = VectorStore()
+            candidates = vs.search_similar(query_vec, top_k=5)
+            if candidates:
+                context_chunks = reranker.rerank(last_user_msg, candidates, top_k=3)
+        except Exception:
+            pass
+
+    # Build enriched message list with RAG context
+    enriched_msgs = list(msgs)
+    if context_chunks:
+        context_text = "\n".join(c.get("content", "") for c in context_chunks)
+        enriched_msgs.insert(0, {"role": "system", "content": f"Relevant workspace context:\n{context_text}"})
+
     def _execute():
-        prompt = orchestrator.format_chat_prompt(msgs)
+        prompt = orchestrator.format_chat_prompt(enriched_msgs)
         return orchestrator.generate_completion(prompt, max_tokens=req.max_tokens, temperature=req.temperature)
 
     res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
@@ -329,51 +248,3 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
     cache_db.put(cache_key, res["text"], response_data, query_type="CHAT")
     return response_data
-
-@app.post("/v1/embeddings")
-async def embeddings(req: EmbeddingRequest, auth: bool = Depends(verify_bearer_token)):
-    """OpenAI-compatible 384-dimensional dense vector embeddings endpoint."""
-    inputs = [req.input] if isinstance(req.input, str) else req.input
-    embeddings_list = [embedder.embed_query(text) for text in inputs]
-
-    data = [
-        {"object": "embedding", "index": i, "embedding": vec}
-        for i, vec in enumerate(embeddings_list)
-    ]
-
-    return {
-        "object": "list",
-        "data": data,
-        "model": req.model,
-        "usage": {"prompt_tokens": len(inputs) * 10, "total_tokens": len(inputs) * 10}
-    }
-
-@app.post("/v1/rag/search")
-async def rag_search(req: RAGSearchRequest, auth: bool = Depends(verify_bearer_token)):
-    """RAG pipeline search invoking Lean Council (Embedder, VectorStore, Re-Ranker)."""
-    return council.execute_rag_pipeline(req.query, top_k_rerank=req.top_k)
-
-@app.post("/v1/diagram/generate")
-async def generate_diagram(req: DiagramRequest, auth: bool = Depends(verify_bearer_token)):
-    """Generate valid Mermaid.js flowchart diagram (Role D)."""
-    prompt = persona_chain.diagram_generator.format_diagram_prompt(req.description)
-    diagram_code = f"flowchart TD\n    A[{req.description}] --> B[Result]\n"
-    return {
-        "prompt": prompt,
-        "diagram": diagram_code,
-        "is_valid_syntax": persona_chain.diagram_generator.validate_mermaid_syntax(diagram_code)
-    }
-
-@app.post("/v1/security/audit")
-async def security_audit(req: SecurityAuditRequest, auth: bool = Depends(verify_bearer_token)):
-    """Security vulnerability scanner and GBNF audit endpoint (Role C)."""
-    regex_findings = preprocessor.scan_security_issues(req.code)
-    is_vulnerable = len(regex_findings) > 0
-    risk_score = 8.5 if is_vulnerable else 0.0
-
-    return {
-        "is_vulnerable": is_vulnerable,
-        "risk_score": risk_score,
-        "findings": regex_findings,
-        "cwe_id": regex_findings[0]["description"].split(":")[0] if is_vulnerable else None
-    }
