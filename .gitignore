@@ -16,6 +16,7 @@ dist_models/
 release/
 *.egg-info/
 *.spec.bak
+*.zip
 
 # Pytest / Cache
 .pytest_cache/

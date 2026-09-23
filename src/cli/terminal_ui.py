@@ -47,6 +47,13 @@ class KingdomCLI:
     def __init__(self):
         self.orchestrator = LlamaCppOrchestrator()
         self.hw_manager = HardwareManager()
+        
+        # Hardwire VRAM registration so telemetry accurately reflects loaded constraints
+        # Main Boss (1100), Minister 1 (35), Minister 2 (110)
+        self.hw_manager.register_allocation(1100)
+        self.hw_manager.register_allocation(35)
+        self.hw_manager.register_allocation(110)
+        
         self.cache_db = ResponseCacheDB()
         self.router = HeuristicIntentRouter()
         self.embedder = BGEEmbedder()
@@ -70,7 +77,7 @@ class KingdomCLI:
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
-        console.print("[dim]Commands: /health  /cache  /clear  /quit[/dim]")
+        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /quit[/dim]")
         console.print("[dim]Type your message and press Enter to chat.[/dim]")
         console.print()
 
@@ -156,17 +163,18 @@ class KingdomCLI:
 
         response_text = result.get("text", "")
 
-        # Step 5: Cache the response
-        created_time = int(time.time())
-        response_data = {
-            "id": f"chatcmpl-{created_time}",
-            "object": "chat.completion",
-            "created": created_time,
-            "model": "qwen2.5-coder-1.5b",
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}],
-            "usage": result.get("usage", {})
-        }
-        self.cache_db.put(cache_key, response_text, response_data, query_type="CHAT")
+        # Step 5: Cache the response (only if it's a real response, not a placeholder)
+        if "uninitialized - placeholder" not in response_text:
+            created_time = int(time.time())
+            response_data = {
+                "id": f"chatcmpl-{created_time}",
+                "object": "chat.completion",
+                "created": created_time,
+                "model": "qwen2.5-coder-1.5b",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}],
+                "usage": result.get("usage", {})
+            }
+            self.cache_db.put(cache_key, response_text, response_data, query_type="CHAT")
 
         # Update chat history
         self.chat_history.append({"role": "user", "content": user_input})
@@ -207,6 +215,11 @@ class KingdomCLI:
                     continue
                 elif user_input.lower() == "/cache":
                     self.show_cache_stats()
+                    continue
+                elif user_input.lower() == "/clearcache":
+                    self.cache_db.clear()
+                    self.total_cache_hits = 0
+                    console.print("[success]Cache database cleared successfully.[/success]")
                     continue
                 elif user_input.lower() == "/clear":
                     self.chat_history.clear()
