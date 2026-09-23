@@ -41,7 +41,16 @@ def create_release_archive():
         if target.exists():
             shutil.copy(target, zipapp_stage / item)
 
-    # Write router __main__.py for the zipapp
+    # Compile zipapp contents to non-editable bytecode
+    print("Compiling ZipApp contents to .pyc...")
+    compileall.compile_dir(zipapp_stage, force=True, legacy=True, quiet=1)
+    for py_file in zipapp_stage.rglob("*.py"):
+        py_file.unlink()
+    for pycache in zipapp_stage.rglob("__pycache__"):
+        if pycache.is_dir():
+            shutil.rmtree(pycache)
+
+    # Write router __main__.py for the zipapp (MUST be uncompiled source to satisfy zipapp)
     main_py_content = """import sys
 import os
 
@@ -63,15 +72,6 @@ else:
     start_server()
 """
     (zipapp_stage / "__main__.py").write_text(main_py_content, encoding="utf-8")
-
-    # Compile zipapp contents to non-editable bytecode
-    print("Compiling ZipApp contents to .pyc...")
-    compileall.compile_dir(zipapp_stage, force=True, legacy=True, quiet=1)
-    for py_file in zipapp_stage.rglob("*.py"):
-        py_file.unlink()
-    for pycache in zipapp_stage.rglob("__pycache__"):
-        if pycache.is_dir():
-            shutil.rmtree(pycache)
 
     # Create the zipapp
     pyz_path = bin_dir / "kingdom.pyz"
