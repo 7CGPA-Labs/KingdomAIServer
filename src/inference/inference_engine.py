@@ -18,8 +18,6 @@ from src.core.local_llm import LlamaCppOrchestrator
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
 from src.inference.priority_queue import PriorityInferenceScheduler, RequestPriority
 from src.prompts.templates import HeuristicIntentRouter
-from src.prompts.chain import AgentPersonaChain
-from src.processing.preprocessor import Preprocessor
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker
 from src.processing.cache import ResponseCacheDB

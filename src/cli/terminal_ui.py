@@ -77,7 +77,7 @@ class KingdomCLI:
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
-        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /quit[/dim]")
+        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /index <path>  /quit[/dim]")
         console.print("[dim]Type your message and press Enter to chat.[/dim]")
         console.print()
 
@@ -221,6 +221,10 @@ class KingdomCLI:
                     self.total_cache_hits = 0
                     console.print("[success]Cache database cleared successfully.[/success]")
                     continue
+                elif user_input.lower().startswith("/index "):
+                    target_path = user_input[7:].strip()
+                    self.index_workspace(target_path)
+                    continue
                 elif user_input.lower() == "/clear":
                     self.chat_history.clear()
                     console.clear()
@@ -245,6 +249,54 @@ class KingdomCLI:
                 break
             except Exception as e:
                 console.print(f"[error]Error: {e}[/error]")
+
+    def index_workspace(self, target_path: str):
+        """Index a local directory into the SQLite vector database."""
+        from pathlib import Path
+        path = Path(target_path).resolve()
+        if not path.exists() or not path.is_dir():
+            console.print(f"[error]Invalid directory path: {path}[/error]")
+            return
+
+        console.print(f"[info]Indexing workspace: {path}[/info]")
+        from src.processing.chunking import TreeSitterChunker
+        from src.rag.vector_store import VectorStore
+        chunker = TreeSitterChunker()
+        vs = VectorStore()
+
+        # Ensure embedder is loaded
+        if not self.embedder.is_model_loaded:
+            with console.status("Loading Minister 1 (Embedder)..."):
+                self.embedder._load_session()
+
+        valid_exts = {".py", ".js", ".ts", ".cpp", ".c", ".rs", ".go"}
+        files_indexed = 0
+        chunks_indexed = 0
+
+        with console.status("[bold cyan]Scanning and Chunking...[/bold cyan]", spinner="dots") as status:
+            for filepath in path.rglob("*"):
+                if filepath.is_file() and filepath.suffix in valid_exts:
+                    try:
+                        content = filepath.read_text(encoding="utf-8")
+                        chunks = chunker.chunk_file(content, filepath.suffix)
+                        for chunk in chunks:
+                            text = chunk.get("content", "")
+                            if text:
+                                vec = self.embedder.embed_query(text)
+                                vs.insert_chunk(
+                                    str(filepath), 
+                                    text, 
+                                    vec, 
+                                    chunk.get("start_line", 1), 
+                                    chunk.get("end_line", 1)
+                                )
+                                chunks_indexed += 1
+                        files_indexed += 1
+                        status.update(f"[bold cyan]Scanning... Indexed {files_indexed} files ({chunks_indexed} chunks)[/bold cyan]")
+                    except Exception as e:
+                        pass
+
+        console.print(f"[success]Indexing complete! {files_indexed} files and {chunks_indexed} chunks added to Vector Store.[/success]")
 
 
 def main():

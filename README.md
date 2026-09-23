@@ -1,4 +1,4 @@
-# 👑 Kingdom AI Server & Open WebUI
+# 👑 Kingdom AI Server (V2 Headless)
 
 [![Build & Package](https://github.com/7CGPA-Labs/KingdomAIServer/actions/workflows/build.yml/badge.svg)](https://github.com/7CGPA-Labs/KingdomAIServer/actions/workflows/build.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://python.org)
@@ -6,70 +6,71 @@
 [![Platform: Windows Enterprise](https://img.shields.io/badge/platform-Windows%20x64-0078D6.svg)](https://microsoft.com/windows)
 [![Port: 58420](https://img.shields.io/badge/port-127.0.0.1%3A58420-success.svg)](http://127.0.0.1:58420)
 [![Engine: llama.cpp GGUF](https://img.shields.io/badge/engine-llama.cpp%20GGUF-orange.svg)](https://github.com/ggerganov/llama.cpp)
-[![VRAM Ceiling: <= 1.48 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%201.48%20GB-brightgreen.svg)](ARCHITECTURE_CHANGES_V2.md)
+[![VRAM Ceiling: <= 1.25 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%201.25%20GB-brightgreen.svg)](ARCHITECTURE_CHANGES_V2.md)
 
-**Kingdom AI Server V2** is a zero-admin, enterprise-secure local **OpenAI-Compatible AI Server & Open WebUI** built for [Continue.dev](https://continue.dev) and local desktop AI development.
+**Kingdom AI Server V2** is an ultra-lean, enterprise-secure local **OpenAI-Compatible AI Server** optimized explicitly for **Continue.dev** and local RAG workflows. 
 
-It features a **Lightweight Browser-Based Open WebUI** served directly over `http://127.0.0.1:58420`. The V2 engine is powered by **`llama.cpp` GGUF runtime** (`llama-cpp-python`) with **DirectML hardware acceleration** and **CPU AVX2 fallback**, operating under a strict **$\le 1.48$ GB VRAM static ceiling** to eliminate DirectX 12 driver crash evictions (`DXGI_ERROR_DEVICE_REMOVED`).
+V2 drops the bulky WebUI and large VRAM requirements, operating completely headless from a single compiled **ZipApp (`.pyz`)**. It guarantees a strict **$\le 1.25$ GB VRAM static ceiling**, powered by `llama.cpp` (DirectML/OpenCL) and Qwen2.5-Coder.
 
 ---
 
-## 🏛️ System Architecture
+## 🏗️ System Architecture (Lean 2-Minister Council)
 
 ```mermaid
 graph TD
-    User[Developer Browser UI / Continue.dev] -->|HTTP / SSE Port 58420| Server[FastAPI Server Gateway]
+    User[Continue.dev or Terminal CLI] -->|HTTP / SSE Port 58420| Server[FastAPI Server Gateway]
     Server -->|Instant Cache Hit <0.05ms| Cache[Response Cache DB: SQLite WAL]
     Server -->|DirectML / CPU Engine| Engine[llama.cpp GGUF Engine]
-    Engine -->|llama-cpp-python| Boss[Senior Boss LLM: Qwen2.5-Coder 1.5B GGUF]
-    Engine -->|llama.cpp Embedder| M1[Minister 1: Vector Embedder GGUF]
-    Engine -->|llama.cpp ReRanker| M2[Minister 2: Context Re-Ranker GGUF]
-    Engine -->|Latent Diffusion| M3[Minister 3: SDXS-512 Vision Engine INT8]
+    Engine -->|llama-cpp-python| Boss[Main Boss LLM: Qwen2.5-Coder 1.5B]
+    Engine -->|llama.cpp Embedder| M1[Minister 1: Vector Embedder BGE-Small]
+    Engine -->|llama.cpp ReRanker| M2[Minister 2: Context Re-Ranker]
 
     Server -->|Zero-VRAM Utilities| Utils[Native CPU Pipeline]
     Utils --> U1[Tree-sitter AST Parser]
-    Utils --> U2[Manifest Linter]
-    Utils --> U3[RegEx Vulnerability Scanner]
-    Utils --> U4[Structural AST Trimmer]
-    Utils --> U5[Heuristic Intent Router]
+    Utils --> U2[SQLite Vector Store]
+    Utils --> U3[Heuristic Intent Router]
 ```
 
 ---
 
-## ⚡ Hardware & Subsystem Allocation Matrix
+## ⚡ Quick Start & Single-Line Installation
 
-| Subsystem | Model / Tool Component | Quantization / Spec | Acceleration Engine | VRAM / RAM Budget | Execution Latency |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Main Boss LLM** | `Qwen2.5-Coder-1.5B-Instruct` | Q4_K_M GGUF | `llama-cpp-python` (DirectML / CPU) | ~1.1 GB VRAM | 20–35 ms TTFT |
-| **Response Cache DB** | SQLite WAL Cache (`data/cache/`) | In-Memory Hash + Disk | SQLite WAL Engine | 0 MB VRAM (<2 MB RAM) | **< 0.05 ms** |
-| **Minister 1: Embedder** | `bge-small-en-v1.5` | GGUF (384-dim dense) | `llama.cpp` Vector Engine | ~35 MB VRAM / RAM | 4–8 ms |
-| **Minister 2: Re-Ranker** | `bge-reranker-small` | GGUF Cross-Encoder | `llama.cpp` Re-Ranker Engine | ~110 MB VRAM / RAM | 10–16 ms |
-| **Minister 3: Vision** | `SDXS-512-0.9-1step` | INT8 Latent Diffusion | DirectML / llama.cpp GGUF | ~230 MB VRAM / RAM | 40–90 ms |
-| **Zero-VRAM Native Utilities** | Tree-sitter / Linter / RegEx | C-ABI Native Libraries | Native CPU Execution | **0 MB VRAM** (<5 MB RAM) | **< 1–3 ms** |
+Kingdom V2 requires **zero Python setup**. It is distributed as an executable Python Zip archive (`kingdom.pyz`).
 
----
-
-## 🚀 Quick Start & Single-Line Installation
-
-Run the non-admin installer script in PowerShell:
+Run the non-admin installer script in PowerShell to download the engine:
 
 ```powershell
-irm https://raw.githubusercontent.com/7CGPA-Labs/KingdomAIServer/main/Deploy-KingdomServer.ps1 | iex
+irm https://raw.githubusercontent.com/7CGPA-Labs/KingdomAIServer/v2.0.0/Deploy-KingdomServer.ps1 | iex
 ```
 
-### Launch Server & Open WebUI:
+### 1. Download Model Weights
+Run the model provisioner to securely pull GGUF weights directly from GitHub Releases:
+```powershell
+.\bin\download_models.cmd
+```
 
-Start the server using pure Python:
+### 2. Launch the CLI or Server
+To use the rich **interactive terminal UI** (includes RAG capabilities):
+```powershell
+.\bin\kingdom_cli.cmd
+```
 
+To start the **background REST server** (for Continue.dev):
+```powershell
+.\bin\start_server.cmd
+```
+
+---
+
+## 🧠 Standalone RAG CLI
+
+The `kingdom_cli.cmd` now includes built-in semantic codebase indexing! You can index a project folder on your machine directly into the SQLite Vector Store using AST (Tree-Sitter) chunking.
+
+From inside the CLI, type:
 ```bash
-python main.py
+/index C:\Path\To\Your\Project
 ```
-*Or alternatively:*
-```bash
-python start_server.py
-```
-
-*Your default browser will automatically open to `http://127.0.0.1:58420` displaying the Kingdom AI Open WebUI.*
+Once indexed, the server will automatically use **Minister 1 (Embedder)** and **Minister 2 (Re-Ranker)** to RAG-enrich your chat prompts behind the scenes.
 
 ---
 
@@ -100,16 +101,6 @@ Add the following configuration to your `~/.continue/config.json`:
 
 ---
 
-## 🧪 Verification & Testing
-
-Run the automated 4-Gate diagnostic verification test suite (68/68 passing tests):
-
-```powershell
-.\venv\Scripts\python.exe -m pytest -v
-```
-
----
-
-## 📄 License
+## 🛡️ License
 
 This project is licensed under the [MIT License](LICENSE).

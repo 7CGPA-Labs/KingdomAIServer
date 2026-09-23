@@ -12,7 +12,6 @@ from pathlib import Path
 try:
     import rich
     import truststore
-    import huggingface_hub
 except ImportError:
     script_dir = Path(__file__).parent.resolve()
     current_py = Path(sys.executable).resolve()
@@ -28,7 +27,7 @@ except ImportError:
             cmd = [str(venv_py), str(Path(__file__).resolve())] + sys.argv[1:]
             sys.exit(subprocess.call(cmd))
 
-    print(f"❌ Error: Required dependencies (huggingface_hub/rich/truststore) are missing in Python environment ({sys.executable}).")
+    print(f"❌ Error: Required dependencies (rich/truststore) are missing in Python environment ({sys.executable}).")
     print("Please install requirements: pip install -e .")
     sys.exit(1)
 
