@@ -1,7 +1,6 @@
 """
 Preemptive Dual-Priority Queue & Inference Scheduler.
-Prioritizes high-frequency inline FIM autocomplete calls (/v1/completions) over background chat generation.
-Ensures sub-35 ms time-to-first-token (TTFT) for typing ghost text.
+Prioritizes interactive operations over background generation tasks.
 """
 import asyncio
 import time
@@ -9,13 +8,13 @@ from typing import Dict, Any, Callable
 from enum import IntEnum
 
 class RequestPriority(IntEnum):
-    HIGH_FIM = 1      # FIM Tab Autocomplete (/v1/completions)
-    NORMAL_CHAT = 2   # Chat / Refactor (/v1/chat/completions)
+    HIGH_PRIORITY = 1  # High priority interactive requests
+    NORMAL_CHAT = 2    # Chat / Refactor / Edits (/v1/chat/completions)
 
 import inspect
 
 class PriorityInferenceScheduler:
-    """Preemptive scheduler prioritizing FIM completions over chat streams."""
+    """Preemptive scheduler managing inference execution priorities."""
 
     def __init__(self):
         self._lock = asyncio.Lock()

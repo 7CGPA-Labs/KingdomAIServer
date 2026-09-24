@@ -112,8 +112,8 @@ def test_heuristic_intent_router():
     r3 = router.route_intent("/commit format git diff")
     assert r3["intent"] == "GIT_COMMIT"
     
-    r4 = router.route_intent("anything", is_fim_request=True)
-    assert r4["intent"] == "FIM_AUTOCOMPLETE"
+    r4 = router.route_intent("anything", has_code_selection=True)
+    assert r4["intent"] == "CODE_REFACTOR"
 
 def test_unified_preprocessor():
     prep = Preprocessor()

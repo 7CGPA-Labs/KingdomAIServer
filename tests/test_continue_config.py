@@ -15,14 +15,7 @@ def test_continue_config_format():
                 "apiBase": "http://127.0.0.1:58420/v1",
                 "apiKey": "EMPTY"
             }
-        ],
-        "tabAutocompleteModel": {
-            "title": "Kingdom Autocomplete (Granite 128M)",
-            "provider": "openai",
-            "model": "granite-code-128m",
-            "apiBase": "http://127.0.0.1:58420/v1",
-            "apiKey": "EMPTY"
-        }
+        ]
     }
 
     config_str = json.dumps(config_snippet)
@@ -31,4 +24,4 @@ def test_continue_config_format():
     assert "models" in parsed
     assert parsed["models"][0]["apiBase"] == "http://127.0.0.1:58420/v1"
     assert parsed["models"][0]["provider"] == "openai"
-    assert parsed["tabAutocompleteModel"]["apiBase"] == "http://127.0.0.1:58420/v1"
+    assert "tabAutocompleteModel" not in parsed

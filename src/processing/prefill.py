@@ -14,81 +14,18 @@ from src.rag.vector_store import VectorStore
 from src.rag.embedder import BGEEmbedder
 from src.core.local_llm import LlamaCppOrchestrator
 
-# Standard common code completions to prefill in Response Cache DB
-SEED_COMPLETIONS = [
-    # Python
-    {
-        "prefix": "if __name__ == ",
-        "suffix": "",
-        "completion": "'__main__':\n    main()",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "def main():\n    ",
-        "suffix": "",
-        "completion": "pass\n\nif __name__ == '__main__':\n    main()",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "import os\nimport sys\n",
-        "suffix": "",
-        "completion": "from pathlib import Path\nfrom typing import Dict, Any, List, Optional",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "try:\n    ",
-        "suffix": "",
-        "completion": "pass\nexcept Exception as e:\n    pass",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    # Java & Spring Boot
-    {
-        "prefix": "public static void main",
-        "suffix": "",
-        "completion": "(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "@RestController\n@RequestMapping(\"/api\")\n",
-        "suffix": "",
-        "completion": "public class ApiController {\n    \n}",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "@Autowired\nprivate ",
-        "suffix": "",
-        "completion": "EmployeeRepository employeeRepository;",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "@Override\npublic Health health() {\n    ",
-        "suffix": "",
-        "completion": "return Health.up().withDetail(\"database\", \"UP\").build();\n}",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    # TypeScript / JavaScript
-    {
-        "prefix": "import React, { useState, useEffect } from 'react';\n\n",
-        "suffix": "",
-        "completion": "export const Component: React.FC = () => {\n",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    },
-    {
-        "prefix": "const [loading, setLoading] = ",
-        "suffix": "",
-        "completion": "useState<boolean>(false);",
-        "model": "qwen2.5-coder-1.5b",
-        "max_tokens": 24
-    }
+# Standard common developer interactions and greetings to prefill in Response Cache DB
+SEED_CHAT_INTERACTIONS = [
+    ("hi", "Hello! I am Main Boss, the lead AI developer in Kingdom AI Server V2. How can I assist you with your code today?"),
+    ("hello", "Hello! I am ready to help you write, refactor, and review code. What are we working on?"),
+    ("who are you", "I am Main Boss, an enterprise-secure, local AI developer engine running on Kingdom AI Server V2."),
+    ("what can you do", "I provide code generation, refactoring, security auditing, RAG codebase search, and Mermaid diagram generation."),
+    ("help", "You can ask me to explain code, fix bugs, generate tests, refactor functions, or search across your indexed repository."),
+    ("how to reverse a string in python", "In Python, you can reverse a string using slicing: `reversed_str = original_str[::-1]`."),
+    ("python fibonacci", "Here is an efficient Fibonacci function in Python:\n\ndef fibonacci(n: int) -> int:\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a"),
+    ("fastapi health check", "Here is a standard FastAPI health check endpoint:\n\n@app.get('/health')\nasync def health():\n    return {'status': 'ok'}"),
+    ("git commit convention", "Conventional Commits follow the format: `type(scope): description`. Common types include feat, fix, docs, style, refactor, test, and chore."),
+    ("dockerfile python", "Here is a clean Python Dockerfile template:\n\nFROM python:3.11-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nCMD [\"python\", \"main.py\"]")
 ]
 
 # Standard architectural templates to prefill in Vector DB
@@ -153,42 +90,11 @@ SEED_TEMPLATES = [
 ]
 
 def prefill_response_cache(cache_db: ResponseCacheDB, model_name: str = "qwen2.5-coder-1.5b") -> int:
-    """Populate ResponseCacheDB with common developer completions and greetings."""
+    """Populate ResponseCacheDB with common developer interactions and greetings."""
     count = 0
     created_time = int(time.time())
 
-    for item in SEED_COMPLETIONS:
-        key = ResponseCacheDB.compute_cache_key(
-            model_name,
-            item["prefix"],
-            item["suffix"],
-            temperature=0.0,
-            max_tokens=item["max_tokens"]
-        )
-        response_data = {
-            "id": f"cmpl-prefill-{count}",
-            "object": "text_completion",
-            "created": created_time,
-            "model": model_name,
-            "choices": [{
-                "text": item["completion"],
-                "index": 0,
-                "logprobs": None,
-                "finish_reason": "stop"
-            }],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 10},
-            "latency_ms": 0.05
-        }
-        cache_db.put(key, item["completion"], response_data, query_type="FIM")
-        count += 1
-
-    # Standard Chat Greetings
-    greetings = [
-        ("hi", "Hello! I am Main Boss, the lead AI developer in Kingdom AI Server V2. How can I assist you with your code today?"),
-        ("hello", "Hello! I am ready to help you write, refactor, and review code. What are we working on?"),
-        ("who are you", "I am Main Boss, an enterprise-secure, local AI developer engine running on Kingdom AI Server V2."),
-    ]
-    for prompt_text, reply in greetings:
+    for prompt_text, reply in SEED_CHAT_INTERACTIONS:
         msgs = [{"role": "user", "content": prompt_text}]
         chat_key = ResponseCacheDB.compute_cache_key(model_name, json.dumps(msgs), "", temperature=0.7, max_tokens=8192)
         chat_data = {

@@ -1,14 +1,10 @@
 """
-FIM Token Templates, Main Boss System Prompts, Agent Persona Prompts, and Heuristic Intent Router.
+Main Boss System Prompts, Agent Persona Prompts, and Heuristic Intent Router.
 Replaces Minister 1 fast-path intent classification with 0.01 ms prefix/rule-based matching.
 """
 import re
 import time
 from typing import Dict, Any
-
-FIM_PREFIX_TOKEN = "<|fim_prefix|>"
-FIM_SUFFIX_TOKEN = "<|fim_suffix|>"
-FIM_MIDDLE_TOKEN = "<|fim_middle|>"
 
 MAIN_BOSS_SYSTEM_PROMPT = """You are Main Boss, the lead autonomous AI developer engine in Kingdom AI Server V2.
 You have access to a Lean 2-Minister Council (Embedder, Re-Ranker) and zero-VRAM native utilities.
@@ -30,15 +26,12 @@ Output the exact updated file content.
 class HeuristicIntentRouter:
     """Prefix and rule-based heuristic matcher for fast IDE request routing in 0.01 ms with 0 MB VRAM."""
 
-    def route_intent(self, prompt: str, has_code_selection: bool = False, is_fim_request: bool = False) -> Dict[str, Any]:
+    def route_intent(self, prompt: str, has_code_selection: bool = False) -> Dict[str, Any]:
         """Classify user intent in <0.05 ms using deterministic prefix and pattern rules."""
         start = time.perf_counter()
         p_lower = prompt.lower().strip()
 
-        if is_fim_request or FIM_PREFIX_TOKEN in prompt:
-            intent = "FIM_AUTOCOMPLETE"
-            target_agent = "MAIN_BOSS_FIM"
-        elif p_lower.startswith("@workspace") or p_lower.startswith("/search") or "find in repo" in p_lower:
+        if p_lower.startswith("@workspace") or p_lower.startswith("/search") or "find in repo" in p_lower:
             intent = "RAG_SEARCH"
             target_agent = "MINISTER_1_2_RAG"
         elif p_lower.startswith("/fix") or "fix bug" in p_lower or "traceback" in p_lower:

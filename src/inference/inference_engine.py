@@ -1,7 +1,7 @@
 """
 Headless OpenAI-Compatible REST Gateway & Priority Inference Scheduler for Kingdom AI Server V2.
-Enforces loopback-only binding, local Bearer secret auth, CSPA origin defense, 2 MB payload size limits, and dual priority queue for FIM.
-Exposes ONLY /v1/completions and /v1/chat/completions for Continue.dev IDE extension.
+Enforces loopback-only binding, local Bearer secret auth, CSPA origin defense, and 2 MB payload size limits.
+Exposes OpenAI-compatible endpoints (/v1/chat/completions, /v1/embeddings, /v1/rerank, /v1/edits, /v1/apply) for Continue.dev IDE extension.
 """
 from fastapi import FastAPI, Request, HTTPException, Security, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -127,16 +127,6 @@ async def security_guardrails_middleware(request: Request, call_next):
 
 import jinja2
 
-class CompletionRequest(BaseModel):
-    prompt: Optional[str] = None
-    prefix: Optional[str] = None
-    suffix: Optional[str] = None
-    model: str = "qwen2.5-coder-1.5b"
-    max_tokens: int = 24
-    temperature: float = 0.0
-    stream: bool = False
-    stop: Optional[List[str]] = None
-
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -209,35 +199,16 @@ INFO_TEMPLATE = """
         
         <div class="endpoints">
             <h3>Active Endpoints:</h3>
-            <p><code>POST /v1/completions</code> (Continue.dev Copilot-Grade FIM Autocomplete)</p>
             <p><code>POST /v1/chat/completions</code> (Continue.dev Chat Sidebar)</p>
+            <p><code>POST /v1/embeddings</code> (Codebase Vector Embeddings)</p>
+            <p><code>POST /v1/rerank</code> (Context Reranker)</p>
+            <p><code>POST /v1/edits</code> (Inline Code Editing)</p>
+            <p><code>POST /v1/apply</code> (Apply Code Actions)</p>
         </div>
     </div>
 </body>
 </html>
 """
-
-def extract_quick_context(code_prefix: str) -> tuple[str, str]:
-    """Extract language imports and retrieve top relevant prefilled template in < 2 ms."""
-    import_lines = []
-    for line in code_prefix.splitlines()[:50]:
-        l_str = line.strip()
-        if l_str.startswith(("import ", "from ", "package ", "using ", "#include ", "require(")):
-            import_lines.append(l_str)
-    imports_header = "\n".join(import_lines[:8]) if import_lines else ""
-
-    ws_context = ""
-    try:
-        trimmed = code_prefix.strip()
-        if len(trimmed) > 15:
-            query_vec = embedder.embed_query(trimmed[-80:])
-            similar = vector_store.search_similar(query_vec, top_k=1)
-            if similar and similar[0].get("similarity_score", 0) > 0.35:
-                ws_context = similar[0]["content"][:250].strip()
-    except Exception:
-        pass
-
-    return imports_header, ws_context
 
 @app.get("/")
 async def root_info_page():
@@ -254,93 +225,7 @@ async def root_info_page():
     return HTMLResponse(content=html_content, status_code=200)
 
 # =============================================================================
-# ENDPOINT 1: /v1/completions — Copilot-Grade FIM Tab Autocomplete for Continue.dev
-# =============================================================================
-
-@app.post("/v1/completions")
-async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
-    """OpenAI-compatible /v1/completions endpoint for Copilot-grade FIM Tab Autocomplete (<35 ms TTFT target)."""
-    prefix = req.prefix or req.prompt or ""
-    suffix = req.suffix or ""
-
-    cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
-    cached_resp = cache_db.get(cache_key)
-    if cached_resp:
-        if req.stream:
-            def _cached_stream_generator():
-                chunk = {
-                    "id": cached_resp["id"],
-                    "object": "text_completion",
-                    "created": cached_resp["created"],
-                    "model": req.model,
-                    "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
-                }
-                yield f"data: {json.dumps(chunk)}\n\n"
-                yield "data: [DONE]\n\n"
-            return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
-        return cached_resp
-
-    start_time = time.perf_counter()
-    created_time = int(time.time())
-
-    # Fast-slice AST imports (< 1 ms)
-    imports_header, ws_context = extract_quick_context(prefix)
-
-    # Cancel any previous in-flight FIM immediately to free compute
-    orchestrator.cancel_active_fim()
-    abort_event = threading.Event()
-
-    if req.stream:
-        def _stream_generator():
-            try:
-                for chunk in orchestrator.stream_fim_completion(
-                    prefix=prefix,
-                    suffix=suffix,
-                    max_tokens=min(req.max_tokens, 32),
-                    workspace_context=ws_context,
-                    imports_header=imports_header,
-                    abort_event=abort_event
-                ):
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                yield "data: [DONE]\n\n"
-            finally:
-                abort_event.set()
-        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
-
-    def _execute():
-        return orchestrator.generate_fim_completion(
-            prefix,
-            suffix,
-            max_tokens=min(req.max_tokens, 32),
-            workspace_context=ws_context,
-            imports_header=imports_header
-        )
-
-    res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
-    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
-
-    response_data = {
-        "id": f"cmpl-{created_time}",
-        "object": "text_completion",
-        "created": created_time,
-        "model": req.model,
-        "choices": [
-            {
-                "text": res["text"],
-                "index": 0,
-                "logprobs": None,
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": res.get("usage", {"prompt_tokens": 10, "completion_tokens": 5}),
-        "latency_ms": elapsed_ms
-    }
-
-    cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
-    return response_data
-
-# =============================================================================
-# ENDPOINT 2: /v1/chat/completions — Multi-turn Chat for Continue.dev
+# ENDPOINT 1: /v1/chat/completions — Multi-turn Chat for Continue.dev
 # =============================================================================
 
 @app.post("/v1/chat/completions")
@@ -416,7 +301,7 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
     return response_data
 
 # =============================================================================
-# ENDPOINT 3: /v1/rerank — Cohere-compatible Reranker API
+# ENDPOINT 2: /v1/rerank — Cohere-compatible Reranker API
 # =============================================================================
 @app.post("/v1/rerank")
 async def rerank_documents(req: RerankRequest, auth: bool = Depends(verify_bearer_token)):
@@ -460,7 +345,7 @@ async def rerank_documents(req: RerankRequest, auth: bool = Depends(verify_beare
     }
 
 # =============================================================================
-# ENDPOINT 4: /v1/embeddings — OpenAI-compatible Embeddings API
+# ENDPOINT 3: /v1/embeddings — OpenAI-compatible Embeddings API
 # =============================================================================
 @app.post("/v1/embeddings")
 async def create_embeddings(req: EmbeddingsRequest, auth: bool = Depends(verify_bearer_token)):
@@ -487,7 +372,7 @@ async def create_embeddings(req: EmbeddingsRequest, auth: bool = Depends(verify_
     }
 
 # =============================================================================
-# ENDPOINT 5: /v1/edits — OpenAI-compatible Edits API
+# ENDPOINT 4: /v1/edits — OpenAI-compatible Edits API
 # =============================================================================
 @app.post("/v1/edits")
 async def create_edit(req: EditRequest, auth: bool = Depends(verify_bearer_token)):
@@ -515,7 +400,7 @@ async def create_edit(req: EditRequest, auth: bool = Depends(verify_bearer_token
     }
 
 # =============================================================================
-# ENDPOINT 6: /v1/apply — Custom Apply API
+# ENDPOINT 5: /v1/apply — Custom Apply API
 # =============================================================================
 @app.post("/v1/apply")
 async def apply_code(req: ApplyRequest, auth: bool = Depends(verify_bearer_token)):

@@ -33,7 +33,7 @@ def test_response_cache_db_put_get():
     assert db.get(cache_key) is None
 
     # Insert entry
-    db.put(cache_key, "return True", {"choices": [{"text": "return True"}]}, query_type="FIM")
+    db.put(cache_key, "return True", {"choices": [{"text": "return True"}]}, query_type="CHAT")
 
     # Hit check (< 50 ms test threshold)
     cached = db.get(cache_key)
@@ -50,19 +50,21 @@ def test_api_caching_instant_hit():
     headers = {"Authorization": f"Bearer {LOCAL_BEARER_TOKEN}"}
     payload = {
         "model": "qwen2.5-coder-1.5b",
-        "prefix": "def calculate_discount(price, rate):\n    ",
-        "suffix": "\n",
+        "messages": [
+            {"role": "user", "content": "Hello Kingdom AI"}
+        ],
+        "stream": False,
         "max_tokens": 16,
         "temperature": 0.0
     }
 
     # First request: Cache Miss & Store
-    resp1 = client.post("/v1/completions", json=payload, headers=headers)
+    resp1 = client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp1.status_code == 200
     data1 = resp1.json()
 
     # Second request: Cache Hit (< 0.05 ms instant response)
-    resp2 = client.post("/v1/completions", json=payload, headers=headers)
+    resp2 = client.post("/v1/chat/completions", json=payload, headers=headers)
     assert resp2.status_code == 200
     data2 = resp2.json()
     assert data2.get("cached") is True

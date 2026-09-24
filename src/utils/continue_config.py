@@ -16,14 +16,6 @@ DEFAULT_KINGDOM_MODEL = {
     "apiKey": "EMPTY"
 }
 
-DEFAULT_TAB_MODEL = {
-    "title": "Kingdom Autocomplete (Granite 128M)",
-    "provider": "openai",
-    "model": "granite-code-128m",
-    "apiBase": "http://127.0.0.1:58420/v1",
-    "apiKey": "EMPTY"
-}
-
 
 def repair_continue_config() -> bool:
     """Repairs or creates ~/.continue/config.json with Kingdom AI Server endpoints."""
@@ -48,8 +40,8 @@ def repair_continue_config() -> bool:
     if not has_kingdom:
         config_data["models"].insert(0, DEFAULT_KINGDOM_MODEL)
 
-    # Set tab autocomplete model
-    config_data["tabAutocompleteModel"] = DEFAULT_TAB_MODEL
+    # Clean up tab autocomplete if present
+    config_data.pop("tabAutocompleteModel", None)
 
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config_data, f, indent=2)

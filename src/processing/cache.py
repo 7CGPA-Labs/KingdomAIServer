@@ -1,6 +1,6 @@
 """
 Zero-VRAM SQLite Response Cache DB for Kingdom AI Server V2.
-Stores exact & hashed prompt completions, FIM ghost text, and RAG query results in data/cache/response_cache.db.
+Stores exact & hashed prompt responses and RAG query results in data/cache/response_cache.db.
 Delivers cached responses in < 0.05 ms with zero GPU/VRAM overhead.
 """
 import sqlite3

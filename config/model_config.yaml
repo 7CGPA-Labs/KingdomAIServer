@@ -22,7 +22,6 @@ main_boss:
   vram_budget_mb: 1100
   threads: 4
   temperature_default: 0.7
-  temperature_fim: 0.0
 
 council_ministers:
   minister_1_embedder:
