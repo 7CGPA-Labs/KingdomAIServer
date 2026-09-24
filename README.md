@@ -96,15 +96,26 @@ Add the following configuration to your `~/.continue/config.json`:
     "apiBase": "http://127.0.0.1:58420/v1",
     "apiKey": "local-token"
   },
-  "reranker": {
-    "name": "cohere",
-    "params": {
-      "model": "bge-reranker-base",
+      "reranker": {
+      "name": "cohere",
+      "params": {
+        "model": "bge-reranker-base",
+        "apiBase": "http://127.0.0.1:58420/v1",
+        "apiKey": "local-token"
+      }
+    },
+    "embeddingsProvider": {
+      "provider": "openai",
+      "model": "bge-small-en-v1.5",
       "apiBase": "http://127.0.0.1:58420/v1",
       "apiKey": "local-token"
-    }
+    },
+    "rules": [
+      "You are a surgical code editor. Never rewrite the entire file or output unmodified code. Only output the exact lines that changed, surrounded by strict Git-style diffs.",
+      "Provide zero conversational filler. Do not explain the code unless explicitly asked. Output only the solution.",
+      "Never hardcode API keys, passwords, or internal IP addresses. Always use environment variables."
+    ]
   }
-}
 ```
 
 ---
