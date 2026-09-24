@@ -5,6 +5,7 @@ Supports DirectML GPU acceleration with automatic CPU AVX2 fallback.
 """
 import os
 import time
+import json
 import threading
 from typing import Dict, Any, Generator, Optional, List
 from src.processing.tokenizer import FIMFormatter, format_fim_prompt
@@ -101,13 +102,36 @@ class LlamaCppOrchestrator:
         res["is_fim"] = True
         return res
 
-    def format_chat_prompt(self, messages: List[Dict[str, str]]) -> str:
+    def format_chat_prompt(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> str:
         """Format OpenAI messages into Qwen2.5-Coder ChatML Instruct format."""
         formatted = ""
+        
+        # Inject tool schemas if tools are provided
+        if tools:
+            tool_instruction = (
+                "You have access to the following tools:\n"
+                "<tools>\n"
+                f"{json.dumps(tools, indent=2)}\n"
+                "</tools>\n"
+                "To call a tool, you MUST output a JSON object enclosed within <tool_call></tool_call> tags. "
+                "Example:\n<tool_call>\n{\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value\"}}\n</tool_call>\n"
+                "Do not output anything else when making a tool call."
+            )
+            # Find if system message exists
+            has_system = False
+            for msg in messages:
+                if msg.get("role") == "system":
+                    msg["content"] = tool_instruction + "\n\n" + msg.get("content", "")
+                    has_system = True
+                    break
+            if not has_system:
+                messages = [{"role": "system", "content": tool_instruction}] + messages
+
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             formatted += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+            
         formatted += "<|im_start|>assistant\n"
         return formatted
 
@@ -115,10 +139,11 @@ class LlamaCppOrchestrator:
         self,
         messages: List[Dict[str, str]],
         max_tokens: int = 512,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """Stream SSE chat completion chunks."""
-        prompt = self.format_chat_prompt(messages)
+        prompt = self.format_chat_prompt(messages, tools=tools)
         created_time = int(time.time())
 
         if not self.is_loaded:

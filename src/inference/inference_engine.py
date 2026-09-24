@@ -131,6 +131,8 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     temperature: float = 0.7
     max_tokens: int = 8192
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_choice: Optional[Any] = None
 
 class RerankRequest(BaseModel):
     query: str
@@ -295,7 +297,7 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
     if req.stream:
         async def _stream_generator():
-            for chunk in orchestrator.stream_chat_completion(msgs, max_tokens=req.max_tokens, temperature=req.temperature):
+            for chunk in orchestrator.stream_chat_completion(msgs, max_tokens=req.max_tokens, temperature=req.temperature, tools=req.tools):
                 yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
 
@@ -332,7 +334,7 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
         enriched_msgs.insert(0, {"role": "system", "content": f"Relevant workspace context:\n{context_text}"})
 
     def _execute():
-        prompt = orchestrator.format_chat_prompt(enriched_msgs)
+        prompt = orchestrator.format_chat_prompt(enriched_msgs, tools=req.tools)
         return orchestrator.generate_completion(prompt, max_tokens=req.max_tokens, temperature=req.temperature)
 
     res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
