@@ -129,7 +129,7 @@ class ChatCompletionRequest(BaseModel):
     model: str = "qwen2.5-coder-1.5b"
     stream: bool = False
     temperature: float = 0.7
-    max_tokens: int = 2048
+    max_tokens: int = 8192
 
 # =============================================================================
 # ENDPOINT 0: / — Jinja2 Server Status Page

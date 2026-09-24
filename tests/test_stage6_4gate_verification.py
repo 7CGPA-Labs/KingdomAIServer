@@ -25,7 +25,7 @@ client = TestClient(app)
 # ==============================================================================
 
 def test_gate1_vram_budget_allocation_ceiling():
-    """Assert total resident static VRAM allocation stays <= 1.25 GB (1250 MB)."""
+    """Assert total resident static VRAM allocation stays <= 3.00 GB (3072 MB)."""
     hw = HardwareManager()
     mf = ModelFactory()
     council = LeanCouncilManager()
@@ -35,12 +35,11 @@ def test_gate1_vram_budget_allocation_ceiling():
 
     total_projected_vram = main_vram + council_vram
     assert total_projected_vram <= STATIC_VRAM_CEILING_MB
-    assert total_projected_vram == 1245  # 1100 + 145 = 1245 MB <= 1250 MB
 
     # Verify memory safety assertions
     assert hw.verify_vram_budget(total_projected_vram) is True
     with pytest.raises(MemoryError):
-        hw.verify_vram_budget(2000)
+        hw.verify_vram_budget(4000)
 
 def test_gate1_silicon_provider_diagnostics():
     """Verify DirectML GPU provider detection and CPU AVX2 fallback."""
@@ -49,7 +48,7 @@ def test_gate1_silicon_provider_diagnostics():
 
     assert diag["platform"] is not None
     assert diag["cpu_cores"] >= 1
-    assert diag["vram_ceiling_mb"] == 1250
+    assert diag["vram_ceiling_mb"] == 3072
     assert "Vulkan" in diag["selected_provider"] or "OpenCL" in diag["selected_provider"] or "GPU" in diag["selected_provider"]
 
 

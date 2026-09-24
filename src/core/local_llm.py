@@ -14,7 +14,7 @@ from src.utils import get_models_dir
 class LlamaCppOrchestrator:
     """Orchestrates Main Boss GGUF LLM execution (Qwen2.5-Coder-1.5B)."""
 
-    def __init__(self, model_path: Optional[str] = None, n_ctx: int = 8192, n_gpu_layers: int = -1):
+    def __init__(self, model_path: Optional[str] = None, n_ctx: int = 32768, n_gpu_layers: int = -1):
         if model_path is None:
             self.model_path = str(get_models_dir() / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
         else:
@@ -83,7 +83,7 @@ class LlamaCppOrchestrator:
             "latency_ms": round(elapsed_ms, 2)
         }
 
-    def generate_fim_completion(self, prefix: str, suffix: str = "", max_tokens: int = 128) -> Dict[str, Any]:
+    def generate_fim_completion(self, prefix: str, suffix: str = "", max_tokens: int = 512) -> Dict[str, Any]:
         """Execute high-priority inline Fill-In-the-Middle (FIM) autocomplete (<35 ms target TTFT)."""
         prompt = format_fim_prompt(prefix, suffix)
         params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
