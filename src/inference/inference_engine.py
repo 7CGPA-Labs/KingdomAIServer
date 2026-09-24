@@ -224,6 +224,115 @@ async def root_info_page():
     )
     return HTMLResponse(content=html_content, status_code=200)
 
+BUILTIN_AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "codebase_search",
+            "description": "Semantically search indexed repository codebase for symbols, functions, or architectural logic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Semantic search query or symbol"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "security_audit",
+            "description": "Run static vulnerability scanner across code snippet for CWE issues, secrets, and injection sinks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "The code to audit"}
+                },
+                "required": ["code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "validate_imports",
+            "description": "Check whether imports are declared in project package manifests (package.json, requirements.txt, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "imports": {"type": "array", "items": {"type": "string"}, "description": "List of imported modules"}
+                },
+                "required": ["imports"]
+            }
+        }
+    }
+]
+
+def enrich_chat_context(msgs: List[Dict[str, str]]) -> tuple[List[Dict[str, str]], Dict[str, Any], float]:
+    """Enrich chat messages with intent routing, persona guidelines, RAG context, and preprocessor security audits."""
+    last_user_msg = ""
+    for m in reversed(msgs):
+        if m.get("role") == "user":
+            last_user_msg = m.get("content", "")
+            break
+
+    # 1. Intent routing
+    route_info = router.route_intent(last_user_msg)
+    target_agent = route_info.get("target_agent", "MAIN_BOSS")
+    intent = route_info.get("intent", "GENERAL_CHAT")
+
+    # 2. Persona spec
+    persona_spec = persona_chain.get_persona_spec(target_agent)
+    recommended_temp = persona_spec.get("temperature", 0.7)
+    system_notes = []
+
+    if persona_spec.get("system_prompt"):
+        system_notes.append(persona_spec["system_prompt"])
+
+    # 3. Security vulnerability analysis injection
+    if intent == "SECURITY_AUDIT" or "/security" in last_user_msg.lower() or "audit security" in last_user_msg.lower():
+        findings = preprocessor.scan_security_issues(last_user_msg)
+        if findings:
+            findings_summary = "\n".join([
+                f"- Line {f['line_number']}: {f['description']} (Severity: {f['severity']})"
+                for f in findings[:5]
+            ])
+            system_notes.append(f"Static Vulnerability Analysis Findings:\n{findings_summary}")
+
+    # 4. RAG context enrichment
+    if target_agent == "MINISTER_1_2_RAG" or "@workspace" in last_user_msg.lower():
+        try:
+            clean_query = last_user_msg.replace("@workspace", "").replace("/search", "").strip()
+            if clean_query:
+                query_vec = embedder.embed_query(clean_query)
+                candidates = vector_store.search_similar(query_vec, top_k=5)
+                if candidates:
+                    context_chunks = reranker.rerank(clean_query, candidates, top_k=3)
+                    if context_chunks:
+                        context_text = "\n".join(c.get("content", "") for c in context_chunks)
+                        system_notes.append(f"Relevant workspace context from repository:\n{context_text}")
+        except Exception:
+            pass
+
+    # 5. Context trimming for oversized code inputs
+    enriched_msgs = []
+    for m in msgs:
+        content = m.get("content", "")
+        if len(content.splitlines()) > 150 and any(kw in content for kw in ("```", "def ", "class ", "function ")):
+            content = preprocessor.trim_context(content, max_lines=120)
+        enriched_msgs.append({"role": m.get("role", "user"), "content": content})
+
+    # 6. Apply system instructions
+    if system_notes:
+        combined_sys = "\n\n".join(system_notes)
+        if enriched_msgs and enriched_msgs[0].get("role") == "system":
+            enriched_msgs[0]["content"] = combined_sys + "\n\n" + enriched_msgs[0]["content"]
+        else:
+            enriched_msgs.insert(0, {"role": "system", "content": combined_sys})
+
+    return enriched_msgs, route_info, recommended_temp
+
 # =============================================================================
 # ENDPOINT 1: /v1/chat/completions — Multi-turn Chat for Continue.dev
 # =============================================================================
@@ -231,12 +340,21 @@ async def root_info_page():
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(verify_bearer_token)):
     """OpenAI-compatible /v1/chat/completions endpoint supporting streaming SSE and JSON.
-    Integrates HeuristicIntentRouter, BGEEmbedder (Minister 1), and BGEReranker (Minister 2) internally."""
+    Integrates HeuristicIntentRouter, Lean Council RAG, Preprocessor, and Agent Personas."""
     msgs = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    enriched_msgs, route_info, recommended_temp = enrich_chat_context(msgs)
+    effective_temp = req.temperature if req.temperature is not None else recommended_temp
+    active_tools = req.tools if req.tools is not None else None
 
     if req.stream:
         def _stream_generator():
-            for chunk in orchestrator.stream_chat_completion(msgs, max_tokens=req.max_tokens, temperature=req.temperature, tools=req.tools):
+            for chunk in orchestrator.stream_chat_completion(
+                enriched_msgs,
+                max_tokens=req.max_tokens,
+                temperature=effective_temp,
+                tools=active_tools
+            ):
                 yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
 
@@ -244,37 +362,14 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
     # Non-streaming: cache check
     prompt_summary = json.dumps(msgs)
-    cache_key = ResponseCacheDB.compute_cache_key(req.model, prompt_summary, "", req.temperature, req.max_tokens)
+    cache_key = ResponseCacheDB.compute_cache_key(req.model, prompt_summary, "", effective_temp, req.max_tokens)
     cached_resp = cache_db.get(cache_key)
     if cached_resp:
         return cached_resp
 
-    # Route intent via HeuristicIntentRouter (< 0.05 ms)
-    last_user_msg = msgs[-1]["content"] if msgs else ""
-    route_info = router.route_intent(last_user_msg)
-
-    # Integrated RAG enrichment: Embed + VectorSearch + ReRank (Ministers 1 & 2)
-    context_chunks = []
-    if route_info["target_agent"] == "MINISTER_1_2_RAG":
-        try:
-            from src.rag.vector_store import VectorStore
-            query_vec = embedder.embed_query(last_user_msg)
-            vs = VectorStore()
-            candidates = vs.search_similar(query_vec, top_k=5)
-            if candidates:
-                context_chunks = reranker.rerank(last_user_msg, candidates, top_k=3)
-        except Exception:
-            pass
-
-    # Build enriched message list with RAG context
-    enriched_msgs = list(msgs)
-    if context_chunks:
-        context_text = "\n".join(c.get("content", "") for c in context_chunks)
-        enriched_msgs.insert(0, {"role": "system", "content": f"Relevant workspace context:\n{context_text}"})
-
     def _execute():
-        prompt = orchestrator.format_chat_prompt(enriched_msgs, tools=req.tools)
-        return orchestrator.generate_completion(prompt, max_tokens=req.max_tokens, temperature=req.temperature)
+        prompt = orchestrator.format_chat_prompt(enriched_msgs, tools=active_tools)
+        return orchestrator.generate_completion(prompt, max_tokens=req.max_tokens, temperature=effective_temp)
 
     res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
     created_time = int(time.time())
