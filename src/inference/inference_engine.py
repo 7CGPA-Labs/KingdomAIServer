@@ -243,6 +243,14 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
         return cached_resp
 
     start_time = time.perf_counter()
+    created_time = int(time.time())
+
+    if req.stream:
+        async def _stream_generator():
+            for chunk in orchestrator.stream_fim_completion(prefix, suffix, max_tokens=req.max_tokens):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
 
     def _execute():
         return orchestrator.generate_fim_completion(prefix, suffix, max_tokens=req.max_tokens)
@@ -250,7 +258,6 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
     elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
-    created_time = int(time.time())
     response_data = {
         "id": f"cmpl-{created_time}",
         "object": "text_completion",
@@ -269,20 +276,6 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     }
 
     cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
-
-    if req.stream:
-        async def _stream_generator():
-            chunk = {
-                "id": response_data["id"],
-                "object": "text_completion",
-                "created": created_time,
-                "model": req.model,
-                "choices": [{"text": res["text"], "index": 0, "finish_reason": "stop"}]
-            }
-            yield f"data: {json.dumps(chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
-
     return response_data
 
 # =============================================================================

@@ -9,6 +9,8 @@ FIM_STOP_TOKENS = ["<|endoftext|>", "<|fim_prefix|>", "<|fim_suffix|>", "<|fim_m
 
 def format_fim_prompt(prefix: str, suffix: str) -> str:
     """Format prompt with FIM sentinel tokens for Qwen2.5-Coder-1.5B."""
+    if FIM_PREFIX_TOKEN in prefix:
+        return prefix
     return f"{FIM_PREFIX_TOKEN}{prefix}{FIM_SUFFIX_TOKEN}{suffix}{FIM_MIDDLE_TOKEN}"
 
 class FIMFormatter:

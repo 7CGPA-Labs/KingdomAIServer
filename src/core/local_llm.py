@@ -102,6 +102,48 @@ class LlamaCppOrchestrator:
         res["is_fim"] = True
         return res
 
+    def stream_fim_completion(
+        self,
+        prefix: str,
+        suffix: str = "",
+        max_tokens: int = 512
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Stream high-priority inline Fill-In-the-Middle (FIM) autocomplete tokens."""
+        prompt = format_fim_prompt(prefix, suffix)
+        params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
+        created_time = int(time.time())
+
+        if not self.is_loaded:
+            self.load_model()
+
+        with self._lock:
+            if self._llm:
+                stream = self._llm(
+                    prompt,
+                    max_tokens=params["max_tokens"],
+                    stream=True,
+                    temperature=params["temperature"],
+                    top_p=params["top_p"],
+                    stop=params["stop"]
+                )
+                
+                # FIM requires strict cleaning of stop tokens from stream
+                # We yield token by token
+                for chunk in stream:
+                    delta_text = chunk["choices"][0]["text"]
+                    
+                    yield {
+                        "id": f"cmpl-{created_time}",
+                        "object": "text_completion",
+                        "created": created_time,
+                        "model": "qwen2.5-coder-1.5b",
+                        "choices": [{
+                            "text": delta_text,
+                            "index": 0,
+                            "finish_reason": None
+                        }]
+                    }
+
     def format_chat_prompt(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> str:
         """Format OpenAI messages into Qwen2.5-Coder ChatML Instruct format."""
         formatted = ""
