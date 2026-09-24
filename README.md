@@ -6,11 +6,11 @@
 [![Platform: Windows Enterprise](https://img.shields.io/badge/platform-Windows%20x64-0078D6.svg)](https://microsoft.com/windows)
 [![Port: 58420](https://img.shields.io/badge/port-127.0.0.1%3A58420-success.svg)](http://127.0.0.1:58420)
 [![Engine: llama.cpp GGUF](https://img.shields.io/badge/engine-llama.cpp%20GGUF-orange.svg)](https://github.com/ggerganov/llama.cpp)
-[![VRAM Ceiling: <= 1.25 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%201.25%20GB-brightgreen.svg)](ARCHITECTURE_CHANGES_V2.md)
+[![VRAM Ceiling: <= 6.00 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%206.00%20GB-brightgreen.svg)](ARCHITECTURE_CHANGES_V2.md)
 
 **Kingdom AI Server V2** is an ultra-lean, enterprise-secure local **OpenAI-Compatible AI Server** optimized explicitly for **Continue.dev** and local RAG workflows. 
 
-V2 drops the bulky WebUI and large VRAM requirements, operating completely headless from a single compiled **ZipApp (`.pyz`)**. It guarantees a strict **$\le 1.25$ GB VRAM static ceiling**, powered by `llama.cpp` (DirectML/OpenCL) and Qwen2.5-Coder.
+V2 drops the bulky WebUI, operating completely headless from a single compiled **ZipApp (`.pyz`)**. It guarantees a strict **$\le 6.00$ GB VRAM static ceiling**, powered by `llama.cpp` (DirectML/OpenCL) and Qwen2.5-Coder.
 
 ---
 
@@ -95,6 +95,14 @@ Add the following configuration to your `~/.continue/config.json`:
     "model": "qwen2.5-coder-1.5b",
     "apiBase": "http://127.0.0.1:58420/v1",
     "apiKey": "local-token"
+  },
+  "reranker": {
+    "name": "cohere",
+    "params": {
+      "model": "bge-reranker-base",
+      "apiBase": "http://127.0.0.1:58420/v1",
+      "apiKey": "local-token"
+    }
   }
 }
 ```

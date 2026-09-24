@@ -131,6 +131,12 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int = 8192
 
+class RerankRequest(BaseModel):
+    query: str
+    documents: List[str]
+    top_n: Optional[int] = None
+    model: Optional[str] = "bge-reranker-base"
+
 # =============================================================================
 # ENDPOINT 0: / — Jinja2 Server Status Page
 # =============================================================================
@@ -308,3 +314,47 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
 
     cache_db.put(cache_key, res["text"], response_data, query_type="CHAT")
     return response_data
+
+# =============================================================================
+# ENDPOINT 3: /v1/rerank — Cohere-compatible Reranker API
+# =============================================================================
+@app.post("/v1/rerank")
+async def rerank_documents(req: RerankRequest, auth: bool = Depends(verify_bearer_token)):
+    """OpenAI/Cohere-compatible endpoint for Continue.dev @Codebase reranking."""
+    
+    if not req.documents:
+        return {"results": []}
+        
+    start_time = time.perf_counter()
+    
+    # Load reranker if not loaded
+    if not reranker.is_model_loaded:
+        reranker._load_session()
+        
+    # Score pairs
+    scores = reranker.score_pairs(req.query, req.documents)
+    
+    # Sort and format results
+    results = []
+    for idx, score in enumerate(scores):
+        results.append({
+            "index": idx,
+            "relevance_score": float(score)
+        })
+        
+    # Sort by relevance descending
+    results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)
+    
+    # Apply top_n limit if requested
+    if req.top_n is not None and req.top_n > 0:
+        results = results[:req.top_n]
+        
+    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+    
+    return {
+        "model": req.model or "bge-reranker-base",
+        "results": results,
+        "meta": {
+            "latency_ms": elapsed_ms
+        }
+    }
