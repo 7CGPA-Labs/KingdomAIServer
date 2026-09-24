@@ -13,6 +13,7 @@ import os
 import json
 import time
 import truststore
+from contextlib import asynccontextmanager
 
 from src.core.local_llm import LlamaCppOrchestrator
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
@@ -23,6 +24,8 @@ from src.processing.preprocessor import Preprocessor
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker
 from src.processing.cache import ResponseCacheDB
+from src.rag.vector_store import VectorStore
+from src.processing.prefill import prefill_response_cache, prefill_vector_store, warmup_llm_engine
 
 # Inject enterprise Zscaler proxy truststore certificates into SSL
 try:
@@ -30,10 +33,33 @@ try:
 except Exception:
     pass
 
+# Singleton Engine Handles
+orchestrator = LlamaCppOrchestrator()
+scheduler = PriorityInferenceScheduler()
+router = HeuristicIntentRouter()
+preprocessor = Preprocessor()
+embedder = BGEEmbedder()
+reranker = BGEReranker()
+persona_chain = AgentPersonaChain()
+cache_db = ResponseCacheDB()
+vector_store = VectorStore()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Prefills Response Cache, Cognitive Vector DB, and warms up the LLM engine on boot."""
+    try:
+        prefill_response_cache(cache_db)
+        prefill_vector_store(vector_store, embedder)
+        warmup_llm_engine(orchestrator)
+    except Exception:
+        pass
+    yield
+
 app = FastAPI(
     title="Kingdom AI Server V2 Gateway",
     description="Headless OpenAI-Compatible Server for Continue.dev",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # Enable CORS for Continue.dev
@@ -97,16 +123,6 @@ async def security_guardrails_middleware(request: Request, call_next):
         )
 
     return await call_next(request)
-
-# Singleton Engine Handles
-orchestrator = LlamaCppOrchestrator()
-scheduler = PriorityInferenceScheduler()
-router = HeuristicIntentRouter()
-preprocessor = Preprocessor()
-embedder = BGEEmbedder()
-reranker = BGEReranker()
-persona_chain = AgentPersonaChain()
-cache_db = ResponseCacheDB()
 
 import jinja2
 
@@ -201,14 +217,26 @@ INFO_TEMPLATE = """
 """
 
 def extract_quick_context(code_prefix: str) -> tuple[str, str]:
-    """Extract language imports and package declarations in < 1 ms."""
+    """Extract language imports and retrieve top relevant prefilled template in < 2 ms."""
     import_lines = []
     for line in code_prefix.splitlines()[:50]:
         l_str = line.strip()
         if l_str.startswith(("import ", "from ", "package ", "using ", "#include ", "require(")):
             import_lines.append(l_str)
     imports_header = "\n".join(import_lines[:8]) if import_lines else ""
-    return imports_header, ""
+
+    ws_context = ""
+    try:
+        trimmed = code_prefix.strip()
+        if len(trimmed) > 15:
+            query_vec = embedder.embed_query(trimmed[-80:])
+            similar = vector_store.search_similar(query_vec, top_k=1)
+            if similar and similar[0].get("similarity_score", 0) > 0.35:
+                ws_context = similar[0]["content"][:250].strip()
+    except Exception:
+        pass
+
+    return imports_header, ws_context
 
 @app.get("/")
 async def root_info_page():
