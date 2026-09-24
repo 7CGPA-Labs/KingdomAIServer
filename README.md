@@ -82,10 +82,17 @@ Add the following configuration to your `~/.continue/config.json`:
 {
   "models": [
     {
-      "title": "Kingdom AI Server (Qwen2.5-Coder)",
+      "title": "Kingdom AI Server (Chat & Apply)",
       "provider": "openai",
       "model": "qwen2.5-coder-1.5b",
       "apiBase": "http://127.0.0.1:58420/v1",
+      "apiKey": "local-token"
+    },
+    {
+      "title": "Kingdom Editor (Ctrl+I)",
+      "provider": "openai",
+      "model": "qwen2.5-coder-1.5b",
+      "apiBase": "http://127.0.0.1:58420/v1/edits",
       "apiKey": "local-token"
     }
   ],
@@ -96,27 +103,41 @@ Add the following configuration to your `~/.continue/config.json`:
     "apiBase": "http://127.0.0.1:58420/v1",
     "apiKey": "local-token"
   },
-      "reranker": {
-      "name": "cohere",
-      "params": {
-        "model": "bge-reranker-base",
-        "apiBase": "http://127.0.0.1:58420/v1",
-        "apiKey": "local-token"
-      }
-    },
-    "embeddingsProvider": {
-      "provider": "openai",
-      "model": "bge-small-en-v1.5",
+  "embeddingsProvider": {
+    "provider": "openai",
+    "model": "bge-small-en-v1.5",
+    "apiBase": "http://127.0.0.1:58420/v1",
+    "apiKey": "local-token"
+  },
+  "reranker": {
+    "name": "cohere",
+    "params": {
+      "model": "bge-reranker-base",
       "apiBase": "http://127.0.0.1:58420/v1",
       "apiKey": "local-token"
-    },
-    "rules": [
-      "You are a surgical code editor. Never rewrite the entire file or output unmodified code. Only output the exact lines that changed, surrounded by strict Git-style diffs.",
-      "Provide zero conversational filler. Do not explain the code unless explicitly asked. Output only the solution.",
-      "Never hardcode API keys, passwords, or internal IP addresses. Always use environment variables."
-    ]
-  }
+    }
+  },
+  "rules": [
+    "You are a surgical code editor. Never rewrite the entire file or output unmodified code. Only output the exact lines that changed, surrounded by strict Git-style diffs.",
+    "Provide zero conversational filler. Do not explain the code unless explicitly asked. Output only the solution.",
+    "Never hardcode API keys, passwords, or internal IP addresses. Always use environment variables."
+  ]
+}
 ```
+
+---
+
+## 🔌 Available REST API Endpoints
+
+The server exposes strict OpenAI-compatible endpoints to integrate seamlessly with Continue.dev and other IDE plugins:
+
+*   `POST /v1/chat/completions`: The core ChatML interface. Now fully supports OpenAI **Tool Calling** (`<tools>` and `<tool_call>`).
+*   `POST /v1/completions`: High-speed Fill-In-The-Middle (FIM) endpoint for Tab Autocomplete with strict SSE formatting.
+*   `POST /v1/embeddings`: OpenAI-compatible embeddings endpoint used by Continue.dev (`embeddingsProvider`) to build local codebase indices via Minister 1 (BGE-Small).
+*   `POST /v1/rerank`: Cohere-compatible reranking endpoint used to filter RAG context (`reranker`).
+*   `POST /v1/edits`: OpenAI-compatible edit API for code mutation (`Ctrl+I` / `Cmd+I`).
+*   `POST /v1/apply`: Custom endpoint for executing inline code application instructions.
+*   `GET /`: Dynamic HTML server diagnostic and token status page.
 
 ---
 
