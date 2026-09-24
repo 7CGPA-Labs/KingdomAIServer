@@ -138,6 +138,23 @@ class RerankRequest(BaseModel):
     top_n: Optional[int] = None
     model: Optional[str] = "bge-reranker-base"
 
+class EmbeddingsRequest(BaseModel):
+    input: Union[str, List[str]]
+    model: Optional[str] = "bge-small-en-v1.5"
+
+class EditRequest(BaseModel):
+    model: str = "qwen2.5-coder-1.5b"
+    input: str = ""
+    instruction: str
+    temperature: Optional[float] = 0.7
+
+class ApplyRequest(BaseModel):
+    model: str = "qwen2.5-coder-1.5b"
+    prompt: str
+    temperature: Optional[float] = 0.7
+
+
+
 # =============================================================================
 # ENDPOINT 0: / — Jinja2 Server Status Page
 # =============================================================================
@@ -384,4 +401,85 @@ async def rerank_documents(req: RerankRequest, auth: bool = Depends(verify_beare
         "meta": {
             "latency_ms": elapsed_ms
         }
+    }
+
+# =============================================================================
+# ENDPOINT 4: /v1/embeddings — OpenAI-compatible Embeddings API
+# =============================================================================
+@app.post("/v1/embeddings")
+async def create_embeddings(req: EmbeddingsRequest, auth: bool = Depends(verify_bearer_token)):
+    """OpenAI-compatible endpoint for generating vectors via BGE Embedder."""
+    if not embedder.is_model_loaded:
+        embedder._load_session()
+        
+    inputs = [req.input] if isinstance(req.input, str) else req.input
+    data = []
+    
+    for i, text in enumerate(inputs):
+        vec = embedder.embed_query(text)
+        data.append({
+            "object": "embedding",
+            "embedding": vec,
+            "index": i
+        })
+        
+    return {
+        "object": "list",
+        "data": data,
+        "model": req.model,
+        "usage": {"prompt_tokens": 0, "total_tokens": 0}
+    }
+
+# =============================================================================
+# ENDPOINT 5: /v1/edits — OpenAI-compatible Edits API
+# =============================================================================
+@app.post("/v1/edits")
+async def create_edit(req: EditRequest, auth: bool = Depends(verify_bearer_token)):
+    """Legacy OpenAI-compatible endpoint for code editing."""
+    prompt = f"Instruction: {req.instruction}\nInput code:\n{req.input}\nOutput edited code:\n"
+    
+    def _execute():
+        return orchestrator.generate_completion(prompt, max_tokens=2048, temperature=req.temperature or 0.7)
+        
+    res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
+    created_time = int(time.time())
+    
+    return {
+        "id": f"edit-{created_time}",
+        "object": "edit",
+        "created": created_time,
+        "model": req.model,
+        "choices": [
+            {
+                "text": res["text"],
+                "index": 0
+            }
+        ],
+        "usage": res.get("usage", {})
+    }
+
+# =============================================================================
+# ENDPOINT 6: /v1/apply — Custom Apply API
+# =============================================================================
+@app.post("/v1/apply")
+async def apply_code(req: ApplyRequest, auth: bool = Depends(verify_bearer_token)):
+    """Endpoint for applying changes to code."""
+    def _execute():
+        return orchestrator.generate_completion(req.prompt, max_tokens=2048, temperature=req.temperature or 0.7)
+        
+    res = await scheduler.schedule(RequestPriority.NORMAL_CHAT, _execute)
+    created_time = int(time.time())
+    
+    return {
+        "id": f"apply-{created_time}",
+        "object": "apply",
+        "created": created_time,
+        "model": req.model,
+        "choices": [
+            {
+                "text": res["text"],
+                "index": 0
+            }
+        ],
+        "usage": res.get("usage", {})
     }
