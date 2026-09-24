@@ -46,26 +46,25 @@ def test_response_cache_db_put_get():
     assert stats["total_cached_entries"] == 1
     assert stats["total_cache_hits"] == 1
 
-# FIM completions cache test (DISABLED)
-# def test_api_caching_instant_hit():
-#     headers = {"Authorization": f"Bearer {LOCAL_BEARER_TOKEN}"}
-#     payload = {
-#         "model": "qwen2.5-coder-1.5b",
-#         "prefix": "def calculate_discount(price, rate):\n    ",
-#         "suffix": "\n",
-#         "max_tokens": 16,
-#         "temperature": 0.0
-#     }
-# 
-#     # First request: Cache Miss & Store
-#     resp1 = client.post("/v1/completions", json=payload, headers=headers)
-#     assert resp1.status_code == 200
-#     data1 = resp1.json()
-# 
-#     # Second request: Cache Hit (< 0.05 ms instant response)
-#     resp2 = client.post("/v1/completions", json=payload, headers=headers)
-#     assert resp2.status_code == 200
-#     data2 = resp2.json()
-#     assert data2.get("cached") is True
+def test_api_caching_instant_hit():
+    headers = {"Authorization": f"Bearer {LOCAL_BEARER_TOKEN}"}
+    payload = {
+        "model": "qwen2.5-coder-1.5b",
+        "prefix": "def calculate_discount(price, rate):\n    ",
+        "suffix": "\n",
+        "max_tokens": 16,
+        "temperature": 0.0
+    }
+
+    # First request: Cache Miss & Store
+    resp1 = client.post("/v1/completions", json=payload, headers=headers)
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+
+    # Second request: Cache Hit (< 0.05 ms instant response)
+    resp2 = client.post("/v1/completions", json=payload, headers=headers)
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2.get("cached") is True
 
 

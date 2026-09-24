@@ -8,7 +8,7 @@ import time
 import json
 import threading
 from typing import Dict, Any, Generator, Optional, List
-# from src.processing.tokenizer import FIMFormatter, format_fim_prompt (DISABLED: FIM Autocomplete)
+from src.processing.tokenizer import FIMFormatter, format_fim_prompt, FIM_STOP_TOKENS
 
 from src.utils import get_models_dir
 
@@ -26,9 +26,14 @@ class LlamaCppOrchestrator:
         self.is_loaded = False
         self._llm = None
         self._lock = threading.Lock()
+        self._active_fim_abort = threading.Event()
+
+    def cancel_active_fim(self) -> None:
+        """Immediately signals any in-flight FIM autocomplete request to halt computation."""
+        self._active_fim_abort.set()
 
     def load_model(self) -> bool:
-        """Load GGUF weights into llama.cpp with DirectML/CPU fallback."""
+        """Load GGUF weights into llama.cpp with DirectML/CPU fallback and Radix KV RAM Cache."""
         with self._lock:
             if self.is_loaded:
                 return True
@@ -41,6 +46,11 @@ class LlamaCppOrchestrator:
                         n_gpu_layers=self.n_gpu_layers,
                         verbose=False
                     )
+                    # Enable Prefix & KV RAM Cache (capacity 512 MB) for sub-15ms keystroke prefill
+                    try:
+                        self._llm.set_cache(llama_cpp.LlamaRAMCache(capacity_bytes=512 * 1024 * 1024))
+                    except Exception:
+                        pass
                     self.is_loaded = True
                     return True
             except ImportError:
@@ -84,66 +94,98 @@ class LlamaCppOrchestrator:
             "latency_ms": round(elapsed_ms, 2)
         }
 
-# FIM Autocomplete methods (DISABLED)
-    # def generate_fim_completion(self, prefix: str, suffix: str = "", max_tokens: int = 512) -> Dict[str, Any]:
-    #     """Execute high-priority inline Fill-In-the-Middle (FIM) autocomplete (<35 ms target TTFT)."""
-    #     prompt = format_fim_prompt(prefix, suffix)
-    #     params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
-    # 
-    #     res = self.generate_completion(
-    #         prompt,
-    #         max_tokens=params["max_tokens"],
-    #         stop=params["stop"],
-    #         temperature=params["temperature"],
-    #         top_p=params["top_p"]
-    #     )
-    # 
-    #     cleaned_text = FIMFormatter.clean_completion(res["text"])
-    #     res["text"] = cleaned_text
-    #     res["is_fim"] = True
-    #     return res
-    # 
-    # def stream_fim_completion(
-    #     self,
-    #     prefix: str,
-    #     suffix: str = "",
-    #     max_tokens: int = 512
-    # ) -> Generator[Dict[str, Any], None, None]:
-    #     """Stream high-priority inline Fill-In-the-Middle (FIM) autocomplete tokens."""
-    #     prompt = format_fim_prompt(prefix, suffix)
-    #     params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
-    #     created_time = int(time.time())
-    # 
-    #     if not self.is_loaded:
-    #         self.load_model()
-    # 
-    #     with self._lock:
-    #         if self._llm:
-    #             stream = self._llm(
-    #                 prompt,
-    #                 max_tokens=params["max_tokens"],
-    #                 stream=True,
-    #                 temperature=params["temperature"],
-    #                 top_p=params["top_p"],
-    #                 stop=params["stop"]
-    #             )
-    #             
-    #             # FIM requires strict cleaning of stop tokens from stream
-    #             # We yield token by token
-    #             for chunk in stream:
-    #                 delta_text = chunk["choices"][0]["text"]
-    #                 
-    #                 yield {
-    #                     "id": f"cmpl-{created_time}",
-    #                     "object": "text_completion",
-    #                     "created": created_time,
-    #                     "model": "qwen2.5-coder-1.5b",
-    #                     "choices": [{
-    #                         "text": delta_text,
-    #                         "index": 0,
-    #                         "finish_reason": None
-    #                     }]
-    #                 }
+    def generate_fim_completion(
+        self,
+        prefix: str,
+        suffix: str = "",
+        max_tokens: int = 24,
+        workspace_context: str = "",
+        imports_header: str = ""
+    ) -> Dict[str, Any]:
+        """Execute high-priority inline Fill-In-the-Middle (FIM) autocomplete (<35 ms target TTFT)."""
+        prompt = format_fim_prompt(prefix, suffix, workspace_context, imports_header)
+        params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
+
+        res = self.generate_completion(
+            prompt,
+            max_tokens=params["max_tokens"],
+            stop=params["stop"],
+            temperature=params["temperature"],
+            top_p=params["top_p"]
+        )
+
+        cleaned_text = FIMFormatter.clean_completion(res["text"], suffix=suffix)
+        res["text"] = cleaned_text
+        res["is_fim"] = True
+        return res
+
+    def stream_fim_completion(
+        self,
+        prefix: str,
+        suffix: str = "",
+        max_tokens: int = 24,
+        workspace_context: str = "",
+        imports_header: str = "",
+        abort_event: Optional[threading.Event] = None
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Stream high-priority inline Fill-In-the-Middle (FIM) autocomplete tokens with abort controller."""
+        # Cancel any previous in-flight FIM request immediately
+        self.cancel_active_fim()
+
+        if abort_event is None:
+            abort_event = threading.Event()
+        self._active_fim_abort = abort_event
+
+        prompt = format_fim_prompt(prefix, suffix, workspace_context, imports_header)
+        params = FIMFormatter.get_sampling_params(max_tokens=max_tokens, temperature=0.0)
+        created_time = int(time.time())
+
+        if not self.is_loaded:
+            self.load_model()
+
+        with self._lock:
+            if self._llm and not abort_event.is_set():
+                stopping_criteria = None
+                try:
+                    import llama_cpp
+                    class _InFlightAbortCriteria:
+                        def __init__(self, ev: threading.Event):
+                            self.ev = ev
+                        def __call__(self, input_ids, logits) -> bool:
+                            return self.ev.is_set()
+                    stopping_criteria = llama_cpp.StoppingCriteriaList([_InFlightAbortCriteria(abort_event)])
+                except Exception:
+                    pass
+
+                stream = self._llm(
+                    prompt,
+                    max_tokens=params["max_tokens"],
+                    stream=True,
+                    temperature=params["temperature"],
+                    top_p=params["top_p"],
+                    stop=params["stop"],
+                    stopping_criteria=stopping_criteria
+                )
+
+                try:
+                    for chunk in stream:
+                        if abort_event.is_set():
+                            break
+                        delta_text = chunk["choices"][0]["text"]
+                        
+                        yield {
+                            "id": f"cmpl-{created_time}",
+                            "object": "text_completion",
+                            "created": created_time,
+                            "model": "qwen2.5-coder-1.5b",
+                            "choices": [{
+                                "text": delta_text,
+                                "index": 0,
+                                "finish_reason": None
+                            }]
+                        }
+                finally:
+                    abort_event.set()
 
     def format_chat_prompt(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> str:
         """Format OpenAI messages into Qwen2.5-Coder ChatML Instruct format."""

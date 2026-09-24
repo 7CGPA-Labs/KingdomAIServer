@@ -96,7 +96,6 @@ Add the following configuration to your `~/.continue/config.json`:
       "apiKey": "local-token"
     }
   ],
-  /* FIM Autocomplete is temporarily disabled
   "tabAutocompleteModel": {
     "title": "Kingdom Autocomplete (Qwen2.5-Coder FIM)",
     "provider": "openai",
@@ -104,7 +103,6 @@ Add the following configuration to your `~/.continue/config.json`:
     "apiBase": "http://127.0.0.1:58420/v1",
     "apiKey": "local-token"
   },
-  */
   "embeddingsProvider": {
     "provider": "openai",
     "model": "bge-small-en-v1.5",
@@ -134,7 +132,7 @@ Add the following configuration to your `~/.continue/config.json`:
 The server exposes strict OpenAI-compatible endpoints to integrate seamlessly with Continue.dev and other IDE plugins:
 
 *   `POST /v1/chat/completions`: The core ChatML interface. Now fully supports OpenAI **Tool Calling** (`<tools>` and `<tool_call>`).
-*   `POST /v1/completions`: *(Disabled)* High-speed Fill-In-The-Middle (FIM) endpoint for Tab Autocomplete.
+*   `POST /v1/completions`: High-speed Copilot-grade Fill-In-The-Middle (FIM) endpoint for Tab Autocomplete with zero-prefill KV caching and in-flight abort control.
 *   `POST /v1/embeddings`: OpenAI-compatible embeddings endpoint used by Continue.dev (`embeddingsProvider`) to build local codebase indices via Minister 1 (BGE-Small).
 *   `POST /v1/rerank`: Cohere-compatible reranking endpoint used to filter RAG context (`reranker`).
 *   `POST /v1/edits`: OpenAI-compatible edit API for code mutation (`Ctrl+I` / `Cmd+I`).

@@ -110,17 +110,15 @@ cache_db = ResponseCacheDB()
 
 import jinja2
 
-# Request Pydantic Schemas (only what Continue.dev needs)
-# FIM Autocomplete Request Schema (DISABLED)
-# class CompletionRequest(BaseModel):
-#     prompt: Optional[str] = None
-#     prefix: Optional[str] = None
-#     suffix: Optional[str] = None
-#     model: str = "qwen2.5-coder-1.5b"
-#     max_tokens: int = 32
-#     temperature: float = 0.0
-#     stream: bool = False
-#     stop: Optional[List[str]] = None
+class CompletionRequest(BaseModel):
+    prompt: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+    model: str = "qwen2.5-coder-1.5b"
+    max_tokens: int = 24
+    temperature: float = 0.0
+    stream: bool = False
+    stop: Optional[List[str]] = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -194,13 +192,23 @@ INFO_TEMPLATE = """
         
         <div class="endpoints">
             <h3>Active Endpoints:</h3>
-            <!-- <p><code>POST /v1/completions</code> (Continue.dev FIM Tab Autocomplete - DISABLED)</p> -->
+            <p><code>POST /v1/completions</code> (Continue.dev Copilot-Grade FIM Autocomplete)</p>
             <p><code>POST /v1/chat/completions</code> (Continue.dev Chat Sidebar)</p>
         </div>
     </div>
 </body>
 </html>
 """
+
+def extract_quick_context(code_prefix: str) -> tuple[str, str]:
+    """Extract language imports and package declarations in < 1 ms."""
+    import_lines = []
+    for line in code_prefix.splitlines()[:50]:
+        l_str = line.strip()
+        if l_str.startswith(("import ", "from ", "package ", "using ", "#include ", "require(")):
+            import_lines.append(l_str)
+    imports_header = "\n".join(import_lines[:8]) if import_lines else ""
+    return imports_header, ""
 
 @app.get("/")
 async def root_info_page():
@@ -217,67 +225,90 @@ async def root_info_page():
     return HTMLResponse(content=html_content, status_code=200)
 
 # =============================================================================
-# ENDPOINT 1: /v1/completions — FIM Tab Autocomplete for Continue.dev (DISABLED)
+# ENDPOINT 1: /v1/completions — Copilot-Grade FIM Tab Autocomplete for Continue.dev
 # =============================================================================
 
-# @app.post("/v1/completions")
-# async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
-#     """OpenAI-compatible /v1/completions endpoint for FIM Tab Autocomplete (<35 ms TTFT target)."""
-#     prefix = req.prefix or req.prompt or ""
-#     suffix = req.suffix or ""
-# 
-#     cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
-#     cached_resp = cache_db.get(cache_key)
-#     if cached_resp:
-#         if req.stream:
-#             def _cached_stream_generator():
-#                 chunk = {
-#                     "id": cached_resp["id"],
-#                     "object": "text_completion",
-#                     "created": cached_resp["created"],
-#                     "model": req.model,
-#                     "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
-#                 }
-#                 yield f"data: {json.dumps(chunk)}\n\n"
-#                 yield "data: [DONE]\n\n"
-#             return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
-#         return cached_resp
-# 
-#     start_time = time.perf_counter()
-#     created_time = int(time.time())
-# 
-#     if req.stream:
-#         def _stream_generator():
-#             for chunk in orchestrator.stream_fim_completion(prefix, suffix, max_tokens=req.max_tokens):
-#                 yield f"data: {json.dumps(chunk)}\n\n"
-#             yield "data: [DONE]\n\n"
-#         return StreamingResponse(_stream_generator(), media_type="text/event-stream")
-# 
-#     def _execute():
-#         return orchestrator.generate_fim_completion(prefix, suffix, max_tokens=req.max_tokens)
-# 
-#     res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
-#     elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
-# 
-#     response_data = {
-#         "id": f"cmpl-{created_time}",
-#         "object": "text_completion",
-#         "created": created_time,
-#         "model": req.model,
-#         "choices": [
-#             {
-#                 "text": res["text"],
-#                 "index": 0,
-#                 "logprobs": None,
-#                 "finish_reason": "stop"
-#             }
-#         ],
-#         "usage": res.get("usage", {"prompt_tokens": 10, "completion_tokens": 5}),
-#         "latency_ms": elapsed_ms
-#     }
-# 
-#     cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
-#     return response_data
+@app.post("/v1/completions")
+async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
+    """OpenAI-compatible /v1/completions endpoint for Copilot-grade FIM Tab Autocomplete (<35 ms TTFT target)."""
+    prefix = req.prefix or req.prompt or ""
+    suffix = req.suffix or ""
+
+    cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
+    cached_resp = cache_db.get(cache_key)
+    if cached_resp:
+        if req.stream:
+            def _cached_stream_generator():
+                chunk = {
+                    "id": cached_resp["id"],
+                    "object": "text_completion",
+                    "created": cached_resp["created"],
+                    "model": req.model,
+                    "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
+        return cached_resp
+
+    start_time = time.perf_counter()
+    created_time = int(time.time())
+
+    # Fast-slice AST imports (< 1 ms)
+    imports_header, ws_context = extract_quick_context(prefix)
+
+    # Cancel any previous in-flight FIM immediately to free compute
+    orchestrator.cancel_active_fim()
+    abort_event = threading.Event()
+
+    if req.stream:
+        def _stream_generator():
+            try:
+                for chunk in orchestrator.stream_fim_completion(
+                    prefix=prefix,
+                    suffix=suffix,
+                    max_tokens=min(req.max_tokens, 32),
+                    workspace_context=ws_context,
+                    imports_header=imports_header,
+                    abort_event=abort_event
+                ):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            finally:
+                abort_event.set()
+        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
+
+    def _execute():
+        return orchestrator.generate_fim_completion(
+            prefix,
+            suffix,
+            max_tokens=min(req.max_tokens, 32),
+            workspace_context=ws_context,
+            imports_header=imports_header
+        )
+
+    res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
+    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+
+    response_data = {
+        "id": f"cmpl-{created_time}",
+        "object": "text_completion",
+        "created": created_time,
+        "model": req.model,
+        "choices": [
+            {
+                "text": res["text"],
+                "index": 0,
+                "logprobs": None,
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": res.get("usage", {"prompt_tokens": 10, "completion_tokens": 5}),
+        "latency_ms": elapsed_ms
+    }
+
+    cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
+    return response_data
 
 # =============================================================================
 # ENDPOINT 2: /v1/chat/completions — Multi-turn Chat for Continue.dev

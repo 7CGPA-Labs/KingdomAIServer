@@ -6,7 +6,7 @@ import os
 from src.config import get_model_config, get_logging_config
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
 from src.processing.preprocessor import Preprocessor
-# from src.processing.tokenizer import format_fim_prompt (DISABLED: FIM Autocomplete)
+from src.processing.tokenizer import format_fim_prompt
 
 def test_stage1_config_loader():
     model_cfg = get_model_config()
@@ -28,9 +28,8 @@ def test_regex_security_scanner():
     findings = prep.scan_security_issues(dirty_code)
     assert len(findings) >= 1
 
-# FIM Autocomplete test (DISABLED)
-# def test_fim_prompt_formatter():
-#     formatted = format_fim_prompt("def add(a, b):", "return a + b")
-#     assert "<|fim_prefix|>" in formatted
-#     assert "<|fim_suffix|>" in formatted
-#     assert "<|fim_middle|>" in formatted
+def test_fim_prompt_formatter():
+    formatted = format_fim_prompt("def add(a, b):", "return a + b")
+    assert "<|fim_prefix|>" in formatted
+    assert "<|fim_suffix|>" in formatted
+    assert "<|fim_middle|>" in formatted
