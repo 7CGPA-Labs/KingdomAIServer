@@ -133,8 +133,14 @@ class LlamaCppOrchestrator:
                     temperature=temperature,
                     stop=["<|im_end|>", "<|endoftext|>"]
                 )
+                is_first = True
                 for chunk in stream:
                     delta_text = chunk["choices"][0]["text"]
+                    delta_payload = {"content": delta_text}
+                    if is_first:
+                        delta_payload["role"] = "assistant"
+                        is_first = False
+                        
                     yield {
                         "id": f"chatcmpl-{created_time}",
                         "object": "chat.completion.chunk",
@@ -142,7 +148,7 @@ class LlamaCppOrchestrator:
                         "model": "qwen2.5-coder-1.5b",
                         "choices": [{
                             "index": 0,
-                            "delta": {"content": delta_text},
+                            "delta": delta_payload,
                             "finish_reason": None
                         }]
                     }
@@ -165,7 +171,7 @@ class LlamaCppOrchestrator:
                     "model": "qwen2.5-coder-1.5b",
                     "choices": [{
                         "index": 0,
-                        "delta": {"content": "GGUF runtime uninitialized. Please provision model weights."},
+                        "delta": {"role": "assistant", "content": "GGUF runtime uninitialized. Please provision model weights."},
                         "finish_reason": "stop"
                     }]
                 }

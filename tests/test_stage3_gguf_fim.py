@@ -28,7 +28,7 @@ def test_fim_tokenizer_formatting():
 
     params = FIMFormatter.get_sampling_params(max_tokens=32)
     assert params["temperature"] == 0.0
-    assert "\n" in params["stop"]
+    assert "<|endoftext|>" in params["stop"]
 
 def test_orchestrator_chatml_formatting():
     orch = LlamaCppOrchestrator()

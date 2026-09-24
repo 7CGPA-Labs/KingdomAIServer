@@ -5,7 +5,7 @@ Formatted for sub-35 ms ghost text code completion in Continue.dev and VS Code.
 from typing import Dict, Any, List, Optional
 from src.prompts.templates import FIM_PREFIX_TOKEN, FIM_SUFFIX_TOKEN, FIM_MIDDLE_TOKEN
 
-FIM_STOP_TOKENS = ["\n", "\r\n", "<|endoftext|>", "<|fim_prefix|>", "<|fim_suffix|>", "<|fim_middle|>", "<|im_end|>"]
+FIM_STOP_TOKENS = ["<|endoftext|>", "<|fim_prefix|>", "<|fim_suffix|>", "<|fim_middle|>", "<|im_end|>"]
 
 def format_fim_prompt(prefix: str, suffix: str) -> str:
     """Format prompt with FIM sentinel tokens for Qwen2.5-Coder-1.5B."""
@@ -34,6 +34,5 @@ class FIMFormatter:
     def clean_completion(text: str) -> str:
         """Strip trailing sentinel tokens and control characters."""
         for token in FIM_STOP_TOKENS:
-            if token != "\n" and token != "\r\n":
-                text = text.replace(token, "")
+            text = text.replace(token, "")
         return text
