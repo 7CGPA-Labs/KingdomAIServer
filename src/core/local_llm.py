@@ -135,12 +135,21 @@ class LlamaCppOrchestrator:
                 )
                 is_first = True
                 for chunk in stream:
-                    delta_text = chunk["choices"][0]["text"]
-                    delta_payload = {"content": delta_text}
                     if is_first:
-                        delta_payload["role"] = "assistant"
+                        yield {
+                            "id": f"chatcmpl-{created_time}",
+                            "object": "chat.completion.chunk",
+                            "created": created_time,
+                            "model": "qwen2.5-coder-1.5b",
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"role": "assistant", "content": ""},
+                                "finish_reason": None
+                            }]
+                        }
                         is_first = False
-                        
+
+                    delta_text = chunk["choices"][0]["text"]
                     yield {
                         "id": f"chatcmpl-{created_time}",
                         "object": "chat.completion.chunk",
@@ -148,7 +157,7 @@ class LlamaCppOrchestrator:
                         "model": "qwen2.5-coder-1.5b",
                         "choices": [{
                             "index": 0,
-                            "delta": delta_payload,
+                            "delta": {"content": delta_text},
                             "finish_reason": None
                         }]
                     }

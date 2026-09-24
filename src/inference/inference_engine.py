@@ -118,6 +118,7 @@ class CompletionRequest(BaseModel):
     model: str = "qwen2.5-coder-1.5b"
     max_tokens: int = 32
     temperature: float = 0.0
+    stream: bool = False
     stop: Optional[List[str]] = None
 
 class ChatMessage(BaseModel):
@@ -208,6 +209,18 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
     cached_resp = cache_db.get(cache_key)
     if cached_resp:
+        if req.stream:
+            async def _cached_stream_generator():
+                chunk = {
+                    "id": cached_resp["id"],
+                    "object": "text_completion",
+                    "created": cached_resp["created"],
+                    "model": req.model,
+                    "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
         return cached_resp
 
     start_time = time.perf_counter()
@@ -237,6 +250,20 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     }
 
     cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
+
+    if req.stream:
+        async def _stream_generator():
+            chunk = {
+                "id": response_data["id"],
+                "object": "text_completion",
+                "created": created_time,
+                "model": req.model,
+                "choices": [{"text": res["text"], "index": 0, "finish_reason": "stop"}]
+            }
+            yield f"data: {json.dumps(chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
+
     return response_data
 
 # =============================================================================
