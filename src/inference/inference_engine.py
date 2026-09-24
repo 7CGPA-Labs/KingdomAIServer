@@ -229,7 +229,7 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     cached_resp = cache_db.get(cache_key)
     if cached_resp:
         if req.stream:
-            async def _cached_stream_generator():
+            def _cached_stream_generator():
                 chunk = {
                     "id": cached_resp["id"],
                     "object": "text_completion",
@@ -246,7 +246,7 @@ async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer
     created_time = int(time.time())
 
     if req.stream:
-        async def _stream_generator():
+        def _stream_generator():
             for chunk in orchestrator.stream_fim_completion(prefix, suffix, max_tokens=req.max_tokens):
                 yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
@@ -289,7 +289,7 @@ async def chat_completions(req: ChatCompletionRequest, auth: bool = Depends(veri
     msgs = [{"role": m.role, "content": m.content} for m in req.messages]
 
     if req.stream:
-        async def _stream_generator():
+        def _stream_generator():
             for chunk in orchestrator.stream_chat_completion(msgs, max_tokens=req.max_tokens, temperature=req.temperature, tools=req.tools):
                 yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
