@@ -20,21 +20,22 @@ def test_workspace_path_jail():
     with pytest.raises(WorkspacePathJailError):
         WorkspacePathJail.validate_path("C:\\Users\\test\\.ssh\\id_rsa")
 
-def test_fast_completions_endpoint():
-    """Test /v1/completions tab autocomplete endpoint."""
-    payload = {
-        "model": "granite-code-128m",
-        "prefix": "def ",
-        "suffix": "",
-        "max_tokens": 16
-    }
-    response = client.post("/v1/completions", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["object"] == "text_completion"
-    assert len(data["choices"]) > 0
-    assert isinstance(data["choices"][0]["text"], str)
-    assert "latency_ms" in data
+# FIM Autocomplete endpoint test (DISABLED)
+# def test_fast_completions_endpoint():
+#     """Test /v1/completions tab autocomplete endpoint."""
+#     payload = {
+#         "model": "granite-code-128m",
+#         "prefix": "def ",
+#         "suffix": "",
+#         "max_tokens": 16
+#     }
+#     response = client.post("/v1/completions", json=payload)
+#     assert response.status_code == 200
+#     data = response.json()
+#     assert data["object"] == "text_completion"
+#     assert len(data["choices"]) > 0
+#     assert isinstance(data["choices"][0]["text"], str)
+#     assert "latency_ms" in data
 
 def test_chat_completions_non_stream_endpoint():
     """Test /v1/chat/completions non-stream JSON response."""

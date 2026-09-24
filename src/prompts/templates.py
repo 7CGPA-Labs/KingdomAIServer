@@ -6,9 +6,10 @@ import re
 import time
 from typing import Dict, Any
 
-FIM_PREFIX_TOKEN = "<|fim_prefix|>"
-FIM_SUFFIX_TOKEN = "<|fim_suffix|>"
-FIM_MIDDLE_TOKEN = "<|fim_middle|>"
+# FIM tokens (DISABLED)
+# FIM_PREFIX_TOKEN = "<|fim_prefix|>"
+# FIM_SUFFIX_TOKEN = "<|fim_suffix|>"
+# FIM_MIDDLE_TOKEN = "<|fim_middle|>"
 
 MAIN_BOSS_SYSTEM_PROMPT = """You are Main Boss, the lead autonomous AI developer engine in Kingdom AI Server V2.
 You have access to a Lean 2-Minister Council (Embedder, Re-Ranker) and zero-VRAM native utilities.
@@ -35,10 +36,12 @@ class HeuristicIntentRouter:
         start = time.perf_counter()
         p_lower = prompt.lower().strip()
 
-        if is_fim_request or FIM_PREFIX_TOKEN in prompt:
-            intent = "FIM_AUTOCOMPLETE"
-            target_agent = "MAIN_BOSS_FIM"
-        elif p_lower.startswith("@workspace") or p_lower.startswith("/search") or "find in repo" in p_lower:
+        # FIM Autocomplete intent routing (DISABLED)
+        # if is_fim_request or FIM_PREFIX_TOKEN in prompt:
+        #     intent = "FIM_AUTOCOMPLETE"
+        #     target_agent = "MAIN_BOSS_FIM"
+        # elif ...
+        if p_lower.startswith("@workspace") or p_lower.startswith("/search") or "find in repo" in p_lower:
             intent = "RAG_SEARCH"
             target_agent = "MINISTER_1_2_RAG"
         elif p_lower.startswith("/fix") or "fix bug" in p_lower or "traceback" in p_lower:

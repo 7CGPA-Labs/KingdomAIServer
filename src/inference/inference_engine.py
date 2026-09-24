@@ -111,15 +111,16 @@ cache_db = ResponseCacheDB()
 import jinja2
 
 # Request Pydantic Schemas (only what Continue.dev needs)
-class CompletionRequest(BaseModel):
-    prompt: Optional[str] = None
-    prefix: Optional[str] = None
-    suffix: Optional[str] = None
-    model: str = "qwen2.5-coder-1.5b"
-    max_tokens: int = 32
-    temperature: float = 0.0
-    stream: bool = False
-    stop: Optional[List[str]] = None
+# FIM Autocomplete Request Schema (DISABLED)
+# class CompletionRequest(BaseModel):
+#     prompt: Optional[str] = None
+#     prefix: Optional[str] = None
+#     suffix: Optional[str] = None
+#     model: str = "qwen2.5-coder-1.5b"
+#     max_tokens: int = 32
+#     temperature: float = 0.0
+#     stream: bool = False
+#     stop: Optional[List[str]] = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -193,7 +194,7 @@ INFO_TEMPLATE = """
         
         <div class="endpoints">
             <h3>Active Endpoints:</h3>
-            <p><code>POST /v1/completions</code> (Continue.dev FIM Tab Autocomplete)</p>
+            <!-- <p><code>POST /v1/completions</code> (Continue.dev FIM Tab Autocomplete - DISABLED)</p> -->
             <p><code>POST /v1/chat/completions</code> (Continue.dev Chat Sidebar)</p>
         </div>
     </div>
@@ -216,67 +217,67 @@ async def root_info_page():
     return HTMLResponse(content=html_content, status_code=200)
 
 # =============================================================================
-# ENDPOINT 1: /v1/completions — FIM Tab Autocomplete for Continue.dev
+# ENDPOINT 1: /v1/completions — FIM Tab Autocomplete for Continue.dev (DISABLED)
 # =============================================================================
 
-@app.post("/v1/completions")
-async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
-    """OpenAI-compatible /v1/completions endpoint for FIM Tab Autocomplete (<35 ms TTFT target)."""
-    prefix = req.prefix or req.prompt or ""
-    suffix = req.suffix or ""
-
-    cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
-    cached_resp = cache_db.get(cache_key)
-    if cached_resp:
-        if req.stream:
-            def _cached_stream_generator():
-                chunk = {
-                    "id": cached_resp["id"],
-                    "object": "text_completion",
-                    "created": cached_resp["created"],
-                    "model": req.model,
-                    "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
-                }
-                yield f"data: {json.dumps(chunk)}\n\n"
-                yield "data: [DONE]\n\n"
-            return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
-        return cached_resp
-
-    start_time = time.perf_counter()
-    created_time = int(time.time())
-
-    if req.stream:
-        def _stream_generator():
-            for chunk in orchestrator.stream_fim_completion(prefix, suffix, max_tokens=req.max_tokens):
-                yield f"data: {json.dumps(chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-        return StreamingResponse(_stream_generator(), media_type="text/event-stream")
-
-    def _execute():
-        return orchestrator.generate_fim_completion(prefix, suffix, max_tokens=req.max_tokens)
-
-    res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
-    elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
-
-    response_data = {
-        "id": f"cmpl-{created_time}",
-        "object": "text_completion",
-        "created": created_time,
-        "model": req.model,
-        "choices": [
-            {
-                "text": res["text"],
-                "index": 0,
-                "logprobs": None,
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": res.get("usage", {"prompt_tokens": 10, "completion_tokens": 5}),
-        "latency_ms": elapsed_ms
-    }
-
-    cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
-    return response_data
+# @app.post("/v1/completions")
+# async def completions(req: CompletionRequest, auth: bool = Depends(verify_bearer_token)):
+#     """OpenAI-compatible /v1/completions endpoint for FIM Tab Autocomplete (<35 ms TTFT target)."""
+#     prefix = req.prefix or req.prompt or ""
+#     suffix = req.suffix or ""
+# 
+#     cache_key = ResponseCacheDB.compute_cache_key(req.model, prefix, suffix, req.temperature, req.max_tokens)
+#     cached_resp = cache_db.get(cache_key)
+#     if cached_resp:
+#         if req.stream:
+#             def _cached_stream_generator():
+#                 chunk = {
+#                     "id": cached_resp["id"],
+#                     "object": "text_completion",
+#                     "created": cached_resp["created"],
+#                     "model": req.model,
+#                     "choices": [{"text": cached_resp["choices"][0]["text"], "index": 0, "finish_reason": "stop"}]
+#                 }
+#                 yield f"data: {json.dumps(chunk)}\n\n"
+#                 yield "data: [DONE]\n\n"
+#             return StreamingResponse(_cached_stream_generator(), media_type="text/event-stream")
+#         return cached_resp
+# 
+#     start_time = time.perf_counter()
+#     created_time = int(time.time())
+# 
+#     if req.stream:
+#         def _stream_generator():
+#             for chunk in orchestrator.stream_fim_completion(prefix, suffix, max_tokens=req.max_tokens):
+#                 yield f"data: {json.dumps(chunk)}\n\n"
+#             yield "data: [DONE]\n\n"
+#         return StreamingResponse(_stream_generator(), media_type="text/event-stream")
+# 
+#     def _execute():
+#         return orchestrator.generate_fim_completion(prefix, suffix, max_tokens=req.max_tokens)
+# 
+#     res = await scheduler.schedule(RequestPriority.HIGH_FIM, _execute)
+#     elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+# 
+#     response_data = {
+#         "id": f"cmpl-{created_time}",
+#         "object": "text_completion",
+#         "created": created_time,
+#         "model": req.model,
+#         "choices": [
+#             {
+#                 "text": res["text"],
+#                 "index": 0,
+#                 "logprobs": None,
+#                 "finish_reason": "stop"
+#             }
+#         ],
+#         "usage": res.get("usage", {"prompt_tokens": 10, "completion_tokens": 5}),
+#         "latency_ms": elapsed_ms
+#     }
+# 
+#     cache_db.put(cache_key, res["text"], response_data, query_type="FIM")
+#     return response_data
 
 # =============================================================================
 # ENDPOINT 2: /v1/chat/completions — Multi-turn Chat for Continue.dev

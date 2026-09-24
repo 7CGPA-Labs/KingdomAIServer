@@ -175,6 +175,6 @@ def test_gate4_payload_size_limit():
 def test_gate4_cspa_origin_header_block():
     """Assert requests with external browser Origin headers are blocked by CSPA defenses with HTTP 403."""
     headers = {"Origin": "https://malicious-website.com"}
-    response = client.post("/v1/completions", json={"prompt": "test", "max_tokens": 1}, headers=headers)
+    response = client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "test"}]}, headers=headers)
     assert response.status_code == 403
     assert "CSPA Violation" in response.json()["error"]["message"]
