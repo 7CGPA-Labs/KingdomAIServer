@@ -35,7 +35,7 @@ def create_release_archive():
         if target.exists():
             shutil.copytree(target, zipapp_stage / item)
     
-    for item in ["main.py", "start_server.py", "download_models.py"]:
+    for item in ["main.py", "download_models.py"]:
         target = project_root / item
         if target.exists():
             shutil.copy(target, zipapp_stage / item)

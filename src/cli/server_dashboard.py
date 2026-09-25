@@ -18,8 +18,7 @@ except ImportError:
     sys.exit(1)
 
 from src.utils.telemetry import HardwareTelemetry
-from src.utils.request_tracker import tracker
-from src.utils.log_buffer import log_buffer
+from src.utils.request_tracker import tracker, log_buffer
 from src.core.hardware import STATIC_VRAM_CEILING_MB
 
 dashboard_theme = Theme({

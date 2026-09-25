@@ -45,7 +45,7 @@ import time
 from typing import Optional
 from src.config import get_model_config
 from src.inference.inference_engine import LOCAL_BEARER_TOKEN, cache_db, orchestrator
-from src.utils.log_buffer import attach_log_interceptor
+from src.utils.request_tracker import attach_log_interceptor
 from rich.live import Live
 from src.cli.server_dashboard import KingdomTopDashboard, console
 
