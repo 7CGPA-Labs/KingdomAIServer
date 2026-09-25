@@ -44,7 +44,7 @@ import threading
 import time
 from typing import Optional
 from src.config import get_model_config
-from src.inference.inference_engine import LOCAL_BEARER_TOKEN, cache_db, orchestrator
+from src.inference.inference_engine import LOCAL_BEARER_TOKEN, cache_db, orchestrator, embedder, reranker
 from src.utils.request_tracker import attach_log_interceptor
 from rich.live import Live
 from src.cli.server_dashboard import KingdomTopDashboard, console
@@ -103,7 +103,12 @@ def start_server(headless: Optional[bool] = None):
         attach_log_interceptor()
 
         dashboard = KingdomTopDashboard(host=host, port=port, bearer_token=token)
-        dashboard.attach_engines(cache_db=cache_db, orchestrator=orchestrator)
+        dashboard.attach_engines(
+            cache_db=cache_db,
+            orchestrator=orchestrator,
+            embedder=embedder,
+            reranker=reranker
+        )
 
         server_config = uvicorn.Config(
             "src.inference.inference_engine:app",

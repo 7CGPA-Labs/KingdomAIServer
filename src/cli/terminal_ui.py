@@ -48,12 +48,6 @@ class KingdomCLI:
         self.active_model_name = "qwen2.5-coder-1.5b"
         self.active_model_vram = 1100
         
-        # Hardwire VRAM registration so telemetry accurately reflects loaded constraints
-        # Main Boss (1100), Minister 1 (35), Minister 2 (110)
-        self.hw_manager.register_allocation(1100)
-        self.hw_manager.register_allocation(35)
-        self.hw_manager.register_allocation(110)
-        
         self.cache_db = ResponseCacheDB()
         self.router = HeuristicIntentRouter()
         self.embedder = BGEEmbedder()
@@ -62,19 +56,32 @@ class KingdomCLI:
         self.total_cache_hits = 0
         self.total_queries = 0
 
+    @property
+    def current_vram_allocated_mb(self) -> int:
+        """Calculate live resident VRAM allocation dynamically based on loaded model components."""
+        total = 0
+        if self.orchestrator and getattr(self.orchestrator, "is_loaded", False):
+            total += self.active_model_vram
+        if self.embedder and getattr(self.embedder, "is_model_loaded", False):
+            total += 35
+        if self.reranker and getattr(self.reranker, "is_model_loaded", False):
+            total += 110
+        self.hw_manager.vram_allocated_mb = total
+        return total
+
     def display_banner(self):
         """Display startup banner with system diagnostics."""
         diag = self.hw_manager.detect_environment()
+        provider_name = diag.get("selected_provider", "DirectML / Vulkan")
 
         banner_text = Text()
         banner_text.append("👑 KINGDOM AI SERVER CLI\n", style="bold magenta")
-        banner_text.append(f"   Engine: llama.cpp Vulkan/OpenCL (GGUF)\n", style="info")
+        banner_text.append(f"   Engine: llama.cpp ({provider_name})\n", style="info")
         banner_text.append(f"   Active Model: {self.active_model_name}\n", style="info")
         banner_text.append(f"   VRAM Ceiling: {STATIC_VRAM_CEILING_MB} MB\n", style="info")
-        banner_text.append(f"   GPU Provider: {diag['selected_provider']}\n", style="info")
         banner_text.append(f"   System RAM: {diag['available_ram_gb']} GB available / {diag['system_ram_gb']} GB total\n", style="info")
-        banner_text.append(f"   CPU Cores: {diag['cpu_cores']}\n", style="info")
-        banner_text.append(f"   Model Loaded: {self.orchestrator.is_loaded}\n", style="success" if self.orchestrator.is_loaded else "warning")
+        banner_text.append(f"   CPU Threads: {diag['cpu_cores']}\n", style="info")
+        banner_text.append(f"   Model Status: {'✅ Loaded' if self.orchestrator.is_loaded else '○ Lazy Load'}\n", style="success" if self.orchestrator.is_loaded else "warning")
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
@@ -84,8 +91,10 @@ class KingdomCLI:
 
     def show_health(self):
         """Display hardware telemetry via direct inline code."""
+        from src.utils.telemetry import HardwareTelemetry
         diag = self.hw_manager.detect_environment()
         cache_stats = self.cache_db.get_stats()
+        telemetry = HardwareTelemetry.snapshot()
 
         table = Table(title="🔍 Health & Telemetry", border_style="cyan")
         table.add_column("Metric", style="bold")
@@ -93,11 +102,14 @@ class KingdomCLI:
 
         table.add_row("GPU Provider", diag["selected_provider"])
         table.add_row("VRAM Ceiling", f"{STATIC_VRAM_CEILING_MB} MB")
-        table.add_row("VRAM Allocated", f"{self.hw_manager.vram_allocated_mb} MB")
-        table.add_row("System RAM", f"{diag['available_ram_gb']} GB / {diag['system_ram_gb']} GB")
-        table.add_row("CPU Cores", str(diag["cpu_cores"]))
+        table.add_row("VRAM Allocated", f"{self.current_vram_allocated_mb} MB")
+        table.add_row("System RAM", f"{diag['available_ram_gb']} GB / {diag['system_ram_gb']} GB ({telemetry.get('ram_percent', 0.0)}% used)")
+        table.add_row("CPU Threads", str(diag["cpu_cores"]))
+        table.add_row("CPU Utilization", f"{telemetry.get('cpu_percent', 0.0):.1f}%")
         table.add_row("Active Model", self.active_model_name)
-        table.add_row("Model Loaded", "✅ Yes" if self.orchestrator.is_loaded else "❌ No")
+        table.add_row("Boss LLM Loaded", "✅ Yes" if self.orchestrator.is_loaded else "○ No (Lazy Load)")
+        table.add_row("Embedder Loaded", "✅ Yes" if getattr(self.embedder, "is_model_loaded", False) else "○ No (Lazy Load)")
+        table.add_row("Reranker Loaded", "✅ Yes" if getattr(self.reranker, "is_model_loaded", False) else "○ No (Lazy Load)")
         table.add_row("Cache Entries", str(cache_stats.get("total_entries", 0)))
         table.add_row("Cache Hit Ratio", f"{cache_stats.get('hit_ratio_pct', 0):.1f}%")
         table.add_row("Session Queries", str(self.total_queries))
@@ -135,10 +147,11 @@ class KingdomCLI:
         # 1. Core Default Model
         default_file = models_dir / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
         is_default_active = (self.active_model_name in ("qwen2.5-coder-1.5b", "Senior Software Engineer (Main Boss GGUF)"))
+        actual_default_mb = round(default_file.stat().st_size / (1024 * 1024), 1) if default_file.exists() else 0
         if is_default_active and self.orchestrator.is_loaded:
-            default_status = "[bold green]🟢 ACTIVE[/bold green]"
+            default_status = f"[bold green]🟢 ACTIVE ({actual_default_mb} MB)[/bold green]"
         elif default_file.exists() and default_file.stat().st_size > 100 * 1024 * 1024:
-            default_status = "[green]📦 Installed[/green]"
+            default_status = f"[green]📦 Installed ({actual_default_mb} MB)[/green]"
         else:
             default_status = "[yellow]⬇ Not Downloaded[/yellow]"
 
@@ -146,7 +159,7 @@ class KingdomCLI:
             "qwen2.5-coder-1.5b",
             "Qwen2.5-Coder-1.5B (Default Boss)",
             "GitHub Releases",
-            "~1100 MB",
+            f"{actual_default_mb} MB" if actual_default_mb > 0 else "~1100 MB",
             "~1100 MB",
             default_status
         )
@@ -155,12 +168,12 @@ class KingdomCLI:
         for key, spec in UPGRADE_MODELS.items():
             target_file = models_dir / spec["filename"]
             is_active = (self.active_model_name == key or self.active_model_name == spec["name"])
+            actual_mb = round(target_file.stat().st_size / (1024 * 1024), 1) if target_file.exists() else 0
 
             if is_active and self.orchestrator.is_loaded:
-                status = "[bold green]🟢 ACTIVE[/bold green]"
+                status = f"[bold green]🟢 ACTIVE ({actual_mb} MB)[/bold green]"
             elif target_file.exists() and target_file.stat().st_size >= int(spec["approx_size_mb"] * 1024 * 1024 * 0.4):
-                size_mb = round(target_file.stat().st_size / (1024 * 1024), 1)
-                status = f"[green]📦 Installed ({size_mb} MB)[/green]"
+                status = f"[green]📦 Installed ({actual_mb} MB)[/green]"
             else:
                 status = "[yellow]⬇ Available (HuggingFace)[/yellow]"
 
@@ -168,7 +181,7 @@ class KingdomCLI:
                 key,
                 spec["name"],
                 f"HF: {spec['repo_id'].split('/')[0]}",
-                f"~{spec['approx_size_mb']} MB",
+                f"{actual_mb} MB" if actual_mb > 0 else f"~{spec['approx_size_mb']} MB",
                 f"~{spec['vram_required_mb']} MB",
                 status
             )
@@ -179,12 +192,25 @@ class KingdomCLI:
             if spec["id"] == "main_boss_qwen2.5":
                 continue
             mf_file = models_dir / filename
-            min_status = "[green]📦 Installed (Council)[/green]" if mf_file.exists() else "[yellow]⬇ Missing[/yellow]"
+            is_min_loaded = False
+            if spec["id"] == "minister_1" and getattr(self.embedder, "is_model_loaded", False):
+                is_min_loaded = True
+            elif spec["id"] == "minister_2" and getattr(self.reranker, "is_model_loaded", False):
+                is_min_loaded = True
+
+            actual_mb = round(mf_file.stat().st_size / (1024 * 1024), 1) if mf_file.exists() else 0
+            if is_min_loaded:
+                min_status = f"[bold green]🟢 ACTIVE ({actual_mb} MB)[/bold green]"
+            elif mf_file.exists():
+                min_status = f"[green]📦 Installed ({actual_mb} MB)[/green]"
+            else:
+                min_status = "[yellow]⬇ Missing[/yellow]"
+
             table.add_row(
                 spec["id"],
                 spec["name"],
                 "GitHub Releases",
-                f"~{spec['approx_size_mb']} MB",
+                f"{actual_mb} MB" if actual_mb > 0 else f"~{spec['approx_size_mb']} MB",
                 f"~{spec['approx_size_mb']} MB",
                 min_status
             )
@@ -275,7 +301,7 @@ class KingdomCLI:
 
         # VRAM Budget Validation
         vram_diff = target_vram - self.active_model_vram
-        projected_vram = self.hw_manager.vram_allocated_mb + vram_diff
+        projected_vram = self.current_vram_allocated_mb + vram_diff
         if projected_vram > STATIC_VRAM_CEILING_MB:
             console.print(
                 f"[error]Cannot switch: {display_name} requires {target_vram} MB VRAM.\n"
@@ -288,13 +314,13 @@ class KingdomCLI:
 
         if success or target_path.exists():
             self.active_model_name = target_name
-            self.hw_manager.vram_allocated_mb = projected_vram
             self.active_model_vram = target_vram
+            self.hw_manager.vram_allocated_mb = self.current_vram_allocated_mb
             console.print(Panel(
                 f"[bold green]✔ Model Swapped Successfully[/bold green]\n"
                 f"Active Model:    [bold cyan]{display_name}[/bold cyan]\n"
                 f"Model Artifact:  {target_path.name}\n"
-                f"VRAM Allocated:  {self.hw_manager.vram_allocated_mb} MB / {STATIC_VRAM_CEILING_MB} MB Ceiling",
+                f"VRAM Allocated:  {self.current_vram_allocated_mb} MB / {STATIC_VRAM_CEILING_MB} MB Ceiling",
                 border_style="green",
                 title="[bold]Active LLM Hot-Swapped[/bold]"
             ))
@@ -313,7 +339,12 @@ class KingdomCLI:
             port=58420,
             bearer_token=LOCAL_BEARER_TOKEN
         )
-        dashboard.attach_engines(cache_db=self.cache_db, orchestrator=self.orchestrator)
+        dashboard.attach_engines(
+            cache_db=self.cache_db,
+            orchestrator=self.orchestrator,
+            embedder=self.embedder,
+            reranker=self.reranker
+        )
         dashboard.status_message = "● IN-PROCESS (Direct Python Session)"
 
         try:
@@ -421,7 +452,7 @@ class KingdomCLI:
         telemetry = Text()
         telemetry.append(f"  ⏱ {elapsed_ms:.1f}ms", style="dim cyan")
         telemetry.append(f"  |  📦 Cache Hits: {self.total_cache_hits}/{self.total_queries}", style="dim")
-        telemetry.append(f"  |  🧠 VRAM: {self.hw_manager.vram_allocated_mb}/{STATIC_VRAM_CEILING_MB} MB", style="dim")
+        telemetry.append(f"  |  🧠 VRAM: {self.current_vram_allocated_mb}/{STATIC_VRAM_CEILING_MB} MB", style="dim")
         console.print(telemetry)
         console.print()
 

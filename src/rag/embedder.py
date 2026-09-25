@@ -14,6 +14,13 @@ class BGEEmbedder:
         self.model_path = model_path
         self.is_loaded = False
 
+    @property
+    def is_model_loaded(self) -> bool:
+        return self.is_loaded
+
+    def _load_session(self):
+        self.is_loaded = True
+
     def embed_query(self, text: str) -> List[float]:
         """Generate unit-normalized 384-dimensional vector for a query in 4-8 ms."""
         start = time.perf_counter()

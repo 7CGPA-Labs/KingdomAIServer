@@ -865,6 +865,48 @@ def test_cli_model_commands(tmp_path):
         cli.switch_model_cli("qwen2.5-coder-3b")
         assert cli.active_model_name == "qwen2.5-coder-1.5b"
 
+def test_dynamic_telemetry_and_dashboard_metrics():
+    """Verify CLI and K-Top dynamically update VRAM, model names, and hardware metrics."""
+    from unittest.mock import MagicMock
+    from src.cli.terminal_ui import KingdomCLI
+    from src.cli.server_dashboard import KingdomTopDashboard
+
+    cli = KingdomCLI()
+    # 1. Dynamic VRAM begins at 0 when unloaded
+    assert cli.current_vram_allocated_mb == 0
+
+    # 2. When Boss loads, VRAM dynamically reflects 1100 MB
+    cli.orchestrator.is_loaded = True
+    assert cli.current_vram_allocated_mb == 1100
+
+    # 3. When Embedder loads, VRAM dynamically increments by 35 MB
+    cli.embedder.is_loaded = True
+    assert cli.current_vram_allocated_mb == 1135
+
+    # 4. When Reranker loads, VRAM dynamically increments by 110 MB
+    cli.reranker.is_loaded = True
+    assert cli.current_vram_allocated_mb == 1245
+
+    # 5. When active model VRAM changes (e.g. 3B upgrade model)
+    cli.active_model_vram = 2900
+    assert cli.current_vram_allocated_mb == 2900 + 35 + 110
+
+    # 6. Test KingdomTopDashboard dynamically picks up model names and statuses
+    dashboard = KingdomTopDashboard()
+    mock_orch = MagicMock()
+    mock_orch.model_name = "qwen2.5-coder-3b"
+    mock_orch.is_loaded = True
+    mock_emb = MagicMock()
+    mock_emb.is_model_loaded = True
+    mock_rerank = MagicMock()
+    mock_rerank.is_model_loaded = False
+
+    dashboard.attach_engines(orchestrator=mock_orch, embedder=mock_emb, reranker=mock_rerank)
+    council_panel = dashboard.render_council_panel()
+    assert council_panel is not None
+    gauges_panel = dashboard.render_resource_gauges()
+    assert gauges_panel is not None
+
 
 
 

@@ -3,8 +3,10 @@ K-Top (Kingdom Top) - Real-time htop-style TUI Dashboard for Kingdom AI Server V
 Renders live hardware meters, council ministers status, in-flight/recent request streams,
 and server logs in an alternate screen buffer using Rich.
 """
+import os
 import sys
 import time
+from pathlib import Path
 
 try:
     from rich.console import Console
@@ -19,7 +21,7 @@ except ImportError:
 
 from src.utils.telemetry import HardwareTelemetry
 from src.utils.request_tracker import tracker, log_buffer
-from src.core.hardware import STATIC_VRAM_CEILING_MB
+from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
 
 dashboard_theme = Theme({
     "header": "bold magenta",
@@ -69,13 +71,20 @@ class KingdomTopDashboard:
         self.start_time = time.time()
         self.cache_db = None
         self.orchestrator = None
-        self.status_message = "● RUNNING (DirectML GPU / AVX2)"
+        self.embedder = None
+        self.reranker = None
+        self.hw_manager = HardwareManager()
+        diag = self.hw_manager.detect_environment()
+        provider_short = diag.get("selected_provider", "Vulkan/DirectML").split(" (")[0]
+        self.status_message = f"● RUNNING ({provider_short})"
         self.show_help = False
 
-    def attach_engines(self, cache_db=None, orchestrator=None):
+    def attach_engines(self, cache_db=None, orchestrator=None, embedder=None, reranker=None):
         """Optionally attach engine singletons for live stats."""
         self.cache_db = cache_db
         self.orchestrator = orchestrator
+        self.embedder = embedder
+        self.reranker = reranker
 
     def get_uptime_str(self) -> str:
         """Calculate server uptime formatted as HH:MM:SS."""
@@ -113,29 +122,47 @@ class KingdomTopDashboard:
         ram_info = telemetry.get("ram_percent", 0.0)
         ram_used_gb = telemetry.get("ram_used_gb", 0.0)
         ram_total_gb = telemetry.get("ram_total_gb", 16.0)
-        vram_used_gb = telemetry.get("vram_used_gb", 1.15)
-        gpu_engine = telemetry.get("gpu_engine", "DirectML")
+        gpu_engine = telemetry.get("gpu_engine", "GPU Accelerator")
 
-        # Static ceiling 6.00 GB
-        vram_pct = (vram_used_gb / 6.00) * 100.0
+        # Dynamic resident VRAM computation based on loaded model components
+        allocated_mb = 0
+        if self.orchestrator and getattr(self.orchestrator, "is_loaded", False):
+            m_name = getattr(self.orchestrator, "model_name", "qwen2.5-coder-1.5b")
+            from src.utils.verifier import get_upgrade_model_spec
+            spec = get_upgrade_model_spec(m_name)
+            allocated_mb += spec.get("vram_required_mb", 2000) if spec else 1100
+        if self.embedder and getattr(self.embedder, "is_model_loaded", False):
+            allocated_mb += 35
+        if self.reranker and getattr(self.reranker, "is_model_loaded", False):
+            allocated_mb += 110
+
+        vram_ceiling_gb = round(STATIC_VRAM_CEILING_MB / 1024.0, 2)
+        if allocated_mb > 0:
+            vram_used_gb = round(allocated_mb / 1024.0, 2)
+        else:
+            vram_used_gb = telemetry.get("vram_used_gb", 0.0)
+
+        vram_pct = min(100.0, (vram_used_gb / (vram_ceiling_gb or 6.00)) * 100.0)
 
         grid = Table.grid(expand=True, padding=(0, 1))
         grid.add_column(width=8, style="bold")
         grid.add_column(width=34)
         grid.add_column(justify="left")
 
-        # CPU Row
+        # CPU Row - dynamic threads from OS
+        cpu_threads = os.cpu_count() or 4
         cpu_meter = make_meter(cpu_pct, width=22)
-        grid.add_row("CPU", cpu_meter, Text(f"Threads: 4 | Compute: {gpu_engine}", style="dim"))
+        grid.add_row("CPU", cpu_meter, Text(f"Threads: {cpu_threads} | Compute: {gpu_engine}", style="dim"))
 
         # RAM Row
         ram_meter = make_meter(ram_info, width=22)
         grid.add_row("RAM", ram_meter, Text(f"{ram_used_gb:.2f} / {ram_total_gb:.2f} GB used", style="dim"))
 
-        # VRAM Row (Guaranteed <= 6.00 GB ceiling)
+        # VRAM Row (Dynamically adapts to static ceiling)
         vram_meter = make_meter(vram_pct, width=22)
-        vram_status = "PASSED (<= 6.00 GB)" if vram_used_gb <= 6.0 else "EXCEEDED"
-        grid.add_row("VRAM", vram_meter, Text(f"{vram_used_gb:.2f} / 6.00 GB  [{vram_status}]", style="bold green" if vram_used_gb <= 6.0 else "bold red"))
+        vram_status = f"PASSED (<= {vram_ceiling_gb:.2f} GB)" if vram_used_gb <= vram_ceiling_gb else "EXCEEDED"
+        vram_style = "bold green" if vram_used_gb <= vram_ceiling_gb else "bold red"
+        grid.add_row("VRAM", vram_meter, Text(f"{vram_used_gb:.2f} / {vram_ceiling_gb:.2f} GB  [{vram_status}]", style=vram_style))
 
         return Panel(grid, title="[bold]💻 Silicon & Hardware Telemetry[/bold]", border_style="cyan", padding=(0, 1))
 
@@ -150,19 +177,50 @@ class KingdomTopDashboard:
         cache_hits = cache_stats.get("total_hits", 0)
         hit_ratio = cache_stats.get("hit_ratio_pct", 0.0)
 
-        boss_status = "● READY"
-        if self.orchestrator and not self.orchestrator.is_loaded:
-            boss_status = "○ LAZY LOAD"
+        # Dynamic Boss Model Name and Status
+        boss_name = "Qwen 2.5 Coder 1.5B"
+        boss_status = "○ LAZY LOAD"
+        if self.orchestrator:
+            raw_model = getattr(self.orchestrator, "model_name", None)
+            if raw_model:
+                from src.utils.verifier import get_upgrade_model_spec
+                spec = get_upgrade_model_spec(raw_model)
+                boss_name = spec["name"] if spec else raw_model
+            boss_status = "● ACTIVE" if self.orchestrator.is_loaded else "○ READY"
+
+        # Dynamic Minister 1 (Embedder) Status
+        m1_status = "○ READY"
+        if self.embedder and getattr(self.embedder, "is_model_loaded", False):
+            m1_status = "● ACTIVE"
+        else:
+            from src.utils import get_models_dir
+            m1_file = get_models_dir() / "bge-small-en-v1.5-q4_k_m.gguf"
+            m1_status = "○ STANDBY" if m1_file.exists() else "○ MISSING"
+
+        # Dynamic Minister 2 (Reranker) Status
+        m2_status = "○ READY"
+        if self.reranker and getattr(self.reranker, "is_model_loaded", False):
+            m2_status = "● ACTIVE"
+        else:
+            from src.utils import get_models_dir
+            m2_file = get_models_dir() / "bge-reranker-base-q4_k_m.gguf"
+            m2_status = "○ STANDBY" if m2_file.exists() else "○ MISSING"
+
+        try:
+            import tree_sitter
+            ast_status = "● READY"
+        except ImportError:
+            ast_status = "○ NOT INSTALLED"
 
         stats = tracker.get_stats()
         speed = stats.get("last_tokens_per_sec", 0.0)
 
         left = Text()
         left.append("🏛️ Council Ministers\n", style="bold yellow")
-        left.append(f" • Boss LLM:   Qwen 2.5 Coder 1.5B [{boss_status}]\n", style="info")
-        left.append(" • Minister 1: BGE Embedder 384-d   [● ACTIVE]\n", style="info")
-        left.append(" • Minister 2: BGE Reranker         [● ACTIVE]\n", style="info")
-        left.append(" • Native AST: Tree-Sitter Parser   [● READY]", style="info")
+        left.append(f" • Boss LLM:   {boss_name} [{boss_status}]\n", style="info")
+        left.append(f" • Minister 1: BGE Embedder 384-d   [{m1_status}]\n", style="info")
+        left.append(f" • Minister 2: BGE Reranker         [{m2_status}]\n", style="info")
+        left.append(f" • Native AST: Tree-Sitter Parser   [{ast_status}]", style="info")
 
         right = Text()
         right.append("⚡ Throughput & Cache DB\n", style="bold yellow")
