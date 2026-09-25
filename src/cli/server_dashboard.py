@@ -107,7 +107,7 @@ class KingdomTopDashboard:
         return Panel(t, border_style="magenta", padding=(0, 1))
 
     def render_resource_gauges(self) -> Panel:
-        """Render CPU, RAM, VRAM, and NPU resource progress bars."""
+        """Render CPU, RAM, and VRAM resource progress bars."""
         telemetry = HardwareTelemetry.snapshot()
         cpu_pct = telemetry.get("cpu_percent", 0.0)
         ram_info = telemetry.get("ram_percent", 0.0)
@@ -115,7 +115,6 @@ class KingdomTopDashboard:
         ram_total_gb = telemetry.get("ram_total_gb", 16.0)
         vram_used_gb = telemetry.get("vram_used_gb", 1.15)
         gpu_engine = telemetry.get("gpu_engine", "DirectML")
-        npu_lat = telemetry.get("npu_latency_ms", 12.4)
 
         # Static ceiling 6.00 GB
         vram_pct = (vram_used_gb / 6.00) * 100.0
@@ -137,9 +136,6 @@ class KingdomTopDashboard:
         vram_meter = make_meter(vram_pct, width=22)
         vram_status = "PASSED (<= 6.00 GB)" if vram_used_gb <= 6.0 else "EXCEEDED"
         grid.add_row("VRAM", vram_meter, Text(f"{vram_used_gb:.2f} / 6.00 GB  [{vram_status}]", style="bold green" if vram_used_gb <= 6.0 else "bold red"))
-
-        # NPU / Subsystem Row
-        grid.add_row("NPU", Text("[||||||||||||||||||||||]", style="cyan"), Text(f"Latency: {npu_lat:.1f} ms | Priority: Preemptive Scheduler", style="dim"))
 
         return Panel(grid, title="[bold]💻 Silicon & Hardware Telemetry[/bold]", border_style="cyan", padding=(0, 1))
 
@@ -266,9 +262,9 @@ class KingdomTopDashboard:
         layout = Layout()
         layout.split(
             Layout(name="header", size=4),
-            Layout(name="telemetry", size=6),
+            Layout(name="telemetry", size=5),
             Layout(name="council", size=6),
-            Layout(name="requests", size=9),
+            Layout(name="requests", size=10),
             Layout(name="logs", size=6),
             Layout(name="footer", size=1),
         )

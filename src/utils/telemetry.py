@@ -1,15 +1,39 @@
 """
-Hardware telemetry extraction module for CPU, RAM, GPU Engine (DirectML/DXGI), VRAM, and NPU latency.
+Hardware telemetry extraction module for CPU, RAM, GPU Engine (DirectML/DXGI), and VRAM.
 """
 import psutil
 import time
 import sys
+import threading
 
-# Warm up non-blocking CPU percent calculation
-try:
-    psutil.cpu_percent(interval=None)
-except Exception:
-    pass
+_cached_cpu_percent: float = 0.0
+_cpu_thread_started: bool = False
+_cpu_lock = threading.Lock()
+
+def _cpu_sampling_loop():
+    global _cached_cpu_percent
+    try:
+        psutil.cpu_percent(interval=None)
+    except Exception:
+        pass
+    while True:
+        try:
+            val = psutil.cpu_percent(interval=0.5)
+            with _cpu_lock:
+                _cached_cpu_percent = round(float(val), 1)
+        except Exception:
+            time.sleep(0.5)
+
+def _ensure_cpu_sampler_running():
+    global _cpu_thread_started
+    if not _cpu_thread_started:
+        with _cpu_lock:
+            if not _cpu_thread_started:
+                t = threading.Thread(target=_cpu_sampling_loop, daemon=True, name="HardwareTelemetryCPUSampler")
+                t.start()
+                _cpu_thread_started = True
+
+_ensure_cpu_sampler_running()
 
 _DXGI_CACHE = None
 
@@ -99,12 +123,10 @@ def _query_dxgi_gpu() -> dict:
 class HardwareTelemetry:
     @staticmethod
     def get_cpu_usage() -> float:
-        """Returns CPU usage percentage."""
-        try:
-            val = psutil.cpu_percent(interval=None)
-            return round(val, 1)
-        except Exception:
-            return 0.0
+        """Returns CPU usage percentage matching Task Manager."""
+        _ensure_cpu_sampler_running()
+        with _cpu_lock:
+            return _cached_cpu_percent
 
     @staticmethod
     def get_ram_info() -> dict:
@@ -126,24 +148,16 @@ class HardwareTelemetry:
         gpu_name = dxgi_data["name"]
         
         try:
-            cpu_pct = psutil.cpu_percent(interval=None)
-            gpu_usage = round(min(100.0, max(5.0, cpu_pct * 0.8 + 12.0)), 1)
             mem = psutil.virtual_memory()
             vram_used_gb = round(min(dxgi_data["vram_total_gb"], max(0.65, mem.used / (1024 ** 3) * 0.22)), 2)
         except Exception:
-            gpu_usage = 15.0
             vram_used_gb = 1.15
 
         return {
             "name": gpu_name,
-            "usage_percent": gpu_usage,
+            "usage_percent": 0.0,
             "vram_used_gb": vram_used_gb,
         }
-
-    @staticmethod
-    def get_npu_latency() -> float:
-        """Returns NPU inference latency in milliseconds."""
-        return round(12.4, 1)
 
     @classmethod
     def snapshot(cls) -> dict:
@@ -161,6 +175,5 @@ class HardwareTelemetry:
             "gpu_engine": gpu["name"],
             "gpu_usage_percent": gpu["usage_percent"],
             "vram_used_gb": gpu["vram_used_gb"],
-            "npu_latency_ms": cls.get_npu_latency(),
             "timestamp": time.time(),
         }

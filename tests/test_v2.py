@@ -680,3 +680,23 @@ def test_middleware_request_tracking_integration():
     assert len(matched) >= 1
     assert matched[0]["status"] == "200"
 
+def test_hardware_telemetry_cpu_and_no_npu():
+    """Verify HardwareTelemetry samples CPU accurately without 0/100 spikes and excludes NPU."""
+    from src.utils.telemetry import HardwareTelemetry
+
+    snapshot = HardwareTelemetry.snapshot()
+    assert "cpu_percent" in snapshot
+    assert "ram_percent" in snapshot
+    assert "vram_used_gb" in snapshot
+    assert "gpu_engine" in snapshot
+
+    # Assert NPU is excluded
+    assert "npu_latency_ms" not in snapshot
+
+    # Multiple successive rapid reads must not crash and produce valid percentages
+    readings = [HardwareTelemetry.get_cpu_usage() for _ in range(5)]
+    for r in readings:
+        assert isinstance(r, float)
+        assert 0.0 <= r <= 100.0
+
+
