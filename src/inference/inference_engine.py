@@ -10,10 +10,21 @@ from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List, Union
 import os
+import sys
 import json
 import time
+import logging
 import truststore
 from contextlib import asynccontextmanager
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+logger = logging.getLogger("kingdom.server")
 
 from src.core.local_llm import LlamaCppOrchestrator
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
@@ -26,6 +37,8 @@ from src.rag.retriever import BGEReranker
 from src.processing.cache import ResponseCacheDB
 from src.rag.vector_store import VectorStore
 from src.processing.prefill import prefill_response_cache, prefill_vector_store, warmup_llm_engine
+from src.utils.request_tracker import tracker
+import uuid
 
 # Inject enterprise Zscaler proxy truststore certificates into SSL
 try:
@@ -49,14 +62,14 @@ async def lifespan(app: FastAPI):
     """Prefills Response Cache, Cognitive Vector DB, and warms up the LLM engine on boot."""
     try:
         cache_count = prefill_response_cache(cache_db)
-        print(f"📦 [Prefill] Response Cache pre-seeded: {cache_count} common developer queries cached")
+        logger.info("[Prefill] Response Cache pre-seeded: %s common developer queries cached", cache_count)
         vector_count = prefill_vector_store(vector_store, embedder)
-        print(f"🧠 [Prefill] Cognitive Vector Store indexed: {vector_count} architectural templates ready")
+        logger.info("[Prefill] Cognitive Vector Store indexed: %s architectural templates ready", vector_count)
         warmed = warmup_llm_engine(orchestrator)
         if warmed:
-            print("🔥 [Warmup] LLM Engine pre-warmed: Zero cold-start latency achieved")
+            logger.info("[Warmup] LLM Engine pre-warmed: Zero cold-start latency achieved")
     except Exception as e:
-        print(f"⚠️ [Startup] Notice during engine prefill/warmup: {e}")
+        logger.warning("[Startup] Notice during engine prefill/warmup: %s", e)
     yield
 
 app = FastAPI(
@@ -127,6 +140,25 @@ async def security_guardrails_middleware(request: Request, call_next):
         )
 
     return await call_next(request)
+
+@app.middleware("http")
+async def request_tracker_middleware(request: Request, call_next):
+    if request.url.path in ("/favicon.ico", "/docs", "/openapi.json"):
+        return await call_next(request)
+
+    req_id = f"req-{uuid.uuid4().hex[:6]}"
+    method = request.method
+    path = request.url.path
+    priority = "HIGH" if path in ("/v1/edits", "/v1/apply") else "NORMAL"
+    tracker.record_request_start(req_id, method, path, priority)
+
+    try:
+        response = await call_next(request)
+        tracker.record_request_end(req_id, status_code=response.status_code)
+        return response
+    except Exception as e:
+        tracker.record_request_end(req_id, status_code=500)
+        raise e
 
 import jinja2
 

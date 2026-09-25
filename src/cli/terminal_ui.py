@@ -74,7 +74,7 @@ class KingdomCLI:
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
-        console.print("[dim]Commands: /health  /cache  /clear  /clearcache  /index <path>  /clearindex  /audit  /quit[/dim]")
+        console.print("[dim]Commands: /top (htop monitor)  /health  /cache  /clearcache  /index <path>  /clearindex  /audit  /clear  /quit[/dim]")
         console.print("[dim]Type your message and press Enter to chat.[/dim]")
         console.print()
 
@@ -112,6 +112,50 @@ class KingdomCLI:
             table.add_row(str(key), str(value))
 
         console.print(table)
+
+    def show_top_monitor(self):
+        """Open full-screen interactive K-Top (htop-style) live system monitor."""
+        from rich.live import Live
+        from src.cli.server_dashboard import KingdomTopDashboard
+        from src.inference.inference_engine import LOCAL_BEARER_TOKEN
+
+        dashboard = KingdomTopDashboard(
+            host="127.0.0.1",
+            port=58420,
+            bearer_token=LOCAL_BEARER_TOKEN
+        )
+        dashboard.attach_engines(cache_db=self.cache_db, orchestrator=self.orchestrator)
+        dashboard.status_message = "● IN-PROCESS (Direct Python Session)"
+
+        try:
+            with Live(dashboard.build_layout(), console=console, screen=True, refresh_per_second=3) as live:
+                while True:
+                    time.sleep(0.3)
+                    if sys.platform == "win32":
+                        try:
+                            import msvcrt
+                            if msvcrt.kbhit():
+                                ch = msvcrt.getch()
+                                if ch in (b'\x00', b'\xe0'):
+                                    msvcrt.getch()
+                                    continue
+                                key = ch.decode("utf-8", errors="ignore").lower()
+                                if key in ("q", "\x1b"):  # 'q' or ESC
+                                    break
+                                elif key == "c":
+                                    self.cache_db.clear()
+                                    dashboard.status_message = "● CACHE CLEARED"
+                                elif key == "h":
+                                    dashboard.show_help = not dashboard.show_help
+                                elif key == "r":
+                                    dashboard.status_message = "● FORCED REFRESH"
+                        except Exception:
+                            pass
+                    else:
+                        break
+                    live.update(dashboard.build_layout())
+        except (KeyboardInterrupt, Exception):
+            pass
 
     def process_chat(self, user_input: str) -> Optional[str]:
         """Process a chat message through the full inline pipeline."""
@@ -207,6 +251,9 @@ class KingdomCLI:
                 if user_input.lower() in ("/quit", "/exit", "/q"):
                     console.print("[dim]Goodbye! 👋[/dim]")
                     break
+                elif user_input.lower() in ("/top", "/htop", "/monitor"):
+                    self.show_top_monitor()
+                    continue
                 elif user_input.lower() == "/health":
                     self.show_health()
                     continue
