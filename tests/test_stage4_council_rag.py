@@ -7,13 +7,11 @@ Verifies:
 - LeanCouncilManager: End-to-end RAG pipeline (<20 ms latency, <=145 MB VRAM footprint)
 """
 import pytest
-import math
 import os
-from pathlib import Path
 from src.rag.embedder import BGEEmbedder
 from src.rag.vector_store import VectorStore
 from src.rag.retriever import BGEReranker
-from src.core.council import LeanCouncilManager, TOTAL_COUNCIL_VRAM_FOOTPRINT_MB
+from src.core.council import LeanCouncilManager
 
 TEST_DB_PATH = "data/vectordb/test_cognitive_vault.db"
 

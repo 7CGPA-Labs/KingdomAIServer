@@ -8,14 +8,12 @@ Validates system readiness across all four enterprise diagnostic gates:
 """
 import pytest
 import time
-import json
 from fastapi.testclient import TestClient
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
 from src.core.model_factory import ModelFactory
 from src.core.council import LeanCouncilManager, TOTAL_COUNCIL_VRAM_FOOTPRINT_MB
 from src.processing.chunking import TreeSitterChunker
-from src.processing.preprocessor import ManifestLinter, VulnerabilityScanner, StructuralTrimmer, Preprocessor
-from src.prompts.templates import HeuristicIntentRouter
+from src.processing.preprocessor import ManifestLinter, VulnerabilityScanner, StructuralTrimmer
 from src.inference.inference_engine import app, LOCAL_BEARER_TOKEN
 
 client = TestClient(app)

@@ -2,7 +2,6 @@
 Kingdom AI Server V2 Configuration Loader Module.
 Loads YAML configuration files from config/ with fallback defaults.
 """
-import os
 import yaml
 from pathlib import Path
 from typing import Dict, Any

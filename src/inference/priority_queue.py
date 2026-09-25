@@ -4,7 +4,7 @@ Prioritizes interactive operations over background generation tasks.
 """
 import asyncio
 import time
-from typing import Dict, Any, Callable
+from typing import Any, Callable
 from enum import IntEnum
 
 class RequestPriority(IntEnum):

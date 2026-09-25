@@ -7,7 +7,7 @@ import sqlite3
 import hashlib
 import json
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from pathlib import Path
 from src.config import DATA_DIR
 

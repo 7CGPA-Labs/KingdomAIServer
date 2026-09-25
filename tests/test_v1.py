@@ -5,15 +5,13 @@ SSRF crawler security guardrails, model verification, and model usage/loading di
 """
 import pytest
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from src.inference.inference_engine import app
 from src.core.crawler import SSRFCrawler, SSRFProtectionError
 from src.core.hardware import HardwareAccelerationEngine
-from src.core.ministers import MinisterFactory, BaseMinister, WorkspacePathJail, WorkspacePathJailError
+from src.core.ministers import MinisterFactory, WorkspacePathJail, WorkspacePathJailError
 from src.core.orchestrator import KingdomOrchestrator
 from src.utils.continue_config import repair_continue_config
 from src.utils.downloader import MODEL_RELEASES

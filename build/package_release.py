@@ -4,7 +4,6 @@ Build packaging script creating KingdomServer-win64-full.zip release archive usi
 import os
 import shutil
 import zipfile
-import compileall
 import zipapp
 from pathlib import Path
 

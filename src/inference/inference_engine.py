@@ -3,16 +3,15 @@ Headless OpenAI-Compatible REST Gateway & Priority Inference Scheduler for Kingd
 Enforces loopback-only binding, local Bearer secret auth, CSPA origin defense, and 2 MB payload size limits.
 Exposes OpenAI-compatible endpoints (/v1/chat/completions, /v1/embeddings, /v1/rerank, /v1/edits, /v1/apply) for Continue.dev IDE extension.
 """
-from fastapi import FastAPI, Request, HTTPException, Security, Depends, status
+from fastapi import FastAPI, Request, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Dict, Any, Optional, List, Union
 import os
 import json
 import time
-import threading
 import truststore
 from contextlib import asynccontextmanager
 
@@ -49,11 +48,15 @@ vector_store = VectorStore()
 async def lifespan(app: FastAPI):
     """Prefills Response Cache, Cognitive Vector DB, and warms up the LLM engine on boot."""
     try:
-        prefill_response_cache(cache_db)
-        prefill_vector_store(vector_store, embedder)
-        warmup_llm_engine(orchestrator)
-    except Exception:
-        pass
+        cache_count = prefill_response_cache(cache_db)
+        print(f"📦 [Prefill] Response Cache pre-seeded: {cache_count} common developer queries cached")
+        vector_count = prefill_vector_store(vector_store, embedder)
+        print(f"🧠 [Prefill] Cognitive Vector Store indexed: {vector_count} architectural templates ready")
+        warmed = warmup_llm_engine(orchestrator)
+        if warmed:
+            print("🔥 [Warmup] LLM Engine pre-warmed: Zero cold-start latency achieved")
+    except Exception as e:
+        print(f"⚠️ [Startup] Notice during engine prefill/warmup: {e}")
     yield
 
 app = FastAPI(

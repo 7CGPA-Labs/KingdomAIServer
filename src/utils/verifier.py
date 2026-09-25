@@ -2,7 +2,6 @@
 Model file verification module for SHA-256 integrity checks and pre-flight diagnostics (V2 Engine).
 """
 import hashlib
-import os
 from pathlib import Path
 from typing import Dict, Any, List
 from src.utils import get_models_dir

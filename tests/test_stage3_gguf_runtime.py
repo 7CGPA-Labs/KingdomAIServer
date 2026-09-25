@@ -6,8 +6,6 @@ Verifies:
 - FastAPI /v1/chat/completions (Stream and Non-Stream) Endpoints
 - FastAPI /v1/edits and /v1/apply Endpoints
 """
-import pytest
-import json
 import asyncio
 from fastapi.testclient import TestClient
 from src.core.local_llm import LlamaCppOrchestrator

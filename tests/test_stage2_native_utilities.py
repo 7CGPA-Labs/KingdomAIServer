@@ -7,9 +7,6 @@ Verifies performance gates:
 - Heuristic Intent Router < 0.05 ms
 - Context Trimmer compression ratio >= 40%
 """
-import pytest
-import time
-from pathlib import Path
 from src.processing.chunking import TreeSitterChunker
 from src.processing.preprocessor import ManifestLinter, VulnerabilityScanner, StructuralTrimmer, Preprocessor
 from src.prompts.templates import HeuristicIntentRouter

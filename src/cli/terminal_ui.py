@@ -5,7 +5,6 @@ No HTTP REST endpoints are used - all communication is in-process.
 """
 import sys
 import time
-import signal
 from typing import Optional
 
 try:
@@ -15,8 +14,6 @@ try:
     from rich.markdown import Markdown
     from rich.text import Text
     from rich.theme import Theme
-    from rich.live import Live
-    from rich.spinner import Spinner
 except ImportError:
     print("[ERROR] 'rich' package is required. Install with: pip install rich")
     sys.exit(1)

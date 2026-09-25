@@ -2,21 +2,13 @@
 Lean 2-Minister Council & Native Utilities Adapter for V2 Engine.
 Wraps V2 Lean Council (Embedder, Re-Ranker) and Zero-VRAM Native Utilities while preserving backward compatibility.
 """
-import os
-import re
-import math
 import logging
 import threading
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional, Union
+from typing import Dict, Optional, Union
 
 from src.utils import get_models_dir, load_role_prompt
 from src.core.hardware import HardwareAccelerationEngine
-from src.core.council import LeanCouncilManager
-from src.rag.embedder import BGEEmbedder
-from src.rag.retriever import BGEReranker
-from src.processing.chunking import TreeSitterChunker
-from src.processing.preprocessor import Preprocessor, ManifestLinter, VulnerabilityScanner, StructuralTrimmer
 
 logger = logging.getLogger("kingdom.ministers")
 

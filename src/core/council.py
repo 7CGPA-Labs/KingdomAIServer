@@ -5,7 +5,7 @@ Coordinates sidecar neural ministers under strict ~145 MB total VRAM budget:
 - Minister 2: Context Re-Ranker (bge-reranker-base, ~110 MB VRAM)
 """
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker
 from src.rag.vector_store import VectorStore

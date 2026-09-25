@@ -3,7 +3,6 @@ Hardware telemetry extraction module for CPU, RAM, GPU Engine (DirectML/DXGI), V
 """
 import psutil
 import time
-import os
 import sys
 
 # Warm up non-blocking CPU percent calculation

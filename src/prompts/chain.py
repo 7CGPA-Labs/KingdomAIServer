@@ -8,7 +8,7 @@ Absorbs specialized reasoning tasks into Main Boss via agent role prompts and ma
 """
 import re
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from src.prompts.templates import (
     GIT_CRAFTSMAN_ROLE_PROMPT,
     SECURITY_AUDITOR_ROLE_PROMPT,

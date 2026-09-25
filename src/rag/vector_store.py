@@ -6,7 +6,7 @@ import sqlite3
 import json
 import math
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from pathlib import Path
 
 class VectorStore:

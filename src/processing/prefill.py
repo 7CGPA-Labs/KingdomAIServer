@@ -3,11 +3,9 @@ Prefill & Warmup Manager for Kingdom AI Server V2.
 Prefills SQLite Response Cache DB, Cognitive Vector Vault, and KV Cache on startup.
 Eliminates cold-start latency and arms the server with instant standard library and template hits.
 """
-import os
 import json
 import time
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Optional
 
 from src.processing.cache import ResponseCacheDB
 from src.rag.vector_store import VectorStore

@@ -13,7 +13,7 @@ import warnings
 import subprocess
 import urllib.request
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 try:
     import truststore

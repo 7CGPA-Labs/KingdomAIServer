@@ -7,7 +7,6 @@ Verifies:
 - Role D: Mermaid.js Diagram Generator GBNF syntax parsing
 - AgentPersonaChain persona specification lookup
 """
-import pytest
 from src.prompts.chain import (
     GitCommitCraftsman,
     DiffRealigner,

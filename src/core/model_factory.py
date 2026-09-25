@@ -2,7 +2,6 @@
 Kingdom AI Model Factory.
 Provisions GGUF models, sidecar ministers, and SDXS-512 vision engine under static VRAM budget ceiling (<= 1.48 GB).
 """
-import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 from src.config import get_model_config, DATA_DIR

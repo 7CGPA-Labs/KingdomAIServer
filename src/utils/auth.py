@@ -4,7 +4,6 @@ Auto-generates and validates 256-bit cryptographically secure hex bearer token s
 """
 import os
 import secrets
-from pathlib import Path
 from typing import Optional
 from src.utils import get_base_dir
 

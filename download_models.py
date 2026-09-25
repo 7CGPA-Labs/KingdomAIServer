@@ -4,7 +4,6 @@ Usage:
     python download_models.py
 """
 import sys
-import os
 import subprocess
 from pathlib import Path
 

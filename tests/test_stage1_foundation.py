@@ -2,9 +2,8 @@
 Unit tests for Stage 1 Foundation & Directory Architecture setup.
 """
 import pytest
-import os
-from src.config import get_model_config, get_logging_config
-from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
+from src.config import get_model_config
+from src.core.hardware import HardwareManager
 from src.processing.preprocessor import Preprocessor
 
 def test_stage1_config_loader():

@@ -8,7 +8,6 @@ Replaces:
 import re
 import json
 import time
-import sys
 from pathlib import Path
 from typing import List, Set, Dict, Any, Optional
 

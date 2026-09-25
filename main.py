@@ -5,7 +5,6 @@ Usage:
     python main.py
 """
 import sys
-import os
 import subprocess
 import webbrowser
 from pathlib import Path
@@ -43,18 +42,37 @@ if sys.platform == "win32":
 import threading
 import time
 from src.config import get_model_config
+from src.inference.inference_engine import LOCAL_BEARER_TOKEN
 
 def start_server():
     config = get_model_config()
     server_cfg = config.get("server", {})
     host = server_cfg.get("host", "127.0.0.1")
     port = server_cfg.get("port", 58420)
+    token = LOCAL_BEARER_TOKEN
 
     print("======================================================================")
     print(" 👑 KINGDOM AI SERVER (V2 Headless Edition) • v2.0.0")
     print(" Dedicated Local OpenAI-Compatible Server for Continue.dev")
-    print(f" Status: ● ACTIVE  |  Endpoint: http://{host}:{port}")
-    print(" Static VRAM Budget: <= 1.25 GB (DirectML GPU / CPU AVX2 Fallback)")
+    print("======================================================================")
+    print(" ● Server Status: ACTIVE")
+    print(f" ● Base URL:      http://{host}:{port}")
+    print(f" ● Bearer Token:  {token}")
+    print(" ● VRAM Ceiling:  <= 6.00 GB (DirectML GPU / CPU AVX2 Fallback)")
+    print("----------------------------------------------------------------------")
+    print(" 📡 Active API Endpoints:")
+    print(f"   • Chat Completions: POST http://{host}:{port}/v1/chat/completions")
+    print(f"   • Text Embeddings:  POST http://{host}:{port}/v1/embeddings")
+    print(f"   • Context Rerank:   POST http://{host}:{port}/v1/rerank")
+    print(f"   • Inline Edits:     POST http://{host}:{port}/v1/edits")
+    print(f"   • Workspace Apply:  POST http://{host}:{port}/v1/apply")
+    print(f"   • WebUI Console:    GET  http://{host}:{port}/")
+    print("----------------------------------------------------------------------")
+    print(" 🏛️ Council Architecture:")
+    print("   • Boss LLM:        Qwen 2.5 Coder 1.5B GGUF")
+    print("   • Minister 1:      BGE Embedder (Semantic Vector Search)")
+    print("   • Minister 2:      BGE Reranker (Cross-Encoder Re-ranking)")
+    print("   • Native Engine:   Tree-Sitter AST & Heuristic Router")
     print("======================================================================")
 
     def _open_browser():

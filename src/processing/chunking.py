@@ -5,7 +5,7 @@ Provides zero-VRAM AST parsing and boundary extraction for Python, TypeScript, G
 """
 import re
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 class TreeSitterChunker:
     """Parses code AST boundaries for Python, TypeScript, Go, Rust, and C++."""
