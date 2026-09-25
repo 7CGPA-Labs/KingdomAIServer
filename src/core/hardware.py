@@ -23,20 +23,35 @@ class HardwareManager:
         available_ram_gb = round(psutil.virtual_memory().available / (1024 ** 3), 2)
         cpu_count = os.cpu_count() or 4
 
-        has_directml = False
+        has_gpu_offload = False
         try:
             import llama_cpp
-            has_directml = True
+            has_gpu_offload = getattr(llama_cpp, "llama_supports_gpu_offload", lambda: False)()
         except ImportError:
             pass
+
+        gpu_name = "Integrated GPU"
+        try:
+            from src.utils.telemetry import _query_dxgi_gpu
+            dxgi = _query_dxgi_gpu()
+            gpu_name = dxgi.get("name", "Integrated GPU")
+        except Exception:
+            pass
+
+        if has_gpu_offload:
+            provider = f"Vulkan / GPU Accelerated ({gpu_name})"
+        else:
+            provider = f"Vulkan / OpenCL (GPU/iGPU) - Ready for GPU wheel ({gpu_name})"
 
         return {
             "platform": sys.platform,
             "cpu_cores": cpu_count,
             "system_ram_gb": total_ram_gb,
             "available_ram_gb": available_ram_gb,
-            "directml_supported": has_directml,
-            "selected_provider": "Vulkan / OpenCL (GPU/iGPU)" if has_directml else "Uninitialized",
+            "gpu_hardware": gpu_name,
+            "gpu_offload_supported": has_gpu_offload,
+            "directml_supported": has_gpu_offload,
+            "selected_provider": provider,
             "vram_ceiling_mb": STATIC_VRAM_CEILING_MB
         }
 

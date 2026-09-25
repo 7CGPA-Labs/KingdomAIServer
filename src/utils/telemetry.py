@@ -111,12 +111,12 @@ def _query_dxgi_gpu() -> dict:
 
             if best_name:
                 vram_gb = round(max_vram / (1024 ** 3), 2)
-                _DXGI_CACHE = {"name": f"DirectML ({best_name})", "vram_total_gb": vram_gb}
+                _DXGI_CACHE = {"name": best_name, "vram_total_gb": vram_gb}
                 return _DXGI_CACHE
     except Exception:
         pass
 
-    _DXGI_CACHE = {"name": "llama.cpp DirectML Accelerator", "vram_total_gb": 4.0}
+    _DXGI_CACHE = {"name": "Integrated GPU / Accelerator", "vram_total_gb": 4.0}
     return _DXGI_CACHE
 
 

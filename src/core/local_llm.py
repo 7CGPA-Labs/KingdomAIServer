@@ -6,15 +6,28 @@ Supports DirectML GPU acceleration with automatic CPU AVX2 fallback.
 import os
 import time
 import json
+import logging
 import threading
 from typing import Dict, Any, Generator, Optional, List
 
 from src.utils import get_models_dir
 
-class LlamaCppOrchestrator:
-    """Orchestrates Main Boss GGUF LLM execution (Qwen2.5-Coder-1.5B)."""
+logger = logging.getLogger("kingdom.llm")
 
-    def __init__(self, model_path: Optional[str] = None, n_ctx: int = 32768, n_gpu_layers: int = -1):
+class GPUOffloadRequiredError(RuntimeError):
+    """Raised when strict GPU offloading is required but the runtime or hardware lacks GPU support."""
+    pass
+
+class LlamaCppOrchestrator:
+    """Orchestrates Main Boss GGUF LLM execution (Qwen2.5-Coder-1.5B) with strict iGPU/GPU offload."""
+
+    def __init__(
+        self,
+        model_path: Optional[str] = None,
+        n_ctx: int = 32768,
+        n_gpu_layers: int = -1,
+        strict_gpu: Optional[bool] = None
+    ):
         if model_path is None:
             self.model_path = str(get_models_dir() / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
         else:
@@ -22,18 +35,46 @@ class LlamaCppOrchestrator:
             
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
+        
+        if strict_gpu is None:
+            try:
+                from src.config import get_model_config
+                cfg = get_model_config()
+                self.strict_gpu = cfg.get("hardware", {}).get("strict_gpu", True)
+            except Exception:
+                self.strict_gpu = True
+        else:
+            self.strict_gpu = strict_gpu
+
         self.is_loaded = False
         self._llm = None
         self._lock = threading.Lock()
+        self.layers_offloaded = 0
 
     def load_model(self) -> bool:
-        """Load GGUF weights into llama.cpp with DirectML/CPU fallback and Radix KV RAM Cache."""
+        """Load GGUF weights into llama.cpp with strict iGPU/GPU offload."""
         with self._lock:
             if self.is_loaded:
                 return True
             try:
                 import llama_cpp
                 if self.model_path and os.path.exists(self.model_path):
+                    supports_gpu = getattr(llama_cpp, "llama_supports_gpu_offload", lambda: False)()
+
+                    if self.strict_gpu and not supports_gpu:
+                        err_msg = (
+                            f"Strict iGPU/GPU offload is enabled (n_gpu_layers={self.n_gpu_layers}), "
+                            "but the active llama_cpp runtime is built without GPU acceleration (llama_supports_gpu_offload() == False).\n"
+                            "To enable GPU offload for Intel Iris Xe / Intel Arc / AMD Radeon / NVIDIA GeForce:\n"
+                            "  • For Intel Iris Xe / Intel Arc / AMD Radeon (Vulkan):\n"
+                            "    pip install --force-reinstall --prefer-binary https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl\n"
+                            "  • For NVIDIA RTX/GTX (CUDA):\n"
+                            "    pip install --force-reinstall --prefer-binary https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl\n"
+                            "  • To allow CPU fallback, set 'strict_gpu: false' in config/model_config.yaml."
+                        )
+                        logger.error(err_msg)
+                        raise GPUOffloadRequiredError(err_msg)
+
                     self._llm = llama_cpp.Llama(
                         model_path=self.model_path,
                         n_ctx=self.n_ctx,
@@ -46,6 +87,8 @@ class LlamaCppOrchestrator:
                     except Exception:
                         pass
                     self.is_loaded = True
+                    self.layers_offloaded = self.n_gpu_layers
+                    logger.info("Successfully loaded GGUF model with strict GPU offload (n_gpu_layers=%s)", self.n_gpu_layers)
                     return True
             except ImportError:
                 pass

@@ -53,8 +53,8 @@ def get_model_config() -> Dict[str, Any]:
         # Fallback defaults if file missing
         return {
             "server": {"host": "127.0.0.1", "port": 58420},
-            "hardware": {"execution_provider": "DirectML", "max_static_vram_mb": 1480},
-            "main_boss": {"model_id": "qwen2.5-coder-1.5b-instruct", "vram_budget_mb": 1100},
+            "hardware": {"execution_provider": "GPU", "strict_gpu": True, "n_gpu_layers": -1, "max_static_vram_mb": 1250},
+            "main_boss": {"model_id": "qwen2.5-coder-1.5b-instruct", "vram_budget_mb": 1100, "strict_gpu": True, "n_gpu_layers": -1},
             "council_ministers": {
                 "minister_1_embedder": {"vram_budget_mb": 35, "embedding_dimension": 384},
                 "minister_2_reranker": {"vram_budget_mb": 110},

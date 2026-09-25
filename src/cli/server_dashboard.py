@@ -126,7 +126,7 @@ class KingdomTopDashboard:
 
         # CPU Row
         cpu_meter = make_meter(cpu_pct, width=22)
-        grid.add_row("CPU", cpu_meter, Text(f"Threads: DirectML | Engine: {gpu_engine}", style="dim"))
+        grid.add_row("CPU", cpu_meter, Text(f"Threads: 4 | Compute: {gpu_engine}", style="dim"))
 
         # RAM Row
         ram_meter = make_meter(ram_info, width=22)

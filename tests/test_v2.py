@@ -699,4 +699,51 @@ def test_hardware_telemetry_cpu_and_no_npu():
         assert isinstance(r, float)
         assert 0.0 <= r <= 100.0
 
+def test_strict_gpu_orchestrator_defaults():
+    """Verify LlamaCppOrchestrator enforces strict GPU offload defaults."""
+    from src.core.local_llm import LlamaCppOrchestrator, GPUOffloadRequiredError
+    orch = LlamaCppOrchestrator()
+    assert orch.n_gpu_layers == -1
+    assert orch.strict_gpu is True
+    assert issubclass(GPUOffloadRequiredError, RuntimeError)
+
+def test_strict_gpu_enforcement_behavior(tmp_path):
+    """Verify strict GPU offloading raises GPUOffloadRequiredError when runtime is CPU-only, and succeeds when GPU is supported."""
+    from unittest.mock import MagicMock, patch
+    from src.core.local_llm import LlamaCppOrchestrator, GPUOffloadRequiredError
+
+    dummy_model = tmp_path / "test_model.gguf"
+    dummy_model.write_bytes(b"dummy gguf weights")
+
+    # Case 1: strict_gpu=True, CPU-only runtime -> Raises GPUOffloadRequiredError
+    mock_cpu_llama = MagicMock()
+    mock_cpu_llama.llama_supports_gpu_offload.return_value = False
+
+    with patch.dict("sys.modules", {"llama_cpp": mock_cpu_llama}):
+        orch_strict = LlamaCppOrchestrator(model_path=str(dummy_model), strict_gpu=True)
+        with pytest.raises(GPUOffloadRequiredError) as exc_info:
+            orch_strict.load_model()
+        assert "Strict iGPU/GPU offload is enabled" in str(exc_info.value)
+        assert "Intel Iris Xe" in str(exc_info.value)
+
+    # Case 2: strict_gpu=True, GPU-capable runtime (e.g. Vulkan / Intel Iris Xe) -> Succeeds with n_gpu_layers=-1
+    mock_gpu_llama = MagicMock()
+    mock_gpu_llama.llama_supports_gpu_offload.return_value = True
+    mock_instance = MagicMock()
+    mock_gpu_llama.Llama.return_value = mock_instance
+
+    with patch.dict("sys.modules", {"llama_cpp": mock_gpu_llama}):
+        orch_gpu = LlamaCppOrchestrator(model_path=str(dummy_model), strict_gpu=True)
+        loaded = orch_gpu.load_model()
+        assert loaded is True
+        assert orch_gpu.is_loaded is True
+        assert orch_gpu.layers_offloaded == -1
+        mock_gpu_llama.Llama.assert_called_once_with(
+            model_path=str(dummy_model),
+            n_ctx=32768,
+            n_gpu_layers=-1,
+            verbose=False
+        )
+
+
 

@@ -98,15 +98,47 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
     & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil jinja2
     
-    Write-Host "Installing llama-cpp-python GGUF engine (Strict GPU/iGPU Vulkan/OpenCL)..." -ForegroundColor Yellow
-    $vulkanWheelUrl = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
-    $cpuWheelUrl = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+    Write-Host "Installing llama-cpp-python GGUF engine with GPU/iGPU acceleration..." -ForegroundColor Yellow
     
-    Write-Host "Downloading Vulkan GPU/iGPU pre-built wheel ($vulkanWheelUrl)..." -ForegroundColor Cyan
-    & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $vulkanWheelUrl
+    # Auto-detect graphics hardware for optimized wheel selection (e.g. Intel Iris Xe, NVIDIA, AMD)
+    $detectedGpu = ""
+    try {
+        $gpuObj = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -First 1
+        $detectedGpu = $gpuObj.Name
+    } catch {}
+    
+    Write-Host "Detected Graphics Hardware: $detectedGpu" -ForegroundColor Cyan
+    
+    $vulkanWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+    $cudaWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+    $cpuWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+    
+    $targetWheel = $vulkanWheel
+    if ($detectedGpu -match "NVIDIA|GeForce|RTX|GTX") {
+        Write-Host "NVIDIA discrete GPU detected. Selecting CUDA wheel ($cudaWheel)..." -ForegroundColor Green
+        $targetWheel = $cudaWheel
+    } else {
+        Write-Host "Intel Iris Xe / Arc / AMD / Generic GPU detected. Selecting Vulkan wheel ($vulkanWheel)..." -ForegroundColor Green
+        $targetWheel = $vulkanWheel
+    }
+    
+    Write-Host "Downloading and installing pre-built GPU wheel ($targetWheel)..." -ForegroundColor Cyan
+    & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $targetWheel
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[WARN] Vulkan wheel download failed, attempting standard GPU wheel..." -ForegroundColor Yellow
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $cpuWheelUrl
+        Write-Host "[WARN] Selected GPU wheel installation failed. Trying Vulkan wheel fallback..." -ForegroundColor Yellow
+        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $vulkanWheel
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[WARN] Vulkan wheel failed. Falling back to CPU wheel..." -ForegroundColor Yellow
+            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $cpuWheel
+        }
+    }
+    
+    # Verify GPU offloading capability
+    $gpuCheck = & "$InstallDir\venv\Scripts\python.exe" -c "import llama_cpp; print(getattr(llama_cpp, 'llama_supports_gpu_offload', lambda: False)())"
+    if ($gpuCheck -eq "True") {
+        Write-Host "[SUCCESS] llama-cpp-python verified with active GPU offloading support!" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] llama-cpp-python is running in CPU mode. For Intel Iris Xe / NVIDIA, install the Vulkan or CUDA wheel." -ForegroundColor Yellow
     }
 }
 

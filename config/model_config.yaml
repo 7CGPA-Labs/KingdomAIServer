@@ -8,7 +8,10 @@ server:
   cors_allowed_origins: []
 
 hardware:
-  execution_provider: "DirectML" # Options: DirectML, CPU
+  execution_provider: "GPU"      # Target execution: GPU (Vulkan / DirectML / CUDA)
+  gpu_offload_mode: "strict"     # Options: strict, auto, cpu
+  strict_gpu: true               # Strictly enforce iGPU/GPU offload
+  n_gpu_layers: -1               # -1 = Offload 100% of layers to iGPU/GPU
   directml_device_id: 0
   cpu_fallback_avx2: true
   max_static_vram_mb: 1250      # Hard ceiling: <= 1.25 GB static VRAM
@@ -20,6 +23,8 @@ main_boss:
   filename: "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
   quantization: "Q4_K_M"
   vram_budget_mb: 1100
+  strict_gpu: true
+  n_gpu_layers: -1
   threads: 4
   temperature_default: 0.7
 
