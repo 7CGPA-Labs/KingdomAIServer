@@ -3,7 +3,7 @@ Model file verification module for SHA-256 integrity checks and pre-flight diagn
 """
 import hashlib
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from src.utils import get_models_dir
 
 # V2 Architecture Model Manifest (Main Boss GGUF + Lean 2-Minister Council)
@@ -33,6 +33,57 @@ MODEL_MANIFEST: Dict[str, Dict[str, Any]] = {
         "sha256": None,
     }
 }
+
+# Optional Upgrade Models available for direct HuggingFace download
+UPGRADE_MODELS: Dict[str, Dict[str, Any]] = {
+    "qwen2.5-coder-3b": {
+        "id": "qwen2.5-coder-3b",
+        "name": "Qwen2.5-Coder-3B-Instruct (Q4_K_M)",
+        "repo_id": "Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
+        "filename": "qwen2.5-coder-3b-instruct-q4_k_m.gguf",
+        "model_id": "Qwen2.5-Coder-3B-Instruct-GGUF",
+        "approx_size_mb": 2020,
+        "vram_required_mb": 2900,
+        "type": "gguf",
+        "description": "Balanced high-performance coding model (3B parameters)"
+    },
+    "qwen3-coder-1.7b": {
+        "id": "qwen3-coder-1.7b",
+        "name": "Qwen3-Coder-1.7B-Instruct (Q4_K_M)",
+        "repo_id": "Qwen/Qwen3-Coder-1.7B-Instruct-GGUF",
+        "filename": "qwen3-coder-1.7b-instruct-q4_k_m.gguf",
+        "model_id": "Qwen3-Coder-1.7B-Instruct-GGUF",
+        "approx_size_mb": 1250,
+        "vram_required_mb": 1800,
+        "type": "gguf",
+        "description": "Next-gen ultra-fast agentic coding model (1.7B parameters)"
+    },
+    "qwen3-coder-4b": {
+        "id": "qwen3-coder-4b",
+        "name": "Qwen3-Coder-4B-Instruct (Q4_K_M)",
+        "repo_id": "Qwen/Qwen3-Coder-4B-Instruct-GGUF",
+        "filename": "qwen3-coder-4b-instruct-q4_k_m.gguf",
+        "model_id": "Qwen3-Coder-4B-Instruct-GGUF",
+        "approx_size_mb": 2800,
+        "vram_required_mb": 4200,
+        "type": "gguf",
+        "description": "Advanced reasoning & repo-scale architect (4B parameters)"
+    }
+}
+
+def get_upgrade_model_spec(model_query: str) -> Optional[Dict[str, Any]]:
+    """Resolves an upgrade model specification from key, filename, or alias."""
+    clean = model_query.strip().lower()
+    if clean in UPGRADE_MODELS:
+        return UPGRADE_MODELS[clean]
+    for key, spec in UPGRADE_MODELS.items():
+        if spec["filename"].lower() == clean or spec["filename"].lower().replace(".gguf", "") == clean:
+            return spec
+        if key.replace(".", "").replace("-", "") == clean.replace(".", "").replace("-", ""):
+            return spec
+        if clean in key:
+            return spec
+    return None
 
 class ModelVerifier:
     def __init__(self, models_dir: Path | None = None):
@@ -113,6 +164,15 @@ class ModelVerifier:
             results.append(res)
         return results
 
+    def verify_upgrade_models(self) -> List[Dict[str, Any]]:
+        """Verify presence and integrity of optional upgrade models."""
+        results = []
+        for key, spec in UPGRADE_MODELS.items():
+            res = self.verify_single_model(spec["filename"], spec)
+            res["model_key"] = key
+            results.append(res)
+        return results
+
     def get_summary(self) -> Dict[str, Any]:
         results = self.verify_all()
         valid_count = sum(1 for r in results if r["status"] == "valid")
@@ -124,3 +184,5 @@ class ModelVerifier:
             "all_healthy": valid_count == total_count,
             "details": results,
         }
+
+

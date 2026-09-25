@@ -7,7 +7,7 @@ import sys
 import psutil
 from typing import Dict, Any
 
-STATIC_VRAM_CEILING_MB = 3072  # 3.00 GB Maximum Allocation
+STATIC_VRAM_CEILING_MB = 6144  # 6.00 GB Maximum Allocation
 
 class HardwareManager:
     """Manages silicon device detection, DirectML provider initialization, and VRAM memory safety."""

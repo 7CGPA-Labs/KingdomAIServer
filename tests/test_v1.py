@@ -261,7 +261,7 @@ def test_hardware_vram_ceiling():
     assert hw.verify_vram_budget(1100) is True
     assert hw.verify_vram_budget(375) is True
     with pytest.raises(MemoryError):
-        hw.verify_vram_budget(4000)
+        hw.verify_vram_budget(7000)
 
 def test_regex_security_scanner():
     prep = Preprocessor()

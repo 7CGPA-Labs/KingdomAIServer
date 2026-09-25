@@ -431,7 +431,7 @@ def test_agent_persona_chain():
 # =============================================================================
 
 def test_gate1_vram_budget_allocation_ceiling():
-    """Assert total resident static VRAM allocation stays <= 3.00 GB (3072 MB)."""
+    """Assert total resident static VRAM allocation stays <= 6.00 GB (6144 MB)."""
     hw = HardwareManager()
     mf = ModelFactory()
 
@@ -443,7 +443,7 @@ def test_gate1_vram_budget_allocation_ceiling():
 
     assert hw.verify_vram_budget(total_projected_vram) is True
     with pytest.raises(MemoryError):
-        hw.verify_vram_budget(4000)
+        hw.verify_vram_budget(7000)
 
 def test_gate1_silicon_provider_diagnostics():
     """Verify DirectML GPU provider detection and CPU AVX2 fallback."""
@@ -452,7 +452,7 @@ def test_gate1_silicon_provider_diagnostics():
 
     assert diag["platform"] is not None
     assert diag["cpu_cores"] >= 1
-    assert diag["vram_ceiling_mb"] == 3072
+    assert diag["vram_ceiling_mb"] == 6144
     assert "Vulkan" in diag["selected_provider"] or "OpenCL" in diag["selected_provider"] or "GPU" in diag["selected_provider"]
 
 def test_gate2_treesitter_ast_parser_latency():
@@ -744,6 +744,127 @@ def test_strict_gpu_enforcement_behavior(tmp_path):
             n_gpu_layers=-1,
             verbose=False
         )
+
+# =============================================================================
+# 11. Reranker API, Upgrade Models Registry & Dynamic Provisioning Tests
+# =============================================================================
+
+def test_v1_rerank_endpoint():
+    """Verify Continue.dev-compatible Cohere /v1/rerank endpoint."""
+    headers = {"Authorization": f"Bearer {LOCAL_BEARER_TOKEN}"}
+    
+    # 1. Empty documents request
+    res_empty = client.post("/v1/rerank", json={"query": "test query", "documents": []}, headers=headers)
+    assert res_empty.status_code == 200
+    assert res_empty.json()["results"] == []
+
+    # 2. Non-empty documents rerank
+    docs = [
+        "Python FastAPI web server implementation",
+        "Cooking chocolate cake recipe",
+        "DirectML GPU acceleration engine"
+    ]
+    payload = {
+        "model": "bge-reranker-base",
+        "query": "GPU hardware acceleration for machine learning",
+        "documents": docs,
+        "top_n": 2
+    }
+    res = client.post("/v1/rerank", json=payload, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "results" in data
+    assert len(data["results"]) == 2
+    assert "relevance_score" in data["results"][0]
+    assert "index" in data["results"][0]
+    assert data["results"][0]["relevance_score"] >= data["results"][1]["relevance_score"]
+    assert "meta" in data and "latency_ms" in data["meta"]
+
+def test_upgrade_models_manifest_and_verifier(tmp_path):
+    """Verify UPGRADE_MODELS registry and ModelVerifier integration."""
+    from src.utils.verifier import UPGRADE_MODELS, get_upgrade_model_spec, ModelVerifier
+
+    assert "qwen2.5-coder-3b" in UPGRADE_MODELS
+    assert "qwen3-coder-1.7b" in UPGRADE_MODELS
+    assert "qwen3-coder-4b" in UPGRADE_MODELS
+
+    # Spec resolver
+    spec_3b = get_upgrade_model_spec("qwen2.5-coder-3b")
+    assert spec_3b is not None
+    assert "repo_id" in spec_3b
+    assert spec_3b["filename"] == "qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+
+    # Alias / filename resolver
+    spec_file = get_upgrade_model_spec("qwen3-coder-4b-instruct-q4_k_m.gguf")
+    assert spec_file is not None
+    assert spec_file["id"] == "qwen3-coder-4b"
+
+    # Verifier method
+    verifier = ModelVerifier(models_dir=tmp_path)
+    upgrade_results = verifier.verify_upgrade_models()
+    assert len(upgrade_results) == 3
+    assert all(r["status"] == "missing" for r in upgrade_results)
+
+def test_huggingface_downloader_mock(tmp_path):
+    """Verify ModelDownloader.download_from_huggingface logic."""
+    from src.utils.downloader import ModelDownloader
+    from unittest.mock import patch, MagicMock
+
+    downloader = ModelDownloader(models_dir=tmp_path)
+    
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.headers = {"Content-Length": "2048"}
+    dummy_chunk = b"GGUF" + b"\x00" * (1024 * 1024)
+    mock_resp.read.side_effect = [dummy_chunk, b""]
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        success = downloader.download_from_huggingface(
+            repo_id="Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
+            filename="test_model.gguf"
+        )
+        assert success is True
+        target_file = tmp_path / "test_model.gguf"
+        assert target_file.exists()
+
+def test_orchestrator_dynamic_model_switch(tmp_path):
+    """Verify dynamic in-process model switching in LlamaCppOrchestrator."""
+    from unittest.mock import patch, MagicMock
+    from src.core.local_llm import LlamaCppOrchestrator
+
+    dummy_model_1 = tmp_path / "model1.gguf"
+    dummy_model_1.write_bytes(b"GGUF" + b"\x00" * 100)
+    dummy_model_2 = tmp_path / "model2.gguf"
+    dummy_model_2.write_bytes(b"GGUF" + b"\x00" * 200)
+
+    mock_llama = MagicMock()
+    mock_llama.llama_supports_gpu_offload.return_value = True
+    mock_instance = MagicMock()
+    mock_llama.Llama.return_value = mock_instance
+
+    with patch.dict("sys.modules", {"llama_cpp": mock_llama}):
+        orch = LlamaCppOrchestrator(model_path=str(dummy_model_1), strict_gpu=True, model_name="model1")
+        assert orch.load_model() is True
+        assert orch.model_name == "model1"
+
+        switched = orch.switch_model(str(dummy_model_2), model_name="qwen2.5-coder-3b")
+        assert switched is True
+        assert orch.model_path == str(dummy_model_2)
+        assert orch.model_name == "qwen2.5-coder-3b"
+
+def test_cli_model_commands(tmp_path):
+    """Verify KingdomCLI model management commands execute without crashing."""
+    from src.cli.terminal_ui import KingdomCLI
+    from unittest.mock import patch
+
+    with patch("src.utils.get_models_dir", return_value=tmp_path):
+        cli = KingdomCLI()
+        cli.show_models()
+        cli.switch_model_cli("qwen2.5-coder-3b")
+        assert cli.active_model_name == "qwen2.5-coder-1.5b"
+
 
 
 

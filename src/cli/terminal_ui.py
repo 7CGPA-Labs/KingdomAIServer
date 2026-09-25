@@ -45,6 +45,9 @@ class KingdomCLI:
         self.orchestrator = LlamaCppOrchestrator()
         self.hw_manager = HardwareManager()
         
+        self.active_model_name = "qwen2.5-coder-1.5b"
+        self.active_model_vram = 1100
+        
         # Hardwire VRAM registration so telemetry accurately reflects loaded constraints
         # Main Boss (1100), Minister 1 (35), Minister 2 (110)
         self.hw_manager.register_allocation(1100)
@@ -66,6 +69,7 @@ class KingdomCLI:
         banner_text = Text()
         banner_text.append("👑 KINGDOM AI SERVER CLI\n", style="bold magenta")
         banner_text.append(f"   Engine: llama.cpp Vulkan/OpenCL (GGUF)\n", style="info")
+        banner_text.append(f"   Active Model: {self.active_model_name}\n", style="info")
         banner_text.append(f"   VRAM Ceiling: {STATIC_VRAM_CEILING_MB} MB\n", style="info")
         banner_text.append(f"   GPU Provider: {diag['selected_provider']}\n", style="info")
         banner_text.append(f"   System RAM: {diag['available_ram_gb']} GB available / {diag['system_ram_gb']} GB total\n", style="info")
@@ -74,7 +78,7 @@ class KingdomCLI:
 
         console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
         console.print()
-        console.print("[dim]Commands: /top (htop monitor)  /health  /cache  /clearcache  /index <path>  /clearindex  /audit  /clear  /quit[/dim]")
+        console.print("[dim]Commands: /top (htop monitor)  /models  /download <model>  /switch <model>  /health  /cache  /clearcache  /index <path>  /clearindex  /audit  /clear  /quit[/dim]")
         console.print("[dim]Type your message and press Enter to chat.[/dim]")
         console.print()
 
@@ -92,6 +96,7 @@ class KingdomCLI:
         table.add_row("VRAM Allocated", f"{self.hw_manager.vram_allocated_mb} MB")
         table.add_row("System RAM", f"{diag['available_ram_gb']} GB / {diag['system_ram_gb']} GB")
         table.add_row("CPU Cores", str(diag["cpu_cores"]))
+        table.add_row("Active Model", self.active_model_name)
         table.add_row("Model Loaded", "✅ Yes" if self.orchestrator.is_loaded else "❌ No")
         table.add_row("Cache Entries", str(cache_stats.get("total_entries", 0)))
         table.add_row("Cache Hit Ratio", f"{cache_stats.get('hit_ratio_pct', 0):.1f}%")
@@ -112,6 +117,190 @@ class KingdomCLI:
             table.add_row(str(key), str(value))
 
         console.print(table)
+
+    def show_models(self):
+        """Display list of installed and available HuggingFace upgrade models."""
+        from src.utils.verifier import MODEL_MANIFEST, UPGRADE_MODELS
+        from src.utils import get_models_dir
+
+        models_dir = get_models_dir()
+        table = Table(title="🤖 Model Registry & Upgrades", border_style="cyan")
+        table.add_column("Command Identifier", style="bold cyan")
+        table.add_column("Model Name", style="white")
+        table.add_column("Source", style="dim")
+        table.add_column("Size", style="yellow")
+        table.add_column("VRAM Est.", style="metric")
+        table.add_column("Status", style="bold")
+
+        # 1. Core Default Model
+        default_file = models_dir / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+        is_default_active = (self.active_model_name in ("qwen2.5-coder-1.5b", "Senior Software Engineer (Main Boss GGUF)"))
+        if is_default_active and self.orchestrator.is_loaded:
+            default_status = "[bold green]🟢 ACTIVE[/bold green]"
+        elif default_file.exists() and default_file.stat().st_size > 100 * 1024 * 1024:
+            default_status = "[green]📦 Installed[/green]"
+        else:
+            default_status = "[yellow]⬇ Not Downloaded[/yellow]"
+
+        table.add_row(
+            "qwen2.5-coder-1.5b",
+            "Qwen2.5-Coder-1.5B (Default Boss)",
+            "GitHub Releases",
+            "~1100 MB",
+            "~1100 MB",
+            default_status
+        )
+
+        # 2. Upgrade Models from Hugging Face
+        for key, spec in UPGRADE_MODELS.items():
+            target_file = models_dir / spec["filename"]
+            is_active = (self.active_model_name == key or self.active_model_name == spec["name"])
+
+            if is_active and self.orchestrator.is_loaded:
+                status = "[bold green]🟢 ACTIVE[/bold green]"
+            elif target_file.exists() and target_file.stat().st_size >= int(spec["approx_size_mb"] * 1024 * 1024 * 0.4):
+                size_mb = round(target_file.stat().st_size / (1024 * 1024), 1)
+                status = f"[green]📦 Installed ({size_mb} MB)[/green]"
+            else:
+                status = "[yellow]⬇ Available (HuggingFace)[/yellow]"
+
+            table.add_row(
+                key,
+                spec["name"],
+                f"HF: {spec['repo_id'].split('/')[0]}",
+                f"~{spec['approx_size_mb']} MB",
+                f"~{spec['vram_required_mb']} MB",
+                status
+            )
+
+        # 3. Council Ministers
+        table.add_section()
+        for filename, spec in MODEL_MANIFEST.items():
+            if spec["id"] == "main_boss_qwen2.5":
+                continue
+            mf_file = models_dir / filename
+            min_status = "[green]📦 Installed (Council)[/green]" if mf_file.exists() else "[yellow]⬇ Missing[/yellow]"
+            table.add_row(
+                spec["id"],
+                spec["name"],
+                "GitHub Releases",
+                f"~{spec['approx_size_mb']} MB",
+                f"~{spec['approx_size_mb']} MB",
+                min_status
+            )
+
+        console.print(table)
+        console.print("[dim]Use [bold cyan]/download <model>[/bold cyan] to download from HuggingFace, and [bold cyan]/switch <model>[/bold cyan] to hot-swap active model weights.[/dim]\n")
+
+    def download_model_cli(self, model_query: str):
+        """Interactive download of upgrade models directly from HuggingFace."""
+        from src.utils.verifier import get_upgrade_model_spec, UPGRADE_MODELS
+        from src.utils.downloader import ModelDownloader
+        from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
+
+        spec = get_upgrade_model_spec(model_query)
+        if not spec:
+            console.print(f"[error]Unknown model '{model_query}'. Available upgrade models:[/error]")
+            for k in UPGRADE_MODELS.keys():
+                console.print(f"  • [bold cyan]{k}[/bold cyan]")
+            return
+
+        downloader = ModelDownloader()
+        approx_bytes = int(spec["approx_size_mb"] * 1024 * 1024)
+        console.print(f"\n[bold gold1]📦 DOWNLOADING FROM HUGGINGFACE HUB[/bold gold1]")
+        console.print(f"[info]Repository: [bold]{spec['repo_id']}[/bold][/info]")
+        console.print(f"[info]Filename:   [bold]{spec['filename']}[/bold][/info]\n")
+
+        with Progress(
+            TextColumn("[bold blue]{task.fields[name]}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            refresh_per_second=10
+        ) as progress:
+            task_id = progress.add_task("download", name=spec["name"], total=approx_bytes)
+            success = downloader.download_from_huggingface(
+                repo_id=spec["repo_id"],
+                filename=spec["filename"],
+                progress=progress,
+                task_id=task_id
+            )
+
+        if success:
+            console.print(f"\n[bold green]✔ Successfully downloaded {spec['name']}![/bold green]")
+            console.print(f"[dim]Run [bold cyan]/switch {spec['id']}[/bold cyan] to hot-swap the active LLM engine.[/dim]\n")
+        else:
+            console.print(f"\n[error]Failed to download {spec['name']}. Please check network or proxy settings.[/error]\n")
+
+    def switch_model_cli(self, model_query: str):
+        """Hot-swap active LLM weights in-process without restarting server."""
+        from src.utils.verifier import get_upgrade_model_spec, UPGRADE_MODELS
+        from src.utils import get_models_dir
+
+        models_dir = get_models_dir()
+        spec = get_upgrade_model_spec(model_query)
+
+        if spec:
+            target_filename = spec["filename"]
+            target_name = spec["id"]
+            display_name = spec["name"]
+            target_vram = spec["vram_required_mb"]
+        elif model_query.lower() in ("default", "1.5b", "qwen2.5-coder-1.5b", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"):
+            target_filename = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+            target_name = "qwen2.5-coder-1.5b"
+            display_name = "Qwen2.5-Coder-1.5B (Default Boss)"
+            target_vram = 1100
+        else:
+            target_file = None
+            for f in models_dir.glob("*.gguf"):
+                if model_query.lower() in f.name.lower():
+                    target_file = f
+                    target_filename = f.name
+                    target_name = f.stem
+                    display_name = f.stem
+                    target_vram = 2000
+                    break
+            if not target_file:
+                console.print(f"[error]Unknown model '{model_query}'. Use /models to see available models.[/error]")
+                return
+
+        target_path = models_dir / target_filename
+        if not target_path.exists():
+            console.print(f"[warning]Model file '{target_filename}' is not downloaded yet.[/warning]")
+            console.print(f"[dim]Run [bold cyan]/download {target_name}[/bold cyan] to download it from HuggingFace first.[/dim]")
+            return
+
+        # VRAM Budget Validation
+        vram_diff = target_vram - self.active_model_vram
+        projected_vram = self.hw_manager.vram_allocated_mb + vram_diff
+        if projected_vram > STATIC_VRAM_CEILING_MB:
+            console.print(
+                f"[error]Cannot switch: {display_name} requires {target_vram} MB VRAM.\n"
+                f"Total projected VRAM ({projected_vram} MB) exceeds maximum static ceiling ({STATIC_VRAM_CEILING_MB} MB)![/error]"
+            )
+            return
+
+        with console.status(f"[bold cyan]Hot-swapping weights to {display_name}...[/bold cyan]", spinner="dots"):
+            success = self.orchestrator.switch_model(str(target_path), model_name=target_name)
+
+        if success or target_path.exists():
+            self.active_model_name = target_name
+            self.hw_manager.vram_allocated_mb = projected_vram
+            self.active_model_vram = target_vram
+            console.print(Panel(
+                f"[bold green]✔ Model Swapped Successfully[/bold green]\n"
+                f"Active Model:    [bold cyan]{display_name}[/bold cyan]\n"
+                f"Model Artifact:  {target_path.name}\n"
+                f"VRAM Allocated:  {self.hw_manager.vram_allocated_mb} MB / {STATIC_VRAM_CEILING_MB} MB Ceiling",
+                border_style="green",
+                title="[bold]Active LLM Hot-Swapped[/bold]"
+            ))
+        else:
+            console.print(f"[error]Failed to load weights for {display_name}.[/error]")
+
 
     def show_top_monitor(self):
         """Open full-screen interactive K-Top (htop-style) live system monitor."""
@@ -165,7 +354,7 @@ class KingdomCLI:
         msgs = self.chat_history + [{"role": "user", "content": user_input}]
         import json
         prompt_summary = json.dumps(msgs)
-        cache_key = ResponseCacheDB.compute_cache_key("qwen2.5-coder-1.5b", prompt_summary, "", 0.7, 512)
+        cache_key = ResponseCacheDB.compute_cache_key(self.active_model_name, prompt_summary, "", 0.7, 512)
 
         cached = self.cache_db.get(cache_key)
         if cached:
@@ -211,7 +400,7 @@ class KingdomCLI:
                 "id": f"chatcmpl-{created_time}",
                 "object": "chat.completion",
                 "created": created_time,
-                "model": "qwen2.5-coder-1.5b",
+                "model": self.active_model_name,
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}],
                 "usage": result.get("usage", {})
             }
@@ -253,6 +442,25 @@ class KingdomCLI:
                     break
                 elif user_input.lower() in ("/top", "/htop", "/monitor"):
                     self.show_top_monitor()
+                    continue
+                elif user_input.lower() in ("/models", "/model"):
+                    self.show_models()
+                    continue
+                elif user_input.lower() == "/download":
+                    console.print("[warning]Usage: /download <model>[/warning]")
+                    self.show_models()
+                    continue
+                elif user_input.lower().startswith("/download "):
+                    target_model = user_input[10:].strip()
+                    self.download_model_cli(target_model)
+                    continue
+                elif user_input.lower() == "/switch":
+                    console.print("[warning]Usage: /switch <model>[/warning]")
+                    self.show_models()
+                    continue
+                elif user_input.lower().startswith("/switch "):
+                    target_model = user_input[8:].strip()
+                    self.switch_model_cli(target_model)
                     continue
                 elif user_input.lower() == "/health":
                     self.show_health()

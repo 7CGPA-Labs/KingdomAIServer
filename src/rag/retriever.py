@@ -14,6 +14,24 @@ class BGEReranker:
         self.model_path = model_path
         self.is_loaded = False
 
+    @property
+    def is_model_loaded(self) -> bool:
+        return self.is_loaded
+
+    def _load_session(self):
+        self.is_loaded = True
+
+    def score_pairs(self, query: str, documents: List[str]) -> List[float]:
+        """Compute relevance scores for query and document pairs."""
+        query_words = set(re.findall(r"\w+", query.lower()))
+        scores = []
+        for doc in documents:
+            doc_words = set(re.findall(r"\w+", doc.lower()))
+            overlap = len(query_words.intersection(doc_words))
+            score = (overlap / (len(query_words) or 1.0))
+            scores.append(round(min(1.0, max(0.0, score)), 4))
+        return scores
+
     def rerank(self, query: str, candidates: List[Dict[str, Any]], top_k: int = 3) -> List[Dict[str, Any]]:
         """
         Cross-evaluate [Query, Candidate] pairs and select top-k highest scoring chunks.

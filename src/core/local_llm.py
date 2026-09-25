@@ -26,13 +26,15 @@ class LlamaCppOrchestrator:
         model_path: Optional[str] = None,
         n_ctx: int = 32768,
         n_gpu_layers: int = -1,
-        strict_gpu: Optional[bool] = None
+        strict_gpu: Optional[bool] = None,
+        model_name: Optional[str] = None
     ):
         if model_path is None:
             self.model_path = str(get_models_dir() / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
         else:
             self.model_path = model_path
             
+        self.model_name = model_name or "qwen2.5-coder-1.5b"
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
         
@@ -48,7 +50,7 @@ class LlamaCppOrchestrator:
 
         self.is_loaded = False
         self._llm = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.layers_offloaded = 0
 
     def load_model(self) -> bool:
@@ -92,6 +94,27 @@ class LlamaCppOrchestrator:
                     return True
             except ImportError:
                 pass
+            return False
+
+    def switch_model(self, new_model_path: str, model_name: Optional[str] = None) -> bool:
+        """Dynamically switch model weights in-process with re-entrant lock safety."""
+        from pathlib import Path
+        with self._lock:
+            if self._llm is not None:
+                try:
+                    del self._llm
+                except Exception:
+                    pass
+                self._llm = None
+            self.is_loaded = False
+            self.model_path = str(new_model_path)
+            if model_name:
+                self.model_name = model_name
+            else:
+                self.model_name = Path(new_model_path).stem
+            logger.info("Switching Boss LLM model to %s (%s)", self.model_name, self.model_path)
+            if os.path.exists(self.model_path):
+                return self.load_model()
             return False
 
     def generate_completion(
@@ -194,7 +217,7 @@ class LlamaCppOrchestrator:
                             "id": f"chatcmpl-{created_time}",
                             "object": "chat.completion.chunk",
                             "created": created_time,
-                            "model": "qwen2.5-coder-1.5b",
+                            "model": self.model_name,
                             "choices": [{
                                 "index": 0,
                                 "delta": {"role": "assistant", "content": ""},
@@ -208,7 +231,7 @@ class LlamaCppOrchestrator:
                         "id": f"chatcmpl-{created_time}",
                         "object": "chat.completion.chunk",
                         "created": created_time,
-                        "model": "qwen2.5-coder-1.5b",
+                        "model": self.model_name,
                         "choices": [{
                             "index": 0,
                             "delta": {"content": delta_text},
@@ -219,7 +242,7 @@ class LlamaCppOrchestrator:
                     "id": f"chatcmpl-{created_time}",
                     "object": "chat.completion.chunk",
                     "created": created_time,
-                    "model": "qwen2.5-coder-1.5b",
+                    "model": self.model_name,
                     "choices": [{
                         "index": 0,
                         "delta": {},
@@ -231,7 +254,7 @@ class LlamaCppOrchestrator:
                     "id": f"chatcmpl-{created_time}",
                     "object": "chat.completion.chunk",
                     "created": created_time,
-                    "model": "qwen2.5-coder-1.5b",
+                    "model": self.model_name,
                     "choices": [{
                         "index": 0,
                         "delta": {"role": "assistant", "content": "GGUF runtime uninitialized. Please provision model weights."},

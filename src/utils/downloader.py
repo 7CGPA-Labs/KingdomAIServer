@@ -200,6 +200,136 @@ class ModelDownloader:
         logger.warning(f"Failed to download {target_filename} from GitHub: {errors}")
         return False
 
+    def download_from_huggingface(
+        self,
+        repo_id: str,
+        filename: str,
+        progress: Optional[Progress] = None,
+        task_id: Optional[Any] = None
+    ) -> bool:
+        """Download a GGUF model directly from HuggingFace Hub resolve/main streaming endpoint."""
+        from src.utils.verifier import get_upgrade_model_spec
+        
+        spec = get_upgrade_model_spec(filename)
+        if spec:
+            approx_size_mb = spec.get("approx_size_mb", 2000)
+            min_bytes = int(approx_size_mb * 1024 * 1024 * 0.4)
+            expected_bytes = int(approx_size_mb * 1024 * 1024)
+        else:
+            min_bytes = 1024
+            expected_bytes = 10 * 1024 * 1024
+        target_path = self.models_dir / filename
+
+        if target_path.exists() and (target_path.stat().st_size < min_bytes or self.is_html_block_page(target_path)):
+            try: target_path.unlink(missing_ok=True)
+            except Exception: pass
+
+        if target_path.exists() and target_path.stat().st_size >= min_bytes:
+            logger.info("Model %s already exists and is valid (%s MB)", filename, round(target_path.stat().st_size / (1024 * 1024), 2))
+            return True
+
+        download_url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+        temp_target = self.models_dir / f"{filename}.part"
+        if temp_target.exists():
+            try: temp_target.unlink(missing_ok=True)
+            except Exception: pass
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 KingdomAIServer/2.0 (HuggingFace Client)",
+            "Accept": "*/*"
+        }
+        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+
+        errors = []
+
+        # Strategy 1: urllib.request streaming with 302 redirect resolution
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(download_url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=600) as response:
+                if response.status in (200, 302, 307):
+                    total_bytes = int(response.headers.get("Content-Length", 0)) or expected_bytes
+                    if progress and task_id is not None:
+                        progress.update(task_id, total=total_bytes, completed=0)
+
+                    first_chunk = True
+                    with open(temp_target, "wb") as f:
+                        while True:
+                            chunk = response.read(1024 * 128)
+                            if not chunk:
+                                break
+                            if first_chunk:
+                                first_chunk = False
+                                if b"<!doctype html" in chunk[:512].lower() or b"<html" in chunk[:512].lower():
+                                    raise ValueError("HTML block or 404 page returned instead of GGUF binary")
+                            f.write(chunk)
+                            if progress and task_id is not None:
+                                progress.update(task_id, advance=len(chunk))
+
+                    if temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                        self._finalize_model_file(temp_target, filename)
+                        if progress and task_id is not None:
+                            size = target_path.stat().st_size
+                            progress.update(task_id, total=size, completed=size)
+                        return True
+        except Exception as e:
+            errors.append(f"urllib failed: {e}")
+            if temp_target.exists():
+                try: temp_target.unlink(missing_ok=True)
+                except Exception: pass
+
+        # Strategy 2: curl.exe streaming fallback with -L for redirects
+        try:
+            curl_cmd = ["curl.exe", "-L", "-k", "-s", "--retry", "5", "-C", "-", "-A", headers["User-Agent"], "-o", str(temp_target), download_url]
+            if hf_token:
+                curl_cmd.extend(["-H", f"Authorization: Bearer {hf_token}"])
+            proxy_env = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+            if proxy_env:
+                curl_cmd.extend(["--proxy", proxy_env])
+
+            proc = subprocess.Popen(curl_cmd)
+            if progress and task_id is not None:
+                progress.update(task_id, total=expected_bytes, completed=0)
+
+            last_size = 0
+            while proc.poll() is None:
+                time.sleep(0.2)
+                if temp_target.exists():
+                    curr_size = temp_target.stat().st_size
+                    delta = curr_size - last_size
+                    if delta > 0 and progress and task_id is not None:
+                        progress.update(task_id, advance=delta)
+                        last_size = curr_size
+
+            if proc.returncode == 0 and temp_target.exists() and temp_target.stat().st_size >= min_bytes and not self.is_html_block_page(temp_target):
+                self._finalize_model_file(temp_target, filename)
+                if progress and task_id is not None:
+                    size = target_path.stat().st_size
+                    progress.update(task_id, total=size, completed=size)
+                return True
+        except Exception as e:
+            errors.append(f"curl failed: {e}")
+            if temp_target.exists():
+                try: temp_target.unlink(missing_ok=True)
+                except Exception: pass
+
+        # Strategy 3: huggingface-cli fallback if available
+        try:
+            hf_cmd = ["huggingface-cli", "download", repo_id, filename, "--local-dir", str(self.models_dir)]
+            subprocess.run(hf_cmd, check=True, capture_output=True)
+            if target_path.exists() and target_path.stat().st_size >= min_bytes:
+                return True
+        except Exception as e:
+            errors.append(f"huggingface-cli fallback failed: {e}")
+
+        logger.warning(f"Failed to download {filename} from HuggingFace ({repo_id}): {errors}")
+        return False
+
+
     def auto_provision_missing(self) -> Dict[str, bool]:
         for filename in MODEL_RELEASES:
             target_path = self.models_dir / filename
