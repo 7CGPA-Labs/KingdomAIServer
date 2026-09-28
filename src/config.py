@@ -28,7 +28,16 @@ def ensure_data_directories() -> None:
     (DATA_DIR / "vectordb").mkdir(parents=True, exist_ok=True)
 
 def load_yaml_config(file_name: str) -> Dict[str, Any]:
-    """Load a YAML file from the config directory."""
+    """Load a YAML file from the config directory with user override support."""
+    # Check user-space config directory override first (e.g. %LocalAppData%\KingdomAIServer\config\model_config.yaml)
+    user_config_path = get_base_dir() / "config" / file_name
+    if user_config_path.exists():
+        try:
+            with open(user_config_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
     if APP_ROOT.is_file() and APP_ROOT.suffix == '.pyz':
         import zipfile
         try:

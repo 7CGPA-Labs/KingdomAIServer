@@ -39,12 +39,16 @@ class LlamaCppOrchestrator:
         self.n_gpu_layers = n_gpu_layers
         
         if strict_gpu is None:
-            try:
-                from src.config import get_model_config
-                cfg = get_model_config()
-                self.strict_gpu = cfg.get("hardware", {}).get("strict_gpu", True)
-            except Exception:
-                self.strict_gpu = True
+            if os.environ.get("KINGDOM_CPU_MODE") == "1" or os.environ.get("KINGDOM_STRICT_GPU") == "0":
+                self.strict_gpu = False
+                self.n_gpu_layers = 0
+            else:
+                try:
+                    from src.config import get_model_config
+                    cfg = get_model_config()
+                    self.strict_gpu = cfg.get("hardware", {}).get("strict_gpu", True)
+                except Exception:
+                    self.strict_gpu = True
         else:
             self.strict_gpu = strict_gpu
 
@@ -72,15 +76,16 @@ class LlamaCppOrchestrator:
                             "    pip install --force-reinstall --prefer-binary https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl\n"
                             "  • For NVIDIA RTX/GTX (CUDA):\n"
                             "    pip install --force-reinstall --prefer-binary https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl\n"
-                            "  • To allow CPU fallback, set 'strict_gpu: false' in config/model_config.yaml."
+                            "  • To allow CPU fallback, set 'strict_gpu: false' in config/model_config.yaml or set KINGDOM_CPU_MODE=1."
                         )
                         logger.error(err_msg)
                         raise GPUOffloadRequiredError(err_msg)
 
+                    layers_to_offload = self.n_gpu_layers if supports_gpu else 0
                     self._llm = llama_cpp.Llama(
                         model_path=self.model_path,
                         n_ctx=self.n_ctx,
-                        n_gpu_layers=self.n_gpu_layers,
+                        n_gpu_layers=layers_to_offload,
                         verbose=False
                     )
                     # Enable Prefix & KV RAM Cache (capacity 512 MB) for sub-15ms keystroke prefill
@@ -89,8 +94,11 @@ class LlamaCppOrchestrator:
                     except Exception:
                         pass
                     self.is_loaded = True
-                    self.layers_offloaded = self.n_gpu_layers
-                    logger.info("Successfully loaded GGUF model with strict GPU offload (n_gpu_layers=%s)", self.n_gpu_layers)
+                    self.layers_offloaded = layers_to_offload
+                    if supports_gpu:
+                        logger.info("Successfully loaded GGUF model with strict GPU offload (n_gpu_layers=%s)", layers_to_offload)
+                    else:
+                        logger.info("Successfully loaded GGUF model in CPU mode (n_gpu_layers=0)")
                     return True
             except ImportError:
                 pass

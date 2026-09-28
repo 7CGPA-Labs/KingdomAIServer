@@ -908,5 +908,40 @@ def test_dynamic_telemetry_and_dashboard_metrics():
     assert gauges_panel is not None
 
 
+def test_cpu_mode_environment_and_execution(tmp_path):
+    """Verify orchestrator adapts to CPU-only execution (e.g. Intel Xeon / AVD / cloud VM)."""
+    import os
+    from unittest.mock import MagicMock, patch
+    from src.core.local_llm import LlamaCppOrchestrator
+
+    dummy_model = tmp_path / "test_cpu_model.gguf"
+    dummy_model.write_bytes(b"dummy gguf cpu weights")
+
+    # When KINGDOM_CPU_MODE=1 is set
+    with patch.dict(os.environ, {"KINGDOM_CPU_MODE": "1"}):
+        orch = LlamaCppOrchestrator(model_path=str(dummy_model))
+        assert orch.strict_gpu is False
+        assert orch.n_gpu_layers == 0
+
+        # CPU runtime (llama_supports_gpu_offload() == False)
+        mock_cpu_llama = MagicMock()
+        mock_cpu_llama.llama_supports_gpu_offload.return_value = False
+        mock_instance = MagicMock()
+        mock_cpu_llama.Llama.return_value = mock_instance
+
+        with patch.dict("sys.modules", {"llama_cpp": mock_cpu_llama}):
+            loaded = orch.load_model()
+            assert loaded is True
+            assert orch.is_loaded is True
+            assert orch.layers_offloaded == 0
+            mock_cpu_llama.Llama.assert_called_once_with(
+                model_path=str(dummy_model),
+                n_ctx=32768,
+                n_gpu_layers=0,
+                verbose=False
+            )
+
+
+
 
 
