@@ -88,58 +88,201 @@ if (-not $Deployed) {
 # 3. Setup Python virtual environment & package installation
 Write-Host "[4/5] Setting up Python virtual environment & Dependencies..." -ForegroundColor Cyan
 
-if (Get-Command python -ErrorAction SilentlyContinue) {
-    if (-not (Test-Path "$InstallDir\venv\Scripts\python.exe")) {
-        Write-Host "Initializing user-space Python virtual environment at $InstallDir\venv..." -ForegroundColor Yellow
-        python -m venv "$InstallDir\venv"
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --upgrade pip setuptools -q
-    }
-    
-    Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
-    & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil jinja2
-    
-    Write-Host "Installing llama-cpp-python GGUF engine with GPU/iGPU acceleration..." -ForegroundColor Yellow
-    
-    # Auto-detect graphics hardware for optimized wheel selection (e.g. Intel Iris Xe, NVIDIA, AMD)
-    $detectedGpu = ""
-    try {
-        $gpuObj = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -First 1
-        $detectedGpu = $gpuObj.Name
-    } catch {}
-    
-    Write-Host "Detected Graphics Hardware: $detectedGpu" -ForegroundColor Cyan
-    
-    $vulkanWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
-    $cudaWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
-    $cpuWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
-    
-    $targetWheel = $vulkanWheel
-    if ($detectedGpu -match "NVIDIA|GeForce|RTX|GTX") {
-        Write-Host "NVIDIA discrete GPU detected. Selecting CUDA wheel ($cudaWheel)..." -ForegroundColor Green
-        $targetWheel = $cudaWheel
-    } else {
-        Write-Host "Intel Iris Xe / Arc / AMD / Generic GPU detected. Selecting Vulkan wheel ($vulkanWheel)..." -ForegroundColor Green
-        $targetWheel = $vulkanWheel
-    }
-    
-    Write-Host "Downloading and installing pre-built GPU wheel ($targetWheel)..." -ForegroundColor Cyan
-    & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $targetWheel
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[WARN] Selected GPU wheel installation failed. Trying Vulkan wheel fallback..." -ForegroundColor Yellow
-        & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $vulkanWheel
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[WARN] Vulkan wheel failed. Falling back to CPU wheel..." -ForegroundColor Yellow
-            & "$InstallDir\venv\Scripts\python.exe" -m pip install --prefer-binary $cpuWheel
+$VenvPython = "$InstallDir\venv\Scripts\python.exe"
+
+# If venv folder exists but python.exe is missing, clean up broken venv directory
+if ((Test-Path "$InstallDir\venv") -and (-not (Test-Path $VenvPython))) {
+    Write-Host "[WARN] Cleaning up previously incomplete/corrupted venv directory..." -ForegroundColor Yellow
+    Remove-Item -Path "$InstallDir\venv" -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# Discover all candidate Python installations on the system
+$pythonCandidates = @()
+
+# 1. Official Windows py launcher
+if (Get-Command py -ErrorAction SilentlyContinue) {
+    $pythonCandidates += "py -3.12"
+    $pythonCandidates += "py -3.11"
+    $pythonCandidates += "py -3.10"
+    $pythonCandidates += "py -3"
+}
+
+# 2. System PATH pythons (exclude WindowsApps redirect stubs and existing venvs)
+$wherePythons = where.exe python 2>$null
+if ($wherePythons) {
+    foreach ($wp in $wherePythons) {
+        if ($wp -notmatch "WindowsApps" -and $wp -notmatch "KingdomAIServer\\venv") {
+            $pythonCandidates += $wp
         }
     }
-    
-    # Verify GPU offloading capability
-    $gpuCheck = & "$InstallDir\venv\Scripts\python.exe" -c "import llama_cpp; print(getattr(llama_cpp, 'llama_supports_gpu_offload', lambda: False)())"
-    if ($gpuCheck -eq "True") {
-        Write-Host "[SUCCESS] llama-cpp-python verified with active GPU offloading support!" -ForegroundColor Green
-    } else {
-        Write-Host "[WARN] llama-cpp-python is running in CPU mode. For Intel Iris Xe / NVIDIA, install the Vulkan or CUDA wheel." -ForegroundColor Yellow
+}
+
+# 3. Primary active Python command
+$activePy = (Get-Command python -ErrorAction SilentlyContinue).Source
+if ($activePy -and ($activePy -notmatch "WindowsApps") -and ($activePy -notmatch "KingdomAIServer\\venv")) {
+    $pythonCandidates += $activePy
+}
+
+# 4. Standard Python directories
+$commonGlobs = @(
+    "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
+    "C:\Python3*\python.exe",
+    "$env:ProgramFiles\Python3*\python.exe",
+    "${env:ProgramFiles(x86)}\Python3*\python.exe"
+)
+foreach ($glob in $commonGlobs) {
+    $found = Get-Item -Path $glob -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+    if ($found) {
+        $pythonCandidates += $found
     }
+}
+
+$uniqueCandidates = $pythonCandidates | Select-Object -Unique
+
+# Attempt to initialize virtual environment
+if (-not (Test-Path $VenvPython)) {
+    Write-Host "Initializing user-space Python virtual environment at $InstallDir\venv..." -ForegroundColor Yellow
+
+    foreach ($py in $uniqueCandidates) {
+        Write-Host "Checking Python candidate: $py ..." -ForegroundColor Cyan
+
+        # Helper to execute command with arguments
+        $runPy = {
+            param($cmdStr, $argsList)
+            if ($cmdStr -match "^py\s") {
+                $parts = $cmdStr -split "\s+"
+                & $parts[0] $parts[1] @argsList
+            } else {
+                & $cmdStr @argsList
+            }
+        }
+
+        # Step A: Check if candidate has standard 'venv' module
+        $hasVenv = $false
+        try {
+            & $runPy $py @("-c", "import venv; print('OK')") 2>$null | Out-Null
+            $hasVenv = ($LASTEXITCODE -eq 0)
+        } catch {
+            $hasVenv = $false
+        }
+
+        if ($hasVenv) {
+            Write-Host "Creating venv using standard 'venv' module from $py..." -ForegroundColor Green
+            try {
+                & $runPy $py @("-m", "venv", "$InstallDir\venv")
+            } catch {}
+
+            if (Test-Path $VenvPython) {
+                Write-Host "[OK] Virtual environment created successfully!" -ForegroundColor Green
+                break
+            }
+        }
+
+        # Step B: If standard venv is missing (e.g. minimal or embeddable python), check for virtualenv
+        Write-Host "Candidate $py lacks standard 'venv' module. Checking for 'virtualenv'..." -ForegroundColor Yellow
+        $hasVirtualEnv = $false
+        try {
+            & $runPy $py @("-c", "import virtualenv; print('OK')") 2>$null | Out-Null
+            $hasVirtualEnv = ($LASTEXITCODE -eq 0)
+        } catch {
+            $hasVirtualEnv = $false
+        }
+
+        if (-not $hasVirtualEnv) {
+            # Try installing virtualenv via pip
+            try {
+                & $runPy $py @("-m", "pip", "install", "--upgrade", "virtualenv", "-q") 2>$null
+                $hasVirtualEnv = ($LASTEXITCODE -eq 0)
+            } catch {}
+        }
+
+        if ($hasVirtualEnv) {
+            Write-Host "Creating venv using 'virtualenv' module from $py..." -ForegroundColor Green
+            try {
+                & $runPy $py @("-m", "virtualenv", "$InstallDir\venv")
+            } catch {}
+
+            if (Test-Path $VenvPython) {
+                Write-Host "[OK] Virtual environment created successfully via virtualenv!" -ForegroundColor Green
+                break
+            }
+        }
+    }
+}
+
+# Strict validation: Abort if venv creation failed
+if (-not (Test-Path $VenvPython)) {
+    Write-Host ""
+    Write-Host "======================================================================" -ForegroundColor Red
+    Write-Host "[ERROR] Could not initialize Python virtual environment at $InstallDir\venv!" -ForegroundColor Red
+    Write-Host "======================================================================" -ForegroundColor Red
+    Write-Host "Reason: Your installed Python is missing the standard 'venv' module" -ForegroundColor Yellow
+    Write-Host "        (this commonly occurs with embeddable, stripped, or pre-release zip packages)." -ForegroundColor Yellow
+    Write-Host "Checked candidates: $($uniqueCandidates -join ' ; ')" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "HOW TO RESOLVE:" -ForegroundColor Cyan
+    Write-Host "  1. Download and install standard Python (Python 3.11 or 3.12 recommended) from:" -ForegroundColor White
+    Write-Host "     https://www.python.org/downloads/" -ForegroundColor White
+    Write-Host "  2. In the installer wizard, ensure you check:" -ForegroundColor White
+    Write-Host "     [x] Add python.exe to PATH" -ForegroundColor Green
+    Write-Host "     [x] pip" -ForegroundColor Green
+    Write-Host "     [x] Install standard library features (venv / tcl)" -ForegroundColor Green
+    Write-Host "  3. Re-run this installation command in PowerShell." -ForegroundColor White
+    Write-Host "======================================================================" -ForegroundColor Red
+    exit 1
+}
+
+# At this point, $VenvPython is guaranteed to exist
+Write-Host "Upgrading pip and setuptools inside venv..." -ForegroundColor Yellow
+& $VenvPython -m pip install --upgrade pip setuptools -q
+
+Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
+& $VenvPython -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil jinja2
+
+Write-Host "Installing llama-cpp-python GGUF engine with GPU/iGPU acceleration..." -ForegroundColor Yellow
+
+# Auto-detect graphics hardware (filter out virtual display mirror drivers such as DameWare, RDP, VirtualBox)
+$allGpuControllers = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+$physicalGpus = $allGpuControllers | Where-Object { 
+    $_.Name -and ($_.Name -notmatch "Mirror|DameWare|RDP|Remote|VirtualBox|VMware|Basic Display|IddSampleDriver|Citrix")
+}
+if (-not $physicalGpus) {
+    $physicalGpus = $allGpuControllers
+}
+$detectedGpu = ($physicalGpus | ForEach-Object { $_.Name }) -join " / "
+
+Write-Host "Detected Graphics Hardware: $detectedGpu" -ForegroundColor Cyan
+
+$vulkanWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+$cudaWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+$cpuWheel = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl"
+
+$targetWheel = $vulkanWheel
+if ($detectedGpu -match "NVIDIA|GeForce|RTX|GTX") {
+    Write-Host "NVIDIA discrete GPU detected. Selecting CUDA wheel ($cudaWheel)..." -ForegroundColor Green
+    $targetWheel = $cudaWheel
+} else {
+    Write-Host "Intel Iris Xe / Arc / AMD / Generic GPU detected. Selecting Vulkan wheel ($vulkanWheel)..." -ForegroundColor Green
+    $targetWheel = $vulkanWheel
+}
+
+Write-Host "Downloading and installing pre-built GPU wheel ($targetWheel)..." -ForegroundColor Cyan
+& $VenvPython -m pip install --prefer-binary $targetWheel
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Selected GPU wheel installation failed. Trying Vulkan wheel fallback..." -ForegroundColor Yellow
+    & $VenvPython -m pip install --prefer-binary $vulkanWheel
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARN] Vulkan wheel failed. Falling back to CPU wheel..." -ForegroundColor Yellow
+        & $VenvPython -m pip install --prefer-binary $cpuWheel
+    }
+}
+
+# Verify GPU offloading capability
+$gpuCheck = & $VenvPython -c "import llama_cpp; print(getattr(llama_cpp, 'llama_supports_gpu_offload', lambda: False)())"
+if ($gpuCheck -eq "True") {
+    Write-Host "[SUCCESS] llama-cpp-python verified with active GPU offloading support!" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] llama-cpp-python is running in CPU mode. For Intel Iris Xe / NVIDIA, install the Vulkan or CUDA wheel." -ForegroundColor Yellow
 }
 
 # Generate localized venv-aware cmd wrappers
