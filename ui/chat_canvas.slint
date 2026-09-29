@@ -16,10 +16,14 @@ export component ChatCanvas inherits Rectangle {
     in property <bool> is-generating: false;
     in property <string> streaming-text: "";
     in-out property <bool> show-slash-menu: false;
+    in-out property <bool> show-mention-menu: false;
+    in-out property <string> active-mode: "normal"; // "normal", "plan", "goal"
 
     callback send-message(string);
     callback stop-generation();
     callback slash-command-chosen(string);
+    callback mention-chosen(string);
+    callback mode-changed(string);
     callback clear-chat();
 
     background: AntigravityTheme.background-canvas;
@@ -28,9 +32,9 @@ export component ChatCanvas inherits Rectangle {
         padding: AntigravityTheme.spacing-lg;
         spacing: AntigravityTheme.spacing-md;
 
-        // Top Canvas Controls Bar
+        // Top Canvas Controls Bar (Header + Mode Switcher Pill)
         Rectangle {
-            height: 38px;
+            height: 42px;
             background: AntigravityTheme.background-surface;
             border-radius: AntigravityTheme.radius-sm;
             border-width: 1px;
@@ -42,21 +46,81 @@ export component ChatCanvas inherits Rectangle {
                 alignment: space-between;
 
                 HorizontalLayout {
-                    spacing: AntigravityTheme.spacing-sm;
+                    spacing: AntigravityTheme.spacing-md;
                     alignment: center;
 
                     Text {
-                        text: "💬 Active Pair Programming Session";
+                        text: "💬 Chat Canvas";
                         color: AntigravityTheme.text-primary;
                         font-size: 13px;
                         font-weight: 700;
                         vertical-alignment: center;
                     }
+
+                    // Mode Switcher Pill (Normal | Plan | Goal)
+                    Rectangle {
+                        height: 28px;
+                        width: 220px;
+                        background: AntigravityTheme.background-input;
+                        border-radius: AntigravityTheme.radius-sm;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        HorizontalLayout {
+                            padding: 2px;
+                            spacing: 2px;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: AntigravityTheme.radius-sm;
+                                background: root.active-mode == "normal" ? AntigravityTheme.background-active : transparent;
+                                TouchArea { clicked => { root.active-mode = "normal"; root.mode-changed("normal"); } }
+                                Text {
+                                    text: "Normal";
+                                    color: root.active-mode == "normal" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: AntigravityTheme.radius-sm;
+                                background: root.active-mode == "plan" ? AntigravityTheme.background-active : transparent;
+                                TouchArea { clicked => { root.active-mode = "plan"; root.mode-changed("plan"); } }
+                                Text {
+                                    text: "Plan";
+                                    color: root.active-mode == "plan" ? AntigravityTheme.accent-magenta : AntigravityTheme.text-muted;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                border-radius: AntigravityTheme.radius-sm;
+                                background: root.active-mode == "goal" ? AntigravityTheme.background-active : transparent;
+                                TouchArea { clicked => { root.active-mode = "goal"; root.mode-changed("goal"); } }
+                                Text {
+                                    text: "Goal";
+                                    color: root.active-mode == "goal" ? AntigravityTheme.status-success : AntigravityTheme.text-muted;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Rectangle {
-                    width: 80px;
-                    height: 24px;
+                    width: 86px;
+                    height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: clr-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
                     y: (parent.height - self.height) / 2;
@@ -69,6 +133,7 @@ export component ChatCanvas inherits Rectangle {
                         text: "Clear Canvas";
                         color: clr-touch.has-hover ? AntigravityTheme.status-warning : AntigravityTheme.text-muted;
                         font-size: 11px;
+                        font-weight: 600;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -174,9 +239,106 @@ export component ChatCanvas inherits Rectangle {
             }
         }
 
-        // Floating Slash Commands Popup
+        // Floating Mention Menu (@ Mention Popup)
+        if root.show-mention-menu: Rectangle {
+            height: 190px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.accent-magenta;
+            clip: true;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-sm;
+                spacing: 2px;
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-bottom: 4px;
+
+                    Text {
+                        text: "MENTION CONTEXT (@)";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 9px;
+                        font-weight: 700;
+                    }
+                }
+
+                Rectangle {
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: m1-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    m1-t := TouchArea { clicked => { root.mention-chosen("@workspace"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "📁 @workspace — Active workspace files and symbols"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Context"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: m2-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    m2-t := TouchArea { clicked => { root.mention-chosen("@git"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "🌿 @git — Git status, current branch & staged diffs"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "VCS"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: m3-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    m3-t := TouchArea { clicked => { root.mention-chosen("@rules"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "📋 @rules — AGENTS.md & project coding instructions"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Rules"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: m4-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    m4-t := TouchArea { clicked => { root.mention-chosen("@council"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "🏛️ @council — Boss LLM, BGE Embedder & Reranker state"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Council"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: m5-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    m5-t := TouchArea { clicked => { root.mention-chosen("@mcp"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "🔌 @mcp — Model Context Protocol active tool providers"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Tools"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+            }
+        }
+
+        // Floating Slash Commands Popup (Antigravity 2.0 Command Palette)
         if root.show-slash-menu: Rectangle {
-            height: 180px;
+            height: 240px;
             background: AntigravityTheme.background-surface;
             border-radius: AntigravityTheme.radius-md;
             border-width: 1px;
@@ -192,7 +354,7 @@ export component ChatCanvas inherits Rectangle {
                     padding-bottom: 4px;
 
                     Text {
-                        text: "COMMAND PALETTE (Click to execute)";
+                        text: "SLASH COMMAND PALETTE (Antigravity 2.0)";
                         color: AntigravityTheme.text-muted;
                         font-size: 9px;
                         font-weight: 700;
@@ -200,62 +362,98 @@ export component ChatCanvas inherits Rectangle {
                 }
 
                 Rectangle {
-                    height: 28px;
+                    height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: cmd1-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    cmd1-touch := TouchArea { clicked => { root.slash-command-chosen("/top"); } }
-
+                    background: c-goal.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-goal := TouchArea { clicked => { root.slash-command-chosen("/goal"); } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
+                        Text { text: "🎯 /goal — Autonomous execution until objective is achieved"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Mode"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 25px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: c-plan.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-plan := TouchArea { clicked => { root.slash-command-chosen("/plan"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
+                        Text { text: "📋 /plan — Step-by-step architectural execution plan"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Planning"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 25px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: c-grill.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-grill := TouchArea { clicked => { root.slash-command-chosen("/grill-me"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
+                        Text { text: "🔥 /grill-me — Interactive interview to clarify requirements"; color: AntigravityTheme.status-warning; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Interview"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 25px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: c-sched.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-sched := TouchArea { clicked => { root.slash-command-chosen("/schedule"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
+                        Text { text: "⏱️ /schedule — Schedule recurring cron or one-shot timer"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Automation"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 25px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: c-top.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-top := TouchArea { clicked => { root.slash-command-chosen("/top"); } }
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📊 /top — Open K-Top Silicon & Telemetry Dashboard"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Telemetry"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
                 }
 
                 Rectangle {
-                    height: 28px;
+                    height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: cmd2-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    cmd2-touch := TouchArea { clicked => { root.slash-command-chosen("/models"); } }
-
+                    background: c-mod.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-mod := TouchArea { clicked => { root.slash-command-chosen("/models"); } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📦 /models — Open Model Hub (Download & Hot-Swap)"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Engine"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
                 }
 
                 Rectangle {
-                    height: 28px;
+                    height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: cmd3-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    cmd3-touch := TouchArea { clicked => { root.slash-command-chosen("/cache"); } }
-
+                    background: c-cache.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-cache := TouchArea { clicked => { root.slash-command-chosen("/cache"); } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "⚡ /cache — Inspect SQLite WAL Response Cache"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Cache"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
                 }
 
                 Rectangle {
-                    height: 28px;
+                    height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: cmd4-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    cmd4-touch := TouchArea { clicked => { root.slash-command-chosen("/audit"); } }
-
+                    background: c-health.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    c-health := TouchArea { clicked => { root.slash-command-chosen("/health"); } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
-                        Text { text: "🔍 /audit — Native Tree-sitter AST Vulnerability Scan"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
-                        Text { text: "Security"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
+                        Text { text: "🏥 /health — Run Silicon, VRAM & Council Health Check"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Diagnostics"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
                 }
             }
@@ -275,6 +473,26 @@ export component ChatCanvas inherits Rectangle {
                 spacing: AntigravityTheme.spacing-sm;
                 alignment: center;
 
+                // Mode Indicator Pill
+                Rectangle {
+                    width: 58px;
+                    height: 24px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-mode == "normal" ? AntigravityTheme.accent-cyan.transparentize(85%) : (root.active-mode == "plan" ? AntigravityTheme.accent-magenta.transparentize(85%) : AntigravityTheme.status-success.transparentize(85%));
+                    border-width: 1px;
+                    border-color: root.active-mode == "normal" ? AntigravityTheme.accent-cyan.transparentize(50%) : (root.active-mode == "plan" ? AntigravityTheme.accent-magenta.transparentize(50%) : AntigravityTheme.status-success.transparentize(50%));
+
+                    Text {
+                        text: root.active-mode == "normal" ? "Normal" : (root.active-mode == "plan" ? "Plan" : "Goal");
+                        color: root.active-mode == "normal" ? AntigravityTheme.accent-cyan : (root.active-mode == "plan" ? AntigravityTheme.accent-magenta : AntigravityTheme.status-success);
+                        font-size: 10px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Quick Slash / Button
                 Rectangle {
                     width: 28px;
                     height: 28px;
@@ -282,13 +500,40 @@ export component ChatCanvas inherits Rectangle {
                     background: slash-btn-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
 
                     slash-btn-touch := TouchArea {
-                        clicked => { root.show-slash-menu = !root.show-slash-menu; }
+                        clicked => {
+                            root.show-slash-menu = !root.show-slash-menu;
+                            root.show-mention-menu = false;
+                        }
                     }
 
                     Text {
                         text: "/";
                         color: AntigravityTheme.accent-cyan;
                         font-size: 16px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Quick Mention @ Button
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: at-btn-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
+
+                    at-btn-touch := TouchArea {
+                        clicked => {
+                            root.show-mention-menu = !root.show-mention-menu;
+                            root.show-slash-menu = false;
+                        }
+                    }
+
+                    Text {
+                        text: "@";
+                        color: AntigravityTheme.accent-magenta;
+                        font-size: 15px;
                         font-weight: 800;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -307,6 +552,7 @@ export component ChatCanvas inherits Rectangle {
                             root.send-message(root.prompt-text);
                             root.prompt-text = "";
                             root.show-slash-menu = false;
+                            root.show-mention-menu = false;
                         }
                     }
                 }
@@ -325,6 +571,7 @@ export component ChatCanvas inherits Rectangle {
                                 root.send-message(root.prompt-text);
                                 root.prompt-text = "";
                                 root.show-slash-menu = false;
+                                root.show-mention-menu = false;
                             }
                         }
                     }

@@ -9,10 +9,11 @@ export struct SessionItem {
 
 export component LeftSidebar inherits Rectangle {
     in property <string> active-nav: "chat";
-    in property <string> active-workspace: "No Workspace Selected";
+    in property <string> active-workspace: "KingdomAIServer";
     in property <[SessionItem]> sessions: [
-        { id: "1", title: "Refactor telemetry meters", timestamp: "Today" },
-        { id: "2", title: "Add Intel Iris Xe Vulkan wheel", timestamp: "Yesterday" }
+        { id: "1", title: "Active pair programming session", timestamp: "Active" },
+        { id: "2", title: "Refactor telemetry meters", timestamp: "Today" },
+        { id: "3", title: "Add Intel Iris Xe Vulkan wheel", timestamp: "Yesterday" }
     ];
 
     callback nav-selected(string);
@@ -27,13 +28,13 @@ export component LeftSidebar inherits Rectangle {
         padding: AntigravityTheme.spacing-md;
         spacing: AntigravityTheme.spacing-md;
 
-        // Top Brand Header
+        // Top Brand Header (Antigravity 2.0 Brand & New Chat)
         HorizontalLayout {
             spacing: AntigravityTheme.spacing-sm;
             alignment: space-between;
 
             HorizontalLayout {
-                spacing: AntigravityTheme.spacing-sm;
+                spacing: AntigravityTheme.spacing-xs;
                 alignment: center;
 
                 Text {
@@ -43,11 +44,30 @@ export component LeftSidebar inherits Rectangle {
                 }
 
                 Text {
-                    text: "Kingdom Studio";
+                    text: "Kingdom";
                     color: AntigravityTheme.text-primary;
                     font-size: 15px;
                     font-weight: 800;
                     vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 32px;
+                    height: 18px;
+                    border-radius: 9px;
+                    background: AntigravityTheme.accent-cyan.transparentize(80%);
+                    border-width: 1px;
+                    border-color: AntigravityTheme.accent-cyan.transparentize(50%);
+                    y: (parent.height - self.height) / 2;
+
+                    Text {
+                        text: "2.0";
+                        color: AntigravityTheme.accent-cyan;
+                        font-size: 9px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
                 }
             }
 
@@ -56,6 +76,8 @@ export component LeftSidebar inherits Rectangle {
                 height: 28px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: new-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-input;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
 
                 new-touch := TouchArea {
                     clicked => { root.new-chat-clicked(); }
@@ -72,13 +94,56 @@ export component LeftSidebar inherits Rectangle {
             }
         }
 
-        // Navigation Menu
-        VerticalLayout {
-            spacing: AntigravityTheme.spacing-xs;
+        // Active Workspace Card
+        Rectangle {
+            height: 52px;
+            border-radius: AntigravityTheme.radius-sm;
+            background: ws-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-input;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
 
-            // Chat Tab
+            ws-touch := TouchArea {
+                clicked => { root.select-workspace-clicked(); }
+            }
+
+            VerticalLayout {
+                padding-left: AntigravityTheme.spacing-sm;
+                padding-right: AntigravityTheme.spacing-sm;
+                alignment: center;
+                spacing: 2px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "ACTIVE WORKSPACE";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 9px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "📁 switch";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 9px;
+                    }
+                }
+
+                Text {
+                    text: root.active-workspace;
+                    color: AntigravityTheme.accent-cyan;
+                    font-size: 12px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // Navigation Menu (Antigravity 2.0 Suite)
+        VerticalLayout {
+            spacing: 2px;
+
+            // 1. Chat Tab
             Rectangle {
-                height: 36px;
+                height: 34px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: root.active-nav == "chat" ? AntigravityTheme.background-active : (chat-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
 
@@ -87,30 +152,106 @@ export component LeftSidebar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: AntigravityTheme.spacing-md;
-                    padding-right: AntigravityTheme.spacing-md;
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
                     spacing: AntigravityTheme.spacing-sm;
                     alignment: start;
 
+                    Text { text: "💬"; font-size: 13px; vertical-alignment: center; }
                     Text {
-                        text: "💬";
-                        font-size: 13px;
-                        vertical-alignment: center;
-                    }
-
-                    Text {
-                        text: "Chat & Agent Canvas";
+                        text: "Chat & Canvas";
                         color: root.active-nav == "chat" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
-                        font-size: 13px;
+                        font-size: 12px;
                         font-weight: root.active-nav == "chat" ? 700 : 500;
                         vertical-alignment: center;
                     }
                 }
             }
 
-            // Models Hub Tab
+            // 2. Projects Tab
             Rectangle {
-                height: 36px;
+                height: 34px;
+                border-radius: AntigravityTheme.radius-sm;
+                background: root.active-nav == "projects" ? AntigravityTheme.background-active : (projects-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+
+                projects-touch := TouchArea {
+                    clicked => { root.nav-selected("projects"); }
+                }
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
+                    spacing: AntigravityTheme.spacing-sm;
+                    alignment: start;
+
+                    Text { text: "📁"; font-size: 13px; vertical-alignment: center; }
+                    Text {
+                        text: "Projects & Repos";
+                        color: root.active-nav == "projects" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                        font-size: 12px;
+                        font-weight: root.active-nav == "projects" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // 3. Scheduled Tasks Tab
+            Rectangle {
+                height: 34px;
+                border-radius: AntigravityTheme.radius-sm;
+                background: root.active-nav == "tasks" ? AntigravityTheme.background-active : (tasks-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+
+                tasks-touch := TouchArea {
+                    clicked => { root.nav-selected("tasks"); }
+                }
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
+                    spacing: AntigravityTheme.spacing-sm;
+                    alignment: start;
+
+                    Text { text: "⏱️"; font-size: 13px; vertical-alignment: center; }
+                    Text {
+                        text: "Scheduled Tasks";
+                        color: root.active-nav == "tasks" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                        font-size: 12px;
+                        font-weight: root.active-nav == "tasks" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // 4. Skills & Customizations Tab
+            Rectangle {
+                height: 34px;
+                border-radius: AntigravityTheme.radius-sm;
+                background: root.active-nav == "skills" ? AntigravityTheme.background-active : (skills-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+
+                skills-touch := TouchArea {
+                    clicked => { root.nav-selected("skills"); }
+                }
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
+                    spacing: AntigravityTheme.spacing-sm;
+                    alignment: start;
+
+                    Text { text: "🧩"; font-size: 13px; vertical-alignment: center; }
+                    Text {
+                        text: "Skills & Customizations";
+                        color: root.active-nav == "skills" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                        font-size: 12px;
+                        font-weight: root.active-nav == "skills" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // 5. Models Hub Tab
+            Rectangle {
+                height: 34px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: root.active-nav == "models" ? AntigravityTheme.background-active : (models-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
 
@@ -119,30 +260,25 @@ export component LeftSidebar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: AntigravityTheme.spacing-md;
-                    padding-right: AntigravityTheme.spacing-md;
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
                     spacing: AntigravityTheme.spacing-sm;
                     alignment: start;
 
-                    Text {
-                        text: "📦";
-                        font-size: 13px;
-                        vertical-alignment: center;
-                    }
-
+                    Text { text: "📦"; font-size: 13px; vertical-alignment: center; }
                     Text {
                         text: "Models Hub";
                         color: root.active-nav == "models" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
-                        font-size: 13px;
+                        font-size: 12px;
                         font-weight: root.active-nav == "models" ? 700 : 500;
                         vertical-alignment: center;
                     }
                 }
             }
 
-            // K-Top Telemetry Tab
+            // 6. K-Top Telemetry Tab
             Rectangle {
-                height: 36px;
+                height: 34px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: root.active-nav == "ktop" ? AntigravityTheme.background-active : (ktop-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
 
@@ -151,30 +287,25 @@ export component LeftSidebar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: AntigravityTheme.spacing-md;
-                    padding-right: AntigravityTheme.spacing-md;
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
                     spacing: AntigravityTheme.spacing-sm;
                     alignment: start;
 
-                    Text {
-                        text: "📊";
-                        font-size: 13px;
-                        vertical-alignment: center;
-                    }
-
+                    Text { text: "📊"; font-size: 13px; vertical-alignment: center; }
                     Text {
                         text: "K-Top Telemetry";
                         color: root.active-nav == "ktop" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
-                        font-size: 13px;
+                        font-size: 12px;
                         font-weight: root.active-nav == "ktop" ? 700 : 500;
                         vertical-alignment: center;
                     }
                 }
             }
 
-            // Settings Tab
+            // 7. Settings Tab
             Rectangle {
-                height: 36px;
+                height: 34px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: root.active-nav == "settings" ? AntigravityTheme.background-active : (settings-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
 
@@ -183,58 +314,19 @@ export component LeftSidebar inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    padding-left: AntigravityTheme.spacing-md;
-                    padding-right: AntigravityTheme.spacing-md;
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
                     spacing: AntigravityTheme.spacing-sm;
                     alignment: start;
 
+                    Text { text: "⚙️"; font-size: 13px; vertical-alignment: center; }
                     Text {
-                        text: "⚙️";
-                        font-size: 13px;
-                        vertical-alignment: center;
-                    }
-
-                    Text {
-                        text: "Settings & Hardware";
+                        text: "Settings & Policies";
                         color: root.active-nav == "settings" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
-                        font-size: 13px;
+                        font-size: 12px;
                         font-weight: root.active-nav == "settings" ? 700 : 500;
                         vertical-alignment: center;
                     }
-                }
-            }
-        }
-
-        // Active Workspace Card
-        Rectangle {
-            height: 52px;
-            border-radius: AntigravityTheme.radius-sm;
-            background: AntigravityTheme.background-input;
-            border-width: 1px;
-            border-color: AntigravityTheme.border-subtle;
-
-            TouchArea {
-                clicked => { root.select-workspace-clicked(); }
-            }
-
-            VerticalLayout {
-                padding: AntigravityTheme.spacing-sm;
-                alignment: center;
-                spacing: 2px;
-
-                Text {
-                    text: "ACTIVE WORKSPACE";
-                    color: AntigravityTheme.text-muted;
-                    font-size: 9px;
-                    font-weight: 700;
-                }
-
-                Text {
-                    text: root.active-workspace;
-                    color: AntigravityTheme.accent-cyan;
-                    font-size: 11px;
-                    font-weight: 600;
-                    overflow: elide;
                 }
             }
         }

@@ -277,3 +277,73 @@ def test_download_worker_already_installed(tmp_path):
     assert len(completed) == 1
     assert completed[0][0] is True
     assert "already installed" in completed[0][1]
+
+
+def test_app_controller_antigravity_slash_commands():
+    """Verify Antigravity 2.0 slash commands (/goal, /plan, /grill-me, /schedule, /browser, /learn, /boost)."""
+    ctrl = AppController(auto_start_telemetry=False)
+
+    # 1. /goal
+    ctrl.on_execute_command("/goal")
+    assert ctrl.window.active_mode == "goal"
+    assert "Goal Mode Activated" in ctrl.window.chat_messages[-1]["content"]
+
+    # 2. /plan
+    ctrl.on_execute_command("/plan")
+    assert ctrl.window.active_mode == "plan"
+    assert ctrl.window.aux_active_tab == "artifacts"
+    assert "Planning Mode Activated" in ctrl.window.chat_messages[-1]["content"]
+
+    # 3. /grill-me
+    ctrl.on_execute_command("/grill-me")
+    assert "Interactive Interview Mode" in ctrl.window.chat_messages[-1]["content"]
+
+    # 4. /schedule
+    ctrl.on_execute_command("/schedule")
+    assert ctrl.window.active_nav == "tasks"
+    assert "Scheduled Tasks & Background Automation" in ctrl.window.chat_messages[-1]["content"]
+
+    # 5. /browser
+    ctrl.on_execute_command("/browser")
+    assert "Headless Browser Research Tool" in ctrl.window.chat_messages[-1]["content"]
+
+    # 6. /learn
+    ctrl.on_execute_command("/learn")
+    assert "Pattern Learned & Persisted" in ctrl.window.chat_messages[-1]["content"]
+
+    # 7. /boost
+    ctrl.on_execute_command("/boost")
+    assert "Boost Mode Enabled" in ctrl.window.chat_messages[-1]["content"]
+
+
+def test_app_controller_modes_and_mentions():
+    """Verify mode switching and mention insertion callbacks."""
+    ctrl = AppController(auto_start_telemetry=False)
+
+    ctrl.on_set_mode("plan")
+    assert ctrl.window.active_mode == "plan"
+
+    ctrl.on_set_mode("goal")
+    assert ctrl.window.active_mode == "goal"
+
+    ctrl.on_set_mode("normal")
+    assert ctrl.window.active_mode == "normal"
+
+    # Mention insertion into prompt_text
+    ctrl.window.prompt_text = "Analyze"
+    ctrl.on_mention_resource("@workspace")
+    assert "@workspace" in ctrl.window.prompt_text
+
+
+def test_app_controller_scheduled_tasks():
+    """Verify task trigger and cancellation callbacks."""
+    ctrl = AppController(auto_start_telemetry=False)
+    initial_len = len(ctrl.window.chat_messages)
+
+    ctrl.on_trigger_task("task-cron-1")
+    assert len(ctrl.window.chat_messages) == initial_len + 1
+    assert "task-cron-1" in ctrl.window.chat_messages[-1]["content"]
+
+    ctrl.on_cancel_task("task-cron-2")
+    assert len(ctrl.window.chat_messages) == initial_len + 2
+    assert "Cancelled task `task-cron-2`" in ctrl.window.chat_messages[-1]["content"]

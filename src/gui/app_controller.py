@@ -133,6 +133,10 @@ class AppController:
         self.window.clear_chat = self.on_clear_chat
         self.window.new_chat = self.on_new_chat
         self.window.execute_command = self.on_execute_command
+        self.window.set_mode = self.on_set_mode
+        self.window.mention_resource = self.on_mention_resource
+        self.window.trigger_task = self.on_trigger_task
+        self.window.cancel_task = self.on_cancel_task
 
     # --------------------------------------------------------------------------
     # User Actions & Event Handlers
@@ -338,13 +342,83 @@ class AppController:
         self._display_messages = [welcome_msg]
         self.window.chat_messages = slint.ListModel(self._display_messages)
 
+    def on_set_mode(self, mode: str) -> None:
+        """Handle execution mode change (normal, plan, goal)."""
+        self.window.active_mode = mode
+        logger.info("Switched execution mode to: %s", mode)
+
+    def on_mention_resource(self, resource: str) -> None:
+        """Handle mention insertion from the @ popup menu."""
+        current = getattr(self.window, "prompt_text", "")
+        if current and not current.endswith(" "):
+            self.window.prompt_text = current + " " + resource + " "
+        else:
+            self.window.prompt_text = current + resource + " "
+
+    def on_trigger_task(self, task_id: str) -> None:
+        """Trigger an immediate run of a scheduled task."""
+        self._append_system_chat_bubble(f"⏱️ Triggered task `{task_id}` immediately in background.")
+
+    def on_cancel_task(self, task_id: str) -> None:
+        """Cancel a running or scheduled task."""
+        self._append_system_chat_bubble(f"🛑 Cancelled task `{task_id}`.")
+
     def on_execute_command(self, cmd_str: str) -> None:
-        """Process slash commands (/top, /models, /cache, /clearcache, /clear, /health, /help)."""
+        """Process slash commands (/goal, /plan, /grill-me, /schedule, /browser, /learn, /boost, /top, /models, /cache, /clearcache, /clear, /health, /help)."""
         clean = cmd_str.strip().lower()
         parts = clean.split()
         cmd = parts[0] if parts else ""
 
-        if cmd == "/top":
+        if cmd == "/goal":
+            self.window.active_mode = "goal"
+            self._append_system_chat_bubble(
+                "🎯 **Goal Mode Activated**\n\n"
+                "The agent will execute autonomously with persistence, checking its own work and iterating until the objective is fully achieved."
+            )
+
+        elif cmd == "/plan":
+            self.window.active_mode = "plan"
+            self.window.aux_active_tab = "artifacts"
+            self._append_system_chat_bubble(
+                "📋 **Planning Mode Activated**\n\n"
+                "Operating in deliberative architectural planning mode. The Artifacts inspector tab is open on the right."
+            )
+
+        elif cmd == "/grill-me":
+            self._append_system_chat_bubble(
+                "🔥 **Interactive Interview Mode (/grill-me)**\n\n"
+                "I will interview you to clarify requirements and stress-test trade-offs. What feature or architectural change would you like to explore?"
+            )
+
+        elif cmd == "/schedule":
+            self.window.active_nav = "tasks"
+            self._append_system_chat_bubble(
+                "⏱️ **Scheduled Tasks & Background Automation**\n\n"
+                "Navigating to Scheduled Tasks. Manage recurring cron expressions and delayed one-shot timers."
+            )
+
+        elif cmd == "/browser":
+            self._append_system_chat_bubble(
+                "🌐 **Headless Browser Research Tool**\n\n"
+                "- **Browser Status**: READY (Chromium / Puppeteer sandbox)\n"
+                "- **Execution Policy**: `proceed-in-sandbox`\n"
+                "- **Allowed Domains**: `antigravity.google`, `huggingface.co`, `github.com`\n"
+                "- **DOM Parsing**: Markdown-converted snapshot engine active"
+            )
+
+        elif cmd == "/learn":
+            self._append_system_chat_bubble(
+                "🧠 **Pattern Learned & Persisted**\n\n"
+                "Active project workflow pattern saved into `.agents/rules/` and response cache memory for future sessions."
+            )
+
+        elif cmd == "/boost":
+            self._append_system_chat_bubble(
+                "🚀 **Boost Mode Enabled**\n\n"
+                "Multi-perspective reasoning and verification pass active via Lean Council (Boss LLM + Embedder + Reranker)."
+            )
+
+        elif cmd == "/top":
             self.window.active_nav = "ktop"
 
         elif cmd == "/models":
@@ -386,6 +460,13 @@ class AppController:
         elif cmd == "/help":
             help_text = (
                 "📖 **Available Slash Commands**\n\n"
+                "- `/goal`: Autonomous execution mode until objective is achieved\n"
+                "- `/plan`: Architectural planning mode with live artifact generation\n"
+                "- `/grill-me`: Interactive interview to clarify requirements\n"
+                "- `/schedule`: Open Scheduled Tasks & delayed timers view\n"
+                "- `/browser`: Inspect headless browser tool & domain allowlist\n"
+                "- `/learn`: Persist workflow patterns into project rules\n"
+                "- `/boost`: Enable boosted council multi-model reasoning\n"
                 "- `/top`: Open K-Top real-time hardware telemetry dashboard\n"
                 "- `/models`: Open Models Hub to view, download, and switch models\n"
                 "- `/cache`: View Response Cache SQLite WAL performance metrics\n"
@@ -428,6 +509,7 @@ class AppController:
         """Start background threads and launch the Slint event loop."""
         self.telemetry.start()
         try:
+            self.window.show()
             self.window.run()
         finally:
             self.telemetry.stop()

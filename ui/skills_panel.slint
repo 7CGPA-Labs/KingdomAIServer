@@ -1,0 +1,265 @@
+import { AntigravityTheme } from "theme.slint";
+import { StatusBadge } from "components/badge.slint";
+
+export struct SkillCardItem {
+    id: string,
+    name: string,
+    category: string, // "skill", "rule", "mcp"
+    scope: string,    // "Global" or "Workspace"
+    status: string,   // "ACTIVE", "LOADED", "STANDBY"
+    description: string,
+    tools-count: int,
+}
+
+export component SkillsPanel inherits Rectangle {
+    in-out property <string> active-filter: "all"; // "all", "skills", "rules", "mcp"
+    in property <[SkillCardItem]> items: [
+        {
+            id: "skill-agy-customizations",
+            name: "agy-customizations",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Antigravity Customization System guide for skills, rules, plugins, hooks, and MCP servers.",
+            tools-count: 4
+        },
+        {
+            id: "skill-antigravity-guide",
+            name: "antigravity-guide",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Comprehensive guide, slash commands, keybindings, and reference for Antigravity 2.0.",
+            tools-count: 6
+        },
+        {
+            id: "skill-code-implementer",
+            name: "code-implementer",
+            category: "skill",
+            scope: "Workspace",
+            status: "ACTIVE",
+            description: "High-precision code refactorer and multi-file implementation agent persona.",
+            tools-count: 5
+        },
+        {
+            id: "rule-agents-md",
+            name: "AGENTS.md (Root Guidelines)",
+            category: "rule",
+            scope: "Workspace",
+            status: "LOADED",
+            description: "Hierarchy rules: Keep responses concise, verify code changes with pytest, maintain VRAM <= 6.00 GB.",
+            tools-count: 0
+        },
+        {
+            id: "mcp-filesystem",
+            name: "mcp-local-filesystem",
+            category: "mcp",
+            scope: "Global",
+            status: "CONNECTED",
+            description: "Model Context Protocol stdio transport for safe workspace file operations.",
+            tools-count: 8
+        },
+        {
+            id: "mcp-ast-tools",
+            name: "mcp-treesitter-ast",
+            category: "mcp",
+            scope: "Workspace",
+            status: "CONNECTED",
+            description: "Structural code parser and symbol graph extractor using native Tree-sitter AST.",
+            tools-count: 3
+        }
+    ];
+
+    callback toggle-filter(string);
+    callback reload-customizations();
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: AntigravityTheme.spacing-lg;
+        spacing: AntigravityTheme.spacing-md;
+
+        // Header Title
+        HorizontalLayout {
+            alignment: space-between;
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: "🧩 Skills, Rules & MCP Customizations";
+                    color: AntigravityTheme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                }
+                Text {
+                    text: "Unified Antigravity customization engine: progressive skills, hierarchical rules, and MCP tools.";
+                    color: AntigravityTheme.text-secondary;
+                    font-size: 12px;
+                }
+            }
+
+            Rectangle {
+                width: 140px;
+                height: 36px;
+                border-radius: AntigravityTheme.radius-sm;
+                background: btn-reload.has-hover ? AntigravityTheme.accent-cyan.transparentize(20%) : AntigravityTheme.accent-cyan;
+
+                btn-reload := TouchArea {
+                    clicked => { root.reload-customizations(); }
+                }
+
+                Text {
+                    text: "↻ Reload All";
+                    color: #000000;
+                    font-size: 12px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Filter Pills Bar
+        Rectangle {
+            height: 38px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-sm;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
+
+            HorizontalLayout {
+                padding: 4px;
+                spacing: 6px;
+
+                Rectangle {
+                    width: 90px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-filter == "all" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "all"; root.toggle-filter("all"); } }
+                    Text { text: "All (6)"; color: root.active-filter == "all" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                }
+
+                Rectangle {
+                    width: 110px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-filter == "skills" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "skills"; root.toggle-filter("skills"); } }
+                    Text { text: "⚡ Skills (3)"; color: root.active-filter == "skills" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                }
+
+                Rectangle {
+                    width: 110px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-filter == "rules" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "rules"; root.toggle-filter("rules"); } }
+                    Text { text: "📋 Rules (1)"; color: root.active-filter == "rules" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                }
+
+                Rectangle {
+                    width: 130px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-filter == "mcp" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "mcp"; root.toggle-filter("mcp"); } }
+                    Text { text: "🔌 MCP Servers (2)"; color: root.active-filter == "mcp" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                }
+            }
+        }
+
+        // Customizations Card Container
+        Rectangle {
+            vertical-stretch: 1;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-sm;
+
+                Text {
+                    text: "DISCOVERED EXTENSIONS & CAPABILITIES";
+                    color: AntigravityTheme.text-muted;
+                    font-size: 10px;
+                    font-weight: 700;
+                }
+
+                for item in root.items: Rectangle {
+                    height: 72px;
+                    background: AntigravityTheme.background-input;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    HorizontalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        alignment: space-between;
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                spacing: AntigravityTheme.spacing-sm;
+                                alignment: start;
+
+                                Text {
+                                    text: item.name;
+                                    color: AntigravityTheme.text-primary;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
+
+                                StatusBadge {
+                                    text: item.status;
+                                    badge-color: item.status == "ACTIVE" || item.status == "CONNECTED" ? AntigravityTheme.status-success : AntigravityTheme.accent-cyan;
+                                    y: (parent.height - self.height) / 2;
+                                }
+
+                                Text {
+                                    text: "Scope: " + item.scope;
+                                    color: AntigravityTheme.accent-magenta;
+                                    font-size: 10px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Text {
+                                text: item.description;
+                                color: AntigravityTheme.text-secondary;
+                                font-size: 11px;
+                                overflow: elide;
+                                width: 620px;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: AntigravityTheme.spacing-sm;
+                            alignment: center;
+
+                            Rectangle {
+                                width: 85px;
+                                height: 28px;
+                                border-radius: AntigravityTheme.radius-sm;
+                                background: AntigravityTheme.background-surface;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+
+                                Text {
+                                    text: item.tools-count > 0 ? (item.tools-count + " tools") : "Guidelines";
+                                    color: AntigravityTheme.text-secondary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

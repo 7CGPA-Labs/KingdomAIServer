@@ -1,22 +1,27 @@
 import { AntigravityTheme } from "theme.slint";
 import { LeftSidebar, SessionItem } from "sidebar.slint";
 import { ChatCanvas, ChatMessage } from "chat_canvas.slint";
-import { AuxiliaryPane } from "auxiliary_pane.slint";
+import { AuxiliaryPane, DiffLineItem } from "auxiliary_pane.slint";
 import { ModelsHubView, ModelCardItem } from "models_hub.slint";
 import { KTopDashboardView } from "ktop_panel.slint";
+import { TasksPanel, ScheduledTaskItem } from "tasks_panel.slint";
+import { SkillsPanel, SkillCardItem } from "skills_panel.slint";
+import { ProjectsPanel, ProjectItem } from "projects_panel.slint";
 import { StatusBadge } from "components/badge.slint";
 
 export component MainWindow inherits Window {
-    title: "Kingdom AI Studio V3 - On-Device AI Coding Assistant";
+    title: "Kingdom AI Studio V3 - On-Device AI Coding Assistant (Antigravity 2.0)";
     min-width: 1100px;
     min-height: 720px;
-    preferred-width: 1280px;
-    preferred-height: 840px;
+    preferred-width: 1300px;
+    preferred-height: 860px;
     background: AntigravityTheme.background-canvas;
 
     // Navigation & View State
     in-out property <string> active-nav: "chat";
     in-out property <string> active-workspace: "KingdomAIServer";
+    in-out property <string> active-mode: "normal"; // "normal", "plan", "goal"
+    in-out property <string> aux-active-tab: "council"; // "council", "tasks", "artifacts", "diffs", "telemetry"
 
     // Silicon & Model Telemetry
     in-out property <string> active-model: "Qwen 2.5 Coder 1.5B";
@@ -65,6 +70,121 @@ export component MainWindow inherits Window {
         { id: "1", title: "Active pair programming session", timestamp: "Active" }
     ];
 
+    // Scheduled Tasks List
+    in-out property <[ScheduledTaskItem]> scheduled-tasks: [
+        {
+            id: "task-cron-1",
+            name: "Telemetry & VRAM Watchdog",
+            schedule: "*/5 * * * *",
+            task-type: "cron",
+            status: "ACTIVE",
+            last-run: "2 mins ago",
+            next-run: "in 3 mins",
+            prompt: "Audit VRAM ceiling <= 6.00 GB and flush expired KV cache"
+        },
+        {
+            id: "task-cron-2",
+            name: "Workspace Git Sync & Health Check",
+            schedule: "0 * * * *",
+            task-type: "cron",
+            status: "SCHEDULED",
+            last-run: "45 mins ago",
+            next-run: "in 15 mins",
+            prompt: "Verify git status and AST integrity of changed files"
+        }
+    ];
+
+    // Customization Skills & Rules
+    in-out property <[SkillCardItem]> skills-list: [
+        {
+            id: "skill-agy-customizations",
+            name: "agy-customizations",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Antigravity Customization System guide for skills, rules, plugins, hooks, and MCP servers.",
+            tools-count: 4
+        },
+        {
+            id: "skill-antigravity-guide",
+            name: "antigravity-guide",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Comprehensive guide, slash commands, keybindings, and reference for Antigravity 2.0.",
+            tools-count: 6
+        },
+        {
+            id: "skill-code-implementer",
+            name: "code-implementer",
+            category: "skill",
+            scope: "Workspace",
+            status: "ACTIVE",
+            description: "High-precision code refactorer and multi-file implementation agent persona.",
+            tools-count: 5
+        },
+        {
+            id: "rule-agents-md",
+            name: "AGENTS.md (Root Guidelines)",
+            category: "rule",
+            scope: "Workspace",
+            status: "LOADED",
+            description: "Hierarchy rules: Keep responses concise, verify code changes with pytest, maintain VRAM <= 6.00 GB.",
+            tools-count: 0
+        },
+        {
+            id: "mcp-filesystem",
+            name: "mcp-local-filesystem",
+            category: "mcp",
+            scope: "Global",
+            status: "CONNECTED",
+            description: "Model Context Protocol stdio transport for safe workspace file operations.",
+            tools-count: 8
+        },
+        {
+            id: "mcp-ast-tools",
+            name: "mcp-treesitter-ast",
+            category: "mcp",
+            scope: "Workspace",
+            status: "CONNECTED",
+            description: "Structural code parser and symbol graph extractor using native Tree-sitter AST.",
+            tools-count: 3
+        }
+    ];
+
+    // Projects List
+    in-out property <[ProjectItem]> projects-list: [
+        {
+            id: "proj-1",
+            name: "KingdomAIServer",
+            path: "C:/Users/gagan/Projects/KingdomAIServer",
+            branch: "main",
+            is-active: true,
+            last-opened: "Now"
+        },
+        {
+            id: "proj-2",
+            name: "7CGPA-Labs-Core",
+            path: "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+            branch: "main",
+            is-active: false,
+            last-opened: "Yesterday"
+        }
+    ];
+
+    // Inspector Artifacts & Diffs State
+    in-out property <string> artifact-title: "Stage 2 Antigravity 2.0 Plan";
+    in-out property <string> artifact-summary: "Implement pixel-to-pixel Antigravity 2.0 desktop layout with Slint zero-server runtime.";
+    in-out property <string> diff-file: "ui/app.slint";
+    in-out property <[DiffLineItem]> diff-lines: [
+        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: 15, prefix: "-", content: "    // Legacy single tab inspector" },
+        { line-number: 15, prefix: "+", content: "    // Antigravity 2.0 5-Tab Auxiliary Inspector" },
+        { line-number: 16, prefix: "+", content: "    AuxiliaryPane {" },
+        { line-number: 17, prefix: "+", content: "        active-tab: root.aux-tab;" },
+        { line-number: 18, prefix: " ", content: "    }" }
+    ];
+
     // User Action Callbacks (bound to Python AppController)
     callback send-message(string);
     callback stop-generation();
@@ -75,6 +195,10 @@ export component MainWindow inherits Window {
     callback clear-chat();
     callback new-chat();
     callback execute-command(string);
+    callback set-mode(string);
+    callback mention-resource(string);
+    callback trigger-task(string);
+    callback cancel-task(string);
 
     VerticalLayout {
         spacing: 0px;
@@ -114,30 +238,49 @@ export component MainWindow inherits Window {
                     messages: root.chat-messages;
                     is-generating: root.is-generating;
                     streaming-text: root.streaming-text;
+                    active-mode <=> root.active-mode;
 
                     send-message(p) => { root.send-message(p); }
                     stop-generation => { root.stop-generation(); }
                     clear-chat => { root.clear-chat(); }
+                    mode-changed(m) => { root.set-mode(m); }
+                    mention-chosen(m) => { root.mention-resource(m); }
                     slash-command-chosen(cmd) => {
                         if cmd == "/top" {
                             root.active-nav = "ktop";
                         } else if cmd == "/models" {
                             root.active-nav = "models";
-                        } else if cmd == "/cache" {
-                            // Focus cache tab
+                        } else if cmd == "/schedule" {
+                            root.active-nav = "tasks";
+                        } else if cmd == "/plan" {
+                            root.active-mode = "plan";
+                            root.aux-active-tab = "artifacts";
+                            root.execute-command(cmd);
+                        } else if cmd == "/goal" {
+                            root.active-mode = "goal";
+                            root.execute-command(cmd);
                         } else {
                             root.execute-command(cmd);
                         }
                     }
                 }
 
-                // 3. Right Auxiliary Inspector (Docked in Chat view)
+                // 3. Right Auxiliary Inspector (5 Antigravity 2.0 Tabs)
                 AuxiliaryPane {
+                    active-tab <=> root.aux-active-tab;
                     boss-name: root.active-model;
                     boss-status: root.boss-status;
                     m1-status: root.m1-status;
                     m2-status: root.m2-status;
                     ast-status: root.ast-status;
+
+                    worker-state: root.is-generating ? "Generating" : (root.is-downloading ? "Downloading" : "Idle");
+                    active-subagents-count: 0;
+
+                    artifact-title: root.artifact-title;
+                    artifact-summary: root.artifact-summary;
+                    diff-file: root.diff-file;
+                    diff-lines: root.diff-lines;
 
                     cpu-progress: root.cpu-pct / 100.0;
                     cpu-text: Math.round(root.cpu-pct) + "%";
@@ -152,6 +295,44 @@ export component MainWindow inherits Window {
                     cache-hit-ratio: root.cache-hit-ratio;
 
                     purge-cache-clicked => { root.purge-cache(); }
+                }
+            }
+
+            if root.active-nav == "projects": ProjectsPanel {
+                horizontal-stretch: 1;
+                projects: root.projects-list;
+                select-project(id) => {
+                    root.active-workspace = "KingdomAIServer";
+                    root.active-nav = "chat";
+                }
+                open-folder-clicked => {
+                    root.select-workspace();
+                }
+            }
+
+            if root.active-nav == "tasks": TasksPanel {
+                horizontal-stretch: 1;
+                tasks: root.scheduled-tasks;
+                create-task-clicked => {
+                    // Open prompt or pre-populate schedule
+                    root.execute-command("/schedule");
+                }
+                trigger-task-clicked(id) => {
+                    root.trigger-task(id);
+                }
+                cancel-task-clicked(id) => {
+                    root.cancel-task(id);
+                }
+            }
+
+            if root.active-nav == "skills": SkillsPanel {
+                horizontal-stretch: 1;
+                items: root.skills-list;
+                toggle-filter(f) => {
+                    // Filter handled declaratively or via controller
+                }
+                reload-customizations => {
+                    root.execute-command("/health");
                 }
             }
 
@@ -219,6 +400,24 @@ export component MainWindow inherits Window {
 
                             HorizontalLayout {
                                 alignment: space-between;
+                                Text { text: "Tool Execution Sandbox"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: "proceed-in-sandbox (Safe Isolation)"; color: AntigravityTheme.status-success; font-size: 13px; font-weight: 700; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Non-Workspace File Access"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: "ask (Review external changes)"; color: AntigravityTheme.status-warning; font-size: 13px; font-weight: 700; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Internet Access Policy"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: "allow (HuggingFace & Documentation)"; color: AntigravityTheme.status-success; font-size: 13px; font-weight: 700; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: space-between;
                                 Text { text: "KV Cache In-Memory RAM Allocation"; color: AntigravityTheme.text-secondary; font-size: 13px; }
                                 Text { text: "512 MB (Fast Key-Value Cache)"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; }
                             }
@@ -226,7 +425,7 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 alignment: space-between;
                                 Text { text: "Architecture Surface"; color: AntigravityTheme.text-secondary; font-size: 13px; }
-                                Text { text: "Google Antigravity Clone (100% In-Process)"; color: AntigravityTheme.accent-magenta; font-size: 13px; font-weight: 700; }
+                                Text { text: "Google Antigravity 2.0 Layout (100% In-Process)"; color: AntigravityTheme.accent-magenta; font-size: 13px; font-weight: 700; }
                             }
                         }
                     }

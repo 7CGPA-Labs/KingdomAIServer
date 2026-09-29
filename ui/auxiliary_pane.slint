@@ -2,21 +2,46 @@ import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
 import { ProgressMeter } from "components/progress_meter.slint";
 
+export struct DiffLineItem {
+    line-number: int,
+    prefix: string, // "+", "-", " "
+    content: string,
+}
+
 export component AuxiliaryPane inherits Rectangle {
-    in property <string> active-tab: "council";
+    in-out property <string> active-tab: "council"; // "council", "tasks", "artifacts", "diffs", "telemetry"
 
     // Council stats
     in property <string> boss-name: "Qwen 2.5 Coder 1.5B";
     in property <string> boss-status: "ACTIVE";
     in property <string> m1-status: "ACTIVE";
-    in property <string> m2-status: "STANDBY";
+    in property <string> m2-status: "ACTIVE";
     in property <string> ast-status: "READY";
 
+    // Tasks & Subagents stats
+    in property <string> worker-state: "Idle";
+    in property <int> active-subagents-count: 0;
+
+    // Artifacts stats
+    in property <string> artifact-title: "Stage 2 Antigravity 2.0 Plan";
+    in property <string> artifact-summary: "Implement pixel-to-pixel Antigravity 2.0 desktop layout with Slint zero-server runtime.";
+
+    // Diffs stats
+    in property <string> diff-file: "ui/app.slint";
+    in property <[DiffLineItem]> diff-lines: [
+        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: 15, prefix: "-", content: "    // Legacy single tab inspector" },
+        { line-number: 15, prefix: "+", content: "    // Antigravity 2.0 5-Tab Auxiliary Inspector" },
+        { line-number: 16, prefix: "+", content: "    AuxiliaryPane {" },
+        { line-number: 17, prefix: "+", content: "        active-tab: root.aux-tab;" },
+        { line-number: 18, prefix: " ", content: "    }" }
+    ];
+
     // Telemetry stats
-    in property <float> cpu-progress: 0.35;
-    in property <string> cpu-text: "35.2%";
-    in property <float> ram-progress: 0.42;
-    in property <string> ram-text: "6.8 / 16.0 GB";
+    in property <float> cpu-progress: 0.25;
+    in property <string> cpu-text: "25.0%";
+    in property <float> ram-progress: 0.36;
+    in property <string> ram-text: "5.8 / 16.0 GB";
     in property <float> vram-progress: 0.35;
     in property <string> vram-text: "2.14 / 6.00 GB";
     in property <float> speed-tokens-sec: 34.5;
@@ -29,14 +54,14 @@ export component AuxiliaryPane inherits Rectangle {
     callback tab-changed(string);
     callback purge-cache-clicked();
 
-    width: 310px;
+    width: 320px;
     background: AntigravityTheme.background-surface;
 
     VerticalLayout {
         padding: AntigravityTheme.spacing-md;
         spacing: AntigravityTheme.spacing-md;
 
-        // Tab Switcher
+        // 5-Tab Switcher Bar (Antigravity 2.0 Inspector Tabs)
         Rectangle {
             height: 34px;
             background: AntigravityTheme.background-input;
@@ -50,12 +75,49 @@ export component AuxiliaryPane inherits Rectangle {
                     horizontal-stretch: 1;
                     border-radius: AntigravityTheme.radius-sm;
                     background: root.active-tab == "council" ? AntigravityTheme.background-active : transparent;
-                    TouchArea { clicked => { root.tab-changed("council"); } }
+                    TouchArea { clicked => { root.active-tab = "council"; root.tab-changed("council"); } }
                     Text {
-                        text: "🏛️ Council";
-                        color: root.active-tab == "council" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
-                        font-size: 11px;
-                        font-weight: 700;
+                        text: "🏛️";
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-tab == "tasks" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-tab = "tasks"; root.tab-changed("tasks"); } }
+                    Text {
+                        text: "⏱️";
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-tab == "artifacts" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-tab = "artifacts"; root.tab-changed("artifacts"); } }
+                    Text {
+                        text: "📑";
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: root.active-tab == "diffs" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-tab = "diffs"; root.tab-changed("diffs"); } }
+                    Text {
+                        text: "🔄";
+                        font-size: 13px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -65,27 +127,10 @@ export component AuxiliaryPane inherits Rectangle {
                     horizontal-stretch: 1;
                     border-radius: AntigravityTheme.radius-sm;
                     background: root.active-tab == "telemetry" ? AntigravityTheme.background-active : transparent;
-                    TouchArea { clicked => { root.tab-changed("telemetry"); } }
+                    TouchArea { clicked => { root.active-tab = "telemetry"; root.tab-changed("telemetry"); } }
                     Text {
-                        text: "💻 K-Top";
-                        color: root.active-tab == "telemetry" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
-                        font-size: 11px;
-                        font-weight: 700;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-                }
-
-                Rectangle {
-                    horizontal-stretch: 1;
-                    border-radius: AntigravityTheme.radius-sm;
-                    background: root.active-tab == "cache" ? AntigravityTheme.background-active : transparent;
-                    TouchArea { clicked => { root.tab-changed("cache"); } }
-                    Text {
-                        text: "⚡ Cache";
-                        color: root.active-tab == "cache" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
-                        font-size: 11px;
-                        font-weight: 700;
+                        text: "📊";
+                        font-size: 13px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -209,7 +254,206 @@ export component AuxiliaryPane inherits Rectangle {
             }
         }
 
-        // TAB 2: K-Top Telemetry View
+        // TAB 2: Subagents & Background Workers
+        if root.active-tab == "tasks": VerticalLayout {
+            spacing: AntigravityTheme.spacing-sm;
+
+            Text {
+                text: "SUBAGENTS & WORKER THREADS";
+                color: AntigravityTheme.text-muted;
+                font-size: 10px;
+                font-weight: 700;
+            }
+
+            Rectangle {
+                height: 54px;
+                background: AntigravityTheme.background-input;
+                border-radius: AntigravityTheme.radius-sm;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                HorizontalLayout {
+                    padding: AntigravityTheme.spacing-sm;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: "Inference Worker"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                        Text { text: "Dedicated thread execution"; color: AntigravityTheme.text-muted; font-size: 10px; }
+                    }
+
+                    StatusBadge {
+                        text: root.worker-state;
+                        badge-color: root.worker-state == "Generating" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 54px;
+                background: AntigravityTheme.background-input;
+                border-radius: AntigravityTheme.radius-sm;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                HorizontalLayout {
+                    padding: AntigravityTheme.spacing-sm;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: "Telemetry Poller"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                        Text { text: "500ms hardware heartbeat"; color: AntigravityTheme.text-muted; font-size: 10px; }
+                    }
+
+                    StatusBadge {
+                        text: "POLLING";
+                        badge-color: AntigravityTheme.status-success;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 54px;
+                background: AntigravityTheme.background-input;
+                border-radius: AntigravityTheme.radius-sm;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                HorizontalLayout {
+                    padding: AntigravityTheme.spacing-sm;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text { text: "Subagent Supervisor"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                        Text { text: root.active-subagents-count + " subagents active"; color: AntigravityTheme.text-muted; font-size: 10px; }
+                    }
+
+                    StatusBadge {
+                        text: "STANDBY";
+                        badge-color: AntigravityTheme.text-muted;
+                        y: (parent.height - self.height) / 2;
+                    }
+                }
+            }
+        }
+
+        // TAB 3: Artifacts & Plans View
+        if root.active-tab == "artifacts": VerticalLayout {
+            spacing: AntigravityTheme.spacing-sm;
+
+            Text {
+                text: "ACTIVE PLAN & ARTIFACTS";
+                color: AntigravityTheme.text-muted;
+                font-size: 10px;
+                font-weight: 700;
+            }
+
+            Rectangle {
+                background: AntigravityTheme.background-input;
+                border-radius: AntigravityTheme.radius-sm;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-md;
+                    spacing: AntigravityTheme.spacing-sm;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "📄 " + root.artifact-title; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 700; }
+                        StatusBadge { text: "APPROVED"; badge-color: AntigravityTheme.status-success; }
+                    }
+
+                    Text {
+                        text: root.artifact-summary;
+                        color: AntigravityTheme.text-secondary;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+
+                    Rectangle { height: 1px; background: AntigravityTheme.border-subtle; }
+
+                    Text { text: "1. 100% In-process Zero-Server Slint architecture"; color: AntigravityTheme.text-primary; font-size: 11px; }
+                    Text { text: "2. Strictly enforce VRAM <= 6.00 GB ceiling"; color: AntigravityTheme.text-primary; font-size: 11px; }
+                    Text { text: "3. Pixel-to-pixel Antigravity 2.0 design parity"; color: AntigravityTheme.text-primary; font-size: 11px; }
+                    Text { text: "4. Unified Diff & Artifact inspection engine"; color: AntigravityTheme.text-primary; font-size: 11px; }
+                }
+            }
+        }
+
+        // TAB 4: Code Diffs Viewer
+        if root.active-tab == "diffs": VerticalLayout {
+            spacing: AntigravityTheme.spacing-sm;
+
+            HorizontalLayout {
+                alignment: space-between;
+                Text { text: "UNIFIED FILE DIFF"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+                Text { text: root.diff-file; color: AntigravityTheme.accent-cyan; font-size: 10px; font-weight: 700; }
+            }
+
+            Rectangle {
+                background: AntigravityTheme.background-input;
+                border-radius: AntigravityTheme.radius-sm;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+                clip: true;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-xs;
+                    spacing: 2px;
+
+                    for line in root.diff-lines: Rectangle {
+                        height: 22px;
+                        background: line.prefix == "+" ? #22c55e.transparentize(85%) : (line.prefix == "-" ? #ef4444.transparentize(85%) : transparent);
+                        border-radius: 2px;
+
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            padding-right: 4px;
+                            spacing: 6px;
+
+                            Text {
+                                text: line.line-number;
+                                color: AntigravityTheme.text-muted;
+                                font-size: 10px;
+                                font-family: "Consolas, 'Courier New', monospace";
+                                width: 24px;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: line.prefix;
+                                color: line.prefix == "+" ? AntigravityTheme.status-success : (line.prefix == "-" ? AntigravityTheme.status-error : AntigravityTheme.text-muted);
+                                font-size: 11px;
+                                font-weight: 700;
+                                font-family: "Consolas, 'Courier New', monospace";
+                                width: 10px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: line.content;
+                                color: line.prefix == "+" ? #86efac : (line.prefix == "-" ? #fca5a5 : AntigravityTheme.text-primary);
+                                font-size: 11px;
+                                font-family: "Consolas, 'Courier New', monospace";
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // TAB 5: K-Top Telemetry & Cache View
         if root.active-tab == "telemetry": VerticalLayout {
             spacing: AntigravityTheme.spacing-md;
 
@@ -254,7 +498,7 @@ export component AuxiliaryPane inherits Rectangle {
             }
 
             Rectangle {
-                height: 48px;
+                height: 40px;
                 background: AntigravityTheme.background-input;
                 border-radius: AntigravityTheme.radius-sm;
                 border-width: 1px;
@@ -269,18 +513,6 @@ export component AuxiliaryPane inherits Rectangle {
                     Text { text: Math.round(root.speed-tokens-sec) + " tok/s"; color: AntigravityTheme.status-success; font-size: 13px; font-weight: 800; vertical-alignment: center; }
                 }
             }
-        }
-
-        // TAB 3: Response Cache DB View
-        if root.active-tab == "cache": VerticalLayout {
-            spacing: AntigravityTheme.spacing-md;
-
-            Text {
-                text: "SQLITE WAL RESPONSE CACHE";
-                color: AntigravityTheme.text-muted;
-                font-size: 10px;
-                font-weight: 700;
-            }
 
             Rectangle {
                 background: AntigravityTheme.background-input;
@@ -290,36 +522,24 @@ export component AuxiliaryPane inherits Rectangle {
 
                 VerticalLayout {
                     padding: AntigravityTheme.spacing-md;
-                    spacing: AntigravityTheme.spacing-sm;
+                    spacing: AntigravityTheme.spacing-xs;
 
                     HorizontalLayout {
                         alignment: space-between;
-                        Text { text: "Cached Patterns"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: root.cache-entries + " entries"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                        Text { text: "Cache Entries"; color: AntigravityTheme.text-secondary; font-size: 11px; }
+                        Text { text: root.cache-entries + " entries"; color: AntigravityTheme.text-primary; font-size: 11px; font-weight: 700; }
                     }
 
                     HorizontalLayout {
                         alignment: space-between;
-                        Text { text: "Total Cache Hits"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: root.cache-hits + " hits"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 700; }
-                    }
-
-                    HorizontalLayout {
-                        alignment: space-between;
-                        Text { text: "Hit Ratio %"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: Math.round(root.cache-hit-ratio) + "%"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 700; }
-                    }
-
-                    HorizontalLayout {
-                        alignment: space-between;
-                        Text { text: "Lookup Latency"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: "< 0.05 ms"; color: AntigravityTheme.text-muted; font-size: 12px; }
+                        Text { text: "Cache Hits"; color: AntigravityTheme.text-secondary; font-size: 11px; }
+                        Text { text: root.cache-hits + " hits (" + Math.round(root.cache-hit-ratio) + "%)"; color: AntigravityTheme.accent-cyan; font-size: 11px; font-weight: 700; }
                     }
                 }
             }
 
             Rectangle {
-                height: 34px;
+                height: 32px;
                 border-radius: AntigravityTheme.radius-sm;
                 background: purge-touch.has-hover ? AntigravityTheme.status-error : AntigravityTheme.background-input;
                 border-width: 1px;
@@ -332,7 +552,7 @@ export component AuxiliaryPane inherits Rectangle {
                 Text {
                     text: "Purge Response Cache";
                     color: purge-touch.has-hover ? #ffffff : AntigravityTheme.status-error;
-                    font-size: 12px;
+                    font-size: 11px;
                     font-weight: 700;
                     horizontal-alignment: center;
                     vertical-alignment: center;

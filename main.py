@@ -20,8 +20,22 @@ if sys.platform == "win32":
         pass
 
 
+def _attach_interactive_desktop():
+    """Ensures the thread is attached to the interactive user desktop on Windows."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            h_desk = user32.OpenDesktopW("Default", 0, False, 0x10000000)
+            if h_desk:
+                user32.SetThreadDesktop(h_desk)
+        except Exception:
+            pass
+
+
 def launch_studio():
     """Boots the Slint-powered Kingdom AI Studio V3 Desktop GUI."""
+    _attach_interactive_desktop()
     print("======================================================================")
     print(" 👑 KINGDOM AI STUDIO V3 • GOOGLE ANTIGRAVITY GUI EDITION")
     print(" Standalone On-Device AI Coding Assistant (Slint Native Desktop GUI)")

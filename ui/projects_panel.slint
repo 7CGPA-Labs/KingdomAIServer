@@ -1,0 +1,181 @@
+import { AntigravityTheme } from "theme.slint";
+import { StatusBadge } from "components/badge.slint";
+
+export struct ProjectItem {
+    id: string,
+    name: string,
+    path: string,
+    branch: string,
+    is-active: bool,
+    last-opened: string,
+}
+
+export component ProjectsPanel inherits Rectangle {
+    in property <[ProjectItem]> projects: [
+        {
+            id: "proj-1",
+            name: "KingdomAIServer",
+            path: "C:/Users/gagan/Projects/KingdomAIServer",
+            branch: "main",
+            is-active: true,
+            last-opened: "Now"
+        },
+        {
+            id: "proj-2",
+            name: "7CGPA-Labs-Core",
+            path: "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+            branch: "main",
+            is-active: false,
+            last-opened: "Yesterday"
+        }
+    ];
+
+    callback select-project(string);
+    callback open-folder-clicked();
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: AntigravityTheme.spacing-lg;
+        spacing: AntigravityTheme.spacing-md;
+
+        // Header Title
+        HorizontalLayout {
+            alignment: space-between;
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: "📁 Projects & Workspaces";
+                    color: AntigravityTheme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                }
+                Text {
+                    text: "Manage and switch active codebase workspaces, Git branches, and repository contexts.";
+                    color: AntigravityTheme.text-secondary;
+                    font-size: 12px;
+                }
+            }
+
+            Rectangle {
+                width: 140px;
+                height: 36px;
+                border-radius: AntigravityTheme.radius-sm;
+                background: btn-open.has-hover ? AntigravityTheme.accent-cyan.transparentize(20%) : AntigravityTheme.accent-cyan;
+
+                btn-open := TouchArea {
+                    clicked => { root.open-folder-clicked(); }
+                }
+
+                Text {
+                    text: "📂 Open Folder...";
+                    color: #000000;
+                    font-size: 12px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // Projects List Container
+        Rectangle {
+            vertical-stretch: 1;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-sm;
+
+                Text {
+                    text: "KNOWN WORKSPACES";
+                    color: AntigravityTheme.text-muted;
+                    font-size: 10px;
+                    font-weight: 700;
+                }
+
+                for proj in root.projects: Rectangle {
+                    height: 72px;
+                    background: AntigravityTheme.background-input;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
+
+                    HorizontalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        alignment: space-between;
+
+                        VerticalLayout {
+                            spacing: 4px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                spacing: AntigravityTheme.spacing-sm;
+                                alignment: start;
+
+                                Text {
+                                    text: proj.name;
+                                    color: AntigravityTheme.text-primary;
+                                    font-size: 14px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
+
+                                if proj.is-active: StatusBadge {
+                                    text: "ACTIVE";
+                                    badge-color: AntigravityTheme.status-success;
+                                    y: (parent.height - self.height) / 2;
+                                }
+
+                                Text {
+                                    text: "⎇ " + proj.branch;
+                                    color: AntigravityTheme.accent-magenta;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Text {
+                                text: proj.path;
+                                color: AntigravityTheme.text-secondary;
+                                font-size: 11px;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: AntigravityTheme.spacing-sm;
+                            alignment: center;
+
+                            Rectangle {
+                                width: 100px;
+                                height: 32px;
+                                border-radius: AntigravityTheme.radius-sm;
+                                background: proj.is-active ? AntigravityTheme.background-active : (p-btn.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface);
+                                border-width: 1px;
+                                border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
+
+                                p-btn := TouchArea {
+                                    clicked => { root.select-project(proj.id); }
+                                }
+
+                                Text {
+                                    text: proj.is-active ? "Selected" : "Switch To";
+                                    color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-primary;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

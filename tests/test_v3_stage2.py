@@ -21,6 +21,9 @@ def test_slint_subcomponents_compilation():
         ui_dir / "auxiliary_pane.slint",
         ui_dir / "models_hub.slint",
         ui_dir / "ktop_panel.slint",
+        ui_dir / "tasks_panel.slint",
+        ui_dir / "skills_panel.slint",
+        ui_dir / "projects_panel.slint",
         ui_dir / "app.slint"
     ]
 
@@ -41,6 +44,8 @@ def test_master_app_shell_full_properties():
     assert app.active_nav == "chat"
     assert app.active_workspace == "KingdomAIServer"
     assert app.active_model == "Qwen 2.5 Coder 1.5B"
+    assert app.active_mode == "normal"
+    assert app.aux_active_tab == "council"
     assert app.cpu_threads == 8
     assert app.vram_ceiling_gb == 6.0
     assert app.is_generating is False
@@ -53,11 +58,32 @@ def test_master_app_shell_full_properties():
     app.active_nav = "ktop"
     assert app.active_nav == "ktop"
 
+    app.active_nav = "tasks"
+    assert app.active_nav == "tasks"
+
+    app.active_nav = "skills"
+    assert app.active_nav == "skills"
+
+    app.active_nav = "projects"
+    assert app.active_nav == "projects"
+
     app.active_nav = "settings"
     assert app.active_nav == "settings"
 
     app.active_nav = "chat"
     assert app.active_nav == "chat"
+
+    # Check mode mutations
+    app.active_mode = "plan"
+    assert app.active_mode == "plan"
+    app.active_mode = "goal"
+    assert app.active_mode == "goal"
+
+    # Check auxiliary inspector tab mutations
+    app.aux_active_tab = "artifacts"
+    assert app.aux_active_tab == "artifacts"
+    app.aux_active_tab = "diffs"
+    assert app.aux_active_tab == "diffs"
 
 def test_master_app_callbacks_registered():
     """Assert all user action callbacks are exposed by MainWindow for Python AppController binding."""
@@ -76,6 +102,10 @@ def test_master_app_callbacks_registered():
         "clear_chat",
         "new_chat",
         "execute_command",
+        "set_mode",
+        "mention_resource",
+        "trigger_task",
+        "cancel_task",
     ]
 
     for cb in callbacks:
