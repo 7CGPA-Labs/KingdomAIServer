@@ -1,5 +1,6 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export struct SkillCardItem {
     id: string,
@@ -12,7 +13,7 @@ export struct SkillCardItem {
 }
 
 export component SkillsPanel inherits Rectangle {
-    in-out property <string> active-filter: "all"; // "all", "skills", "rules", "mcp"
+    in-out property <string> active-filter: "all"; // "all", "skill", "rule", "mcp"
     in property <[SkillCardItem]> items: [
         {
             id: "skill-agy-customizations",
@@ -142,17 +143,17 @@ export component SkillsPanel inherits Rectangle {
                 Rectangle {
                     width: 110px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: root.active-filter == "skills" ? AntigravityTheme.background-active : transparent;
-                    TouchArea { clicked => { root.active-filter = "skills"; root.toggle-filter("skills"); } }
-                    Text { text: "⚡ Skills (3)"; color: root.active-filter == "skills" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    background: root.active-filter == "skill" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "skill"; root.toggle-filter("skill"); } }
+                    Text { text: "⚡ Skills (3)"; color: root.active-filter == "skill" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
                 }
 
                 Rectangle {
                     width: 110px;
                     border-radius: AntigravityTheme.radius-sm;
-                    background: root.active-filter == "rules" ? AntigravityTheme.background-active : transparent;
-                    TouchArea { clicked => { root.active-filter = "rules"; root.toggle-filter("rules"); } }
-                    Text { text: "📋 Rules (1)"; color: root.active-filter == "rules" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    background: root.active-filter == "rule" ? AntigravityTheme.background-active : transparent;
+                    TouchArea { clicked => { root.active-filter = "rule"; root.toggle-filter("rule"); } }
+                    Text { text: "📋 Rules (1)"; color: root.active-filter == "rule" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
                 }
 
                 Rectangle {
@@ -184,76 +185,85 @@ export component SkillsPanel inherits Rectangle {
                     font-weight: 700;
                 }
 
-                for item in root.items: Rectangle {
-                    height: 72px;
-                    background: AntigravityTheme.background-input;
-                    border-radius: AntigravityTheme.radius-sm;
-                    border-width: 1px;
-                    border-color: AntigravityTheme.border-subtle;
+                ScrollView {
+                    vertical-stretch: 1;
 
-                    HorizontalLayout {
-                        padding: AntigravityTheme.spacing-md;
-                        alignment: space-between;
+                    VerticalLayout {
+                        spacing: AntigravityTheme.spacing-sm;
+                        padding-right: 6px;
 
-                        VerticalLayout {
-                            spacing: 4px;
-                            alignment: center;
+                        for item in root.items: Rectangle {
+                            height: 72px;
+                            background: AntigravityTheme.background-input;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
 
                             HorizontalLayout {
-                                spacing: AntigravityTheme.spacing-sm;
-                                alignment: start;
+                                padding: AntigravityTheme.spacing-md;
+                                alignment: space-between;
 
-                                Text {
-                                    text: item.name;
-                                    color: AntigravityTheme.text-primary;
-                                    font-size: 13px;
-                                    font-weight: 700;
-                                    vertical-alignment: center;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    HorizontalLayout {
+                                        spacing: AntigravityTheme.spacing-sm;
+                                        alignment: start;
+
+                                        Text {
+                                            text: item.name;
+                                            color: AntigravityTheme.text-primary;
+                                            font-size: 13px;
+                                            font-weight: 700;
+                                            vertical-alignment: center;
+                                        }
+
+                                        StatusBadge {
+                                            text: item.status;
+                                            badge-color: item.status == "ACTIVE" || item.status == "CONNECTED" ? AntigravityTheme.status-success : AntigravityTheme.accent-cyan;
+                                            y: (parent.height - self.height) / 2;
+                                        }
+
+                                        Text {
+                                            text: "Scope: " + item.scope;
+                                            color: AntigravityTheme.accent-magenta;
+                                            font-size: 10px;
+                                            font-weight: 600;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    Text {
+                                        text: item.description;
+                                        color: AntigravityTheme.text-secondary;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                        width: 600px;
+                                    }
                                 }
 
-                                StatusBadge {
-                                    text: item.status;
-                                    badge-color: item.status == "ACTIVE" || item.status == "CONNECTED" ? AntigravityTheme.status-success : AntigravityTheme.accent-cyan;
-                                    y: (parent.height - self.height) / 2;
-                                }
+                                HorizontalLayout {
+                                    spacing: AntigravityTheme.spacing-sm;
+                                    alignment: center;
 
-                                Text {
-                                    text: "Scope: " + item.scope;
-                                    color: AntigravityTheme.accent-magenta;
-                                    font-size: 10px;
-                                    font-weight: 600;
-                                    vertical-alignment: center;
-                                }
-                            }
+                                    Rectangle {
+                                        width: 88px;
+                                        height: 28px;
+                                        border-radius: AntigravityTheme.radius-sm;
+                                        background: AntigravityTheme.background-surface;
+                                        border-width: 1px;
+                                        border-color: AntigravityTheme.border-subtle;
 
-                            Text {
-                                text: item.description;
-                                color: AntigravityTheme.text-secondary;
-                                font-size: 11px;
-                                overflow: elide;
-                                width: 620px;
-                            }
-                        }
-
-                        HorizontalLayout {
-                            spacing: AntigravityTheme.spacing-sm;
-                            alignment: center;
-
-                            Rectangle {
-                                width: 85px;
-                                height: 28px;
-                                border-radius: AntigravityTheme.radius-sm;
-                                background: AntigravityTheme.background-surface;
-                                border-width: 1px;
-                                border-color: AntigravityTheme.border-subtle;
-
-                                Text {
-                                    text: item.tools-count > 0 ? (item.tools-count + " tools") : "Guidelines";
-                                    color: AntigravityTheme.text-secondary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                        Text {
+                                            text: item.tools-count > 0 ? (item.tools-count + " tools") : "Guidelines";
+                                            color: AntigravityTheme.text-secondary;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
                                 }
                             }
                         }

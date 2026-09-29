@@ -106,6 +106,11 @@ def test_master_app_callbacks_registered():
         "mention_resource",
         "trigger_task",
         "cancel_task",
+        "copy_text",
+        "refresh_diff",
+        "execute_plan",
+        "add_task",
+        "reload_skills",
     ]
 
     for cb in callbacks:

@@ -1,5 +1,6 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export struct ScheduledTaskItem {
     id: string,
@@ -13,6 +14,11 @@ export struct ScheduledTaskItem {
 }
 
 export component TasksPanel inherits Rectangle {
+    in-out property <bool> is-creating: false;
+    in-out property <string> new-task-name: "";
+    in-out property <string> new-task-schedule: "*/5 * * * *";
+    in-out property <string> new-task-prompt: "";
+
     in property <[ScheduledTaskItem]> tasks: [
         {
             id: "task-cron-1",
@@ -47,6 +53,7 @@ export component TasksPanel inherits Rectangle {
     ];
 
     callback create-task-clicked();
+    callback save-new-task(string, string, string);
     callback trigger-task-clicked(string);
     callback cancel-task-clicked(string);
 
@@ -82,11 +89,14 @@ export component TasksPanel inherits Rectangle {
                 background: btn-add.has-hover ? AntigravityTheme.accent-cyan.transparentize(20%) : AntigravityTheme.accent-cyan;
 
                 btn-add := TouchArea {
-                    clicked => { root.create-task-clicked(); }
+                    clicked => {
+                        root.is-creating = !root.is-creating;
+                        root.create-task-clicked();
+                    }
                 }
 
                 Text {
-                    text: "+ New Schedule";
+                    text: root.is-creating ? "✕ Close Form" : "+ New Schedule";
                     color: #000000;
                     font-size: 12px;
                     font-weight: 700;
@@ -99,7 +109,7 @@ export component TasksPanel inherits Rectangle {
         // Summary Metric Cards
         HorizontalLayout {
             spacing: AntigravityTheme.spacing-md;
-            height: 72px;
+            height: 68px;
 
             Rectangle {
                 horizontal-stretch: 1;
@@ -113,7 +123,7 @@ export component TasksPanel inherits Rectangle {
                     alignment: center;
                     spacing: 2px;
                     Text { text: "ACTIVE SCHEDULES"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
-                    Text { text: "2 Recurring Cron"; color: AntigravityTheme.accent-cyan; font-size: 16px; font-weight: 800; }
+                    Text { text: root.tasks.length + " Registered"; color: AntigravityTheme.accent-cyan; font-size: 16px; font-weight: 800; }
                 }
             }
 
@@ -150,7 +160,94 @@ export component TasksPanel inherits Rectangle {
             }
         }
 
-        // Tasks List
+        // Inline Task Creator Form
+        if root.is-creating: Rectangle {
+            height: 140px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.accent-cyan;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-sm;
+
+                Text { text: "CREATE NEW BACKGROUND SCHEDULE OR TIMER"; color: AntigravityTheme.accent-cyan; font-size: 11px; font-weight: 700; }
+
+                HorizontalLayout {
+                    spacing: AntigravityTheme.spacing-md;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 34px;
+                        background: AntigravityTheme.background-input;
+                        border-radius: AntigravityTheme.radius-sm;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        if root.new-task-name == "": Text { text: "Task Name (e.g. Code Linter Watchdog)"; color: AntigravityTheme.text-muted; font-size: 12px; vertical-alignment: center; }
+                        TextInput { width: 100%; height: 100%; text <=> root.new-task-name; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                    }
+
+                    Rectangle {
+                        width: 180px;
+                        height: 34px;
+                        background: AntigravityTheme.background-input;
+                        border-radius: AntigravityTheme.radius-sm;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        if root.new-task-schedule == "": Text { text: "Cron (e.g. */5 * * * *)"; color: AntigravityTheme.text-muted; font-size: 12px; vertical-alignment: center; }
+                        TextInput { width: 100%; height: 100%; text <=> root.new-task-schedule; color: AntigravityTheme.accent-cyan; font-size: 12px; vertical-alignment: center; }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: AntigravityTheme.spacing-md;
+
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 34px;
+                        background: AntigravityTheme.background-input;
+                        border-radius: AntigravityTheme.radius-sm;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        if root.new-task-prompt == "": Text { text: "Agent Prompt / Instruction to execute"; color: AntigravityTheme.text-muted; font-size: 12px; vertical-alignment: center; }
+                        TextInput { width: 100%; height: 100%; text <=> root.new-task-prompt; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                    }
+
+                    Rectangle {
+                        width: 110px;
+                        height: 34px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: save-t-btn.has-hover ? AntigravityTheme.status-success.transparentize(20%) : AntigravityTheme.status-success;
+
+                        save-t-btn := TouchArea {
+                            clicked => {
+                                if root.new-task-name != "" {
+                                    root.save-new-task(root.new-task-name, root.new-task-schedule, root.new-task-prompt);
+                                    root.new-task-name = "";
+                                    root.new-task-prompt = "";
+                                    root.is-creating = false;
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: "✓ Save Task";
+                            color: #000000;
+                            font-size: 12px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Scrollable Tasks List
         Rectangle {
             vertical-stretch: 1;
             background: AntigravityTheme.background-surface;
@@ -169,108 +266,117 @@ export component TasksPanel inherits Rectangle {
                     font-weight: 700;
                 }
 
-                for item in root.tasks: Rectangle {
-                    height: 80px;
-                    background: AntigravityTheme.background-input;
-                    border-radius: AntigravityTheme.radius-sm;
-                    border-width: 1px;
-                    border-color: AntigravityTheme.border-subtle;
+                ScrollView {
+                    vertical-stretch: 1;
 
-                    HorizontalLayout {
-                        padding: AntigravityTheme.spacing-md;
-                        alignment: space-between;
+                    VerticalLayout {
+                        spacing: AntigravityTheme.spacing-sm;
+                        padding-right: 6px;
 
-                        VerticalLayout {
-                            spacing: 4px;
-                            alignment: center;
+                        for item in root.tasks: Rectangle {
+                            height: 80px;
+                            background: AntigravityTheme.background-input;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
 
                             HorizontalLayout {
-                                spacing: AntigravityTheme.spacing-sm;
-                                alignment: start;
+                                padding: AntigravityTheme.spacing-md;
+                                alignment: space-between;
 
-                                Text {
-                                    text: item.name;
-                                    color: AntigravityTheme.text-primary;
-                                    font-size: 13px;
-                                    font-weight: 700;
-                                    vertical-alignment: center;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    HorizontalLayout {
+                                        spacing: AntigravityTheme.spacing-sm;
+                                        alignment: start;
+
+                                        Text {
+                                            text: item.name;
+                                            color: AntigravityTheme.text-primary;
+                                            font-size: 13px;
+                                            font-weight: 700;
+                                            vertical-alignment: center;
+                                        }
+
+                                        StatusBadge {
+                                            text: item.status;
+                                            badge-color: item.status == "ACTIVE" || item.status == "RUNNING" ? AntigravityTheme.status-success : (item.status == "SCHEDULED" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted);
+                                            y: (parent.height - self.height) / 2;
+                                        }
+
+                                        Text {
+                                            text: "[" + item.schedule + "]";
+                                            color: AntigravityTheme.accent-magenta;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    Text {
+                                        text: item.prompt;
+                                        color: AntigravityTheme.text-secondary;
+                                        font-size: 11px;
+                                        overflow: elide;
+                                        width: 540px;
+                                    }
+
+                                    Text {
+                                        text: "Last run: " + item.last-run + " • Next run: " + item.next-run;
+                                        color: AntigravityTheme.text-muted;
+                                        font-size: 10px;
+                                    }
                                 }
 
-                                StatusBadge {
-                                    text: item.status;
-                                    badge-color: item.status == "ACTIVE" ? AntigravityTheme.status-success : (item.status == "SCHEDULED" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted);
-                                    y: (parent.height - self.height) / 2;
-                                }
+                                HorizontalLayout {
+                                    spacing: AntigravityTheme.spacing-sm;
+                                    alignment: center;
 
-                                Text {
-                                    text: "[" + item.schedule + "]";
-                                    color: AntigravityTheme.accent-magenta;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    vertical-alignment: center;
-                                }
-                            }
+                                    Rectangle {
+                                        width: 90px;
+                                        height: 30px;
+                                        border-radius: AntigravityTheme.radius-sm;
+                                        background: run-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
+                                        border-width: 1px;
+                                        border-color: AntigravityTheme.accent-cyan;
 
-                            Text {
-                                text: item.prompt;
-                                color: AntigravityTheme.text-secondary;
-                                font-size: 11px;
-                                overflow: elide;
-                                width: 560px;
-                            }
+                                        run-touch := TouchArea {
+                                            clicked => { root.trigger-task-clicked(item.id); }
+                                        }
 
-                            Text {
-                                text: "Last run: " + item.last-run + " • Next run: " + item.next-run;
-                                color: AntigravityTheme.text-muted;
-                                font-size: 10px;
-                            }
-                        }
+                                        Text {
+                                            text: "Trigger Now";
+                                            color: AntigravityTheme.accent-cyan;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
 
-                        HorizontalLayout {
-                            spacing: AntigravityTheme.spacing-sm;
-                            alignment: center;
+                                    Rectangle {
+                                        width: 68px;
+                                        height: 30px;
+                                        border-radius: AntigravityTheme.radius-sm;
+                                        background: del-touch.has-hover ? AntigravityTheme.status-error.transparentize(80%) : AntigravityTheme.background-surface;
+                                        border-width: 1px;
+                                        border-color: AntigravityTheme.border-subtle;
 
-                            Rectangle {
-                                width: 90px;
-                                height: 30px;
-                                border-radius: AntigravityTheme.radius-sm;
-                                background: run-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
-                                border-width: 1px;
-                                border-color: AntigravityTheme.accent-cyan;
+                                        del-touch := TouchArea {
+                                            clicked => { root.cancel-task-clicked(item.id); }
+                                        }
 
-                                run-touch := TouchArea {
-                                    clicked => { root.trigger-task-clicked(item.id); }
-                                }
-
-                                Text {
-                                    text: "Trigger Now";
-                                    color: AntigravityTheme.accent-cyan;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
-                                }
-                            }
-
-                            Rectangle {
-                                width: 68px;
-                                height: 30px;
-                                border-radius: AntigravityTheme.radius-sm;
-                                background: del-touch.has-hover ? AntigravityTheme.status-error.transparentize(80%) : AntigravityTheme.background-surface;
-                                border-width: 1px;
-                                border-color: AntigravityTheme.border-subtle;
-
-                                del-touch := TouchArea {
-                                    clicked => { root.cancel-task-clicked(item.id); }
-                                }
-
-                                Text {
-                                    text: "Cancel";
-                                    color: del-touch.has-hover ? AntigravityTheme.status-error : AntigravityTheme.text-muted;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                        Text {
+                                            text: "Cancel";
+                                            color: del-touch.has-hover ? AntigravityTheme.status-error : AntigravityTheme.text-muted;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
                                 }
                             }
                         }

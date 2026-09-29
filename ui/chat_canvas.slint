@@ -1,5 +1,6 @@
 import { AntigravityTheme } from "theme.slint";
 import { CodeCard } from "components/code_card.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export struct ChatMessage {
     id: string,
@@ -25,6 +26,7 @@ export component ChatCanvas inherits Rectangle {
     callback mention-chosen(string);
     callback mode-changed(string);
     callback clear-chat();
+    callback copy-message(string);
 
     background: AntigravityTheme.background-canvas;
 
@@ -34,11 +36,11 @@ export component ChatCanvas inherits Rectangle {
 
         // Top Canvas Controls Bar (Header + Mode Switcher Pill)
         Rectangle {
-            height: 42px;
+            height: 44px;
             background: AntigravityTheme.background-surface;
             border-radius: AntigravityTheme.radius-sm;
             border-width: 1px;
-            border-color: AntigravityTheme.border-subtle;
+            border-color: root.active-mode == "plan" ? AntigravityTheme.accent-magenta.transparentize(60%) : (root.active-mode == "goal" ? AntigravityTheme.status-success.transparentize(60%) : AntigravityTheme.border-subtle);
 
             HorizontalLayout {
                 padding-left: AntigravityTheme.spacing-md;
@@ -73,7 +75,7 @@ export component ChatCanvas inherits Rectangle {
                             Rectangle {
                                 horizontal-stretch: 1;
                                 border-radius: AntigravityTheme.radius-sm;
-                                background: root.active-mode == "normal" ? AntigravityTheme.background-active : transparent;
+                                background: root.active-mode == "normal" ? AntigravityTheme.accent-cyan.transparentize(80%) : transparent;
                                 TouchArea { clicked => { root.active-mode = "normal"; root.mode-changed("normal"); } }
                                 Text {
                                     text: "Normal";
@@ -88,7 +90,7 @@ export component ChatCanvas inherits Rectangle {
                             Rectangle {
                                 horizontal-stretch: 1;
                                 border-radius: AntigravityTheme.radius-sm;
-                                background: root.active-mode == "plan" ? AntigravityTheme.background-active : transparent;
+                                background: root.active-mode == "plan" ? AntigravityTheme.accent-magenta.transparentize(80%) : transparent;
                                 TouchArea { clicked => { root.active-mode = "plan"; root.mode-changed("plan"); } }
                                 Text {
                                     text: "Plan";
@@ -103,7 +105,7 @@ export component ChatCanvas inherits Rectangle {
                             Rectangle {
                                 horizontal-stretch: 1;
                                 border-radius: AntigravityTheme.radius-sm;
-                                background: root.active-mode == "goal" ? AntigravityTheme.background-active : transparent;
+                                background: root.active-mode == "goal" ? AntigravityTheme.status-success.transparentize(80%) : transparent;
                                 TouchArea { clicked => { root.active-mode = "goal"; root.mode-changed("goal"); } }
                                 Text {
                                     text: "Goal";
@@ -119,8 +121,8 @@ export component ChatCanvas inherits Rectangle {
                 }
 
                 Rectangle {
-                    width: 86px;
-                    height: 26px;
+                    width: 92px;
+                    height: 28px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: clr-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
                     y: (parent.height - self.height) / 2;
@@ -130,7 +132,7 @@ export component ChatCanvas inherits Rectangle {
                     }
 
                     Text {
-                        text: "Clear Canvas";
+                        text: "🗑️ Clear Canvas";
                         color: clr-touch.has-hover ? AntigravityTheme.status-warning : AntigravityTheme.text-muted;
                         font-size: 11px;
                         font-weight: 600;
@@ -141,14 +143,13 @@ export component ChatCanvas inherits Rectangle {
             }
         }
 
-        // Messages Stream Container
-        messages-container := Rectangle {
+        // Scrollable Messages Stream Container
+        ScrollView {
             vertical-stretch: 1;
-            clip: true;
 
             VerticalLayout {
-                spacing: AntigravityTheme.spacing-lg;
-                alignment: end;
+                spacing: AntigravityTheme.spacing-md;
+                padding-right: 6px;
 
                 for msg in root.messages: Rectangle {
                     background: transparent;
@@ -157,8 +158,8 @@ export component ChatCanvas inherits Rectangle {
                         alignment: msg.role == "user" ? end : start;
 
                         Rectangle {
-                            max-width: 720px;
-                            min-width: 240px;
+                            max-width: 740px;
+                            min-width: 260px;
                             border-radius: AntigravityTheme.radius-md;
                             background: msg.role == "user" ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
                             border-width: 1px;
@@ -171,17 +172,47 @@ export component ChatCanvas inherits Rectangle {
                                 HorizontalLayout {
                                     alignment: space-between;
 
-                                    Text {
-                                        text: msg.role == "user" ? "You" : "Kingdom Assistant (Boss LLM)";
-                                        color: msg.role == "user" ? AntigravityTheme.accent-cyan : AntigravityTheme.accent-magenta;
-                                        font-size: 11px;
-                                        font-weight: 700;
+                                    HorizontalLayout {
+                                        spacing: AntigravityTheme.spacing-xs;
+                                        alignment: center;
+
+                                        Text {
+                                            text: msg.role == "user" ? "👤 You" : "👑 Kingdom Assistant";
+                                            color: msg.role == "user" ? AntigravityTheme.accent-cyan : AntigravityTheme.accent-magenta;
+                                            font-size: 11px;
+                                            font-weight: 700;
+                                        }
                                     }
 
-                                    Text {
-                                        text: msg.timestamp;
-                                        color: AntigravityTheme.text-muted;
-                                        font-size: 10px;
+                                    HorizontalLayout {
+                                        spacing: AntigravityTheme.spacing-sm;
+                                        alignment: center;
+
+                                        Text {
+                                            text: msg.timestamp;
+                                            color: AntigravityTheme.text-muted;
+                                            font-size: 10px;
+                                        }
+
+                                        Rectangle {
+                                            width: 44px;
+                                            height: 18px;
+                                            border-radius: AntigravityTheme.radius-sm;
+                                            background: copy-touch.has-hover ? AntigravityTheme.background-active : transparent;
+
+                                            copy-touch := TouchArea {
+                                                clicked => { root.copy-message(msg.content); }
+                                            }
+
+                                            Text {
+                                                text: copy-touch.has-hover ? "Copied" : "Copy";
+                                                color: copy-touch.has-hover ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
+                                                font-size: 9px;
+                                                font-weight: 600;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -204,8 +235,8 @@ export component ChatCanvas inherits Rectangle {
                         alignment: start;
 
                         Rectangle {
-                            max-width: 720px;
-                            min-width: 240px;
+                            max-width: 740px;
+                            min-width: 260px;
                             border-radius: AntigravityTheme.radius-md;
                             background: AntigravityTheme.background-surface;
                             border-width: 1px;
@@ -219,7 +250,7 @@ export component ChatCanvas inherits Rectangle {
                                     spacing: AntigravityTheme.spacing-xs;
 
                                     Text {
-                                        text: "Kingdom Assistant (Streaming...)";
+                                        text: "👑 Kingdom Assistant (Streaming token by token...)";
                                         color: AntigravityTheme.accent-magenta;
                                         font-size: 11px;
                                         font-weight: 700;
@@ -268,11 +299,9 @@ export component ChatCanvas inherits Rectangle {
                     height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: m1-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    m1-t := TouchArea { clicked => { root.mention-chosen("@workspace"); } }
+                    m1-t := TouchArea { clicked => { root.mention-chosen("@workspace"); root.show-mention-menu = false; } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📁 @workspace — Active workspace files and symbols"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Context"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
@@ -282,11 +311,9 @@ export component ChatCanvas inherits Rectangle {
                     height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: m2-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    m2-t := TouchArea { clicked => { root.mention-chosen("@git"); } }
+                    m2-t := TouchArea { clicked => { root.mention-chosen("@git"); root.show-mention-menu = false; } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🌿 @git — Git status, current branch & staged diffs"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "VCS"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
@@ -296,11 +323,9 @@ export component ChatCanvas inherits Rectangle {
                     height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: m3-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    m3-t := TouchArea { clicked => { root.mention-chosen("@rules"); } }
+                    m3-t := TouchArea { clicked => { root.mention-chosen("@rules"); root.show-mention-menu = false; } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📋 @rules — AGENTS.md & project coding instructions"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Rules"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
@@ -310,11 +335,9 @@ export component ChatCanvas inherits Rectangle {
                     height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: m4-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    m4-t := TouchArea { clicked => { root.mention-chosen("@council"); } }
+                    m4-t := TouchArea { clicked => { root.mention-chosen("@council"); root.show-mention-menu = false; } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🏛️ @council — Boss LLM, BGE Embedder & Reranker state"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Council"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
@@ -324,11 +347,9 @@ export component ChatCanvas inherits Rectangle {
                     height: 26px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: m5-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    m5-t := TouchArea { clicked => { root.mention-chosen("@mcp"); } }
+                    m5-t := TouchArea { clicked => { root.mention-chosen("@mcp"); root.show-mention-menu = false; } }
                     HorizontalLayout {
-                        padding-left: AntigravityTheme.spacing-sm;
-                        padding-right: AntigravityTheme.spacing-sm;
-                        alignment: space-between;
+                        padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🔌 @mcp — Model Context Protocol active tool providers"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         Text { text: "Tools"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                     }
@@ -354,7 +375,7 @@ export component ChatCanvas inherits Rectangle {
                     padding-bottom: 4px;
 
                     Text {
-                        text: "SLASH COMMAND PALETTE (Antigravity 2.0)";
+                        text: "SLASH COMMAND PALETTE (Click to select & run)";
                         color: AntigravityTheme.text-muted;
                         font-size: 9px;
                         font-weight: 700;
@@ -365,7 +386,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-goal.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-goal := TouchArea { clicked => { root.slash-command-chosen("/goal"); } }
+                    c-goal := TouchArea { clicked => { root.slash-command-chosen("/goal"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🎯 /goal — Autonomous execution until objective is achieved"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -377,7 +398,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-plan.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-plan := TouchArea { clicked => { root.slash-command-chosen("/plan"); } }
+                    c-plan := TouchArea { clicked => { root.slash-command-chosen("/plan"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📋 /plan — Step-by-step architectural execution plan"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -389,7 +410,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-grill.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-grill := TouchArea { clicked => { root.slash-command-chosen("/grill-me"); } }
+                    c-grill := TouchArea { clicked => { root.slash-command-chosen("/grill-me"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🔥 /grill-me — Interactive interview to clarify requirements"; color: AntigravityTheme.status-warning; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -401,7 +422,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-sched.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-sched := TouchArea { clicked => { root.slash-command-chosen("/schedule"); } }
+                    c-sched := TouchArea { clicked => { root.slash-command-chosen("/schedule"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "⏱️ /schedule — Schedule recurring cron or one-shot timer"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -413,7 +434,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-top.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-top := TouchArea { clicked => { root.slash-command-chosen("/top"); } }
+                    c-top := TouchArea { clicked => { root.slash-command-chosen("/top"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📊 /top — Open K-Top Silicon & Telemetry Dashboard"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -425,7 +446,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-mod.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-mod := TouchArea { clicked => { root.slash-command-chosen("/models"); } }
+                    c-mod := TouchArea { clicked => { root.slash-command-chosen("/models"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "📦 /models — Open Model Hub (Download & Hot-Swap)"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -437,7 +458,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-cache.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-cache := TouchArea { clicked => { root.slash-command-chosen("/cache"); } }
+                    c-cache := TouchArea { clicked => { root.slash-command-chosen("/cache"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "⚡ /cache — Inspect SQLite WAL Response Cache"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -449,7 +470,7 @@ export component ChatCanvas inherits Rectangle {
                     height: 25px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: c-health.has-hover ? AntigravityTheme.background-surface-hover : transparent;
-                    c-health := TouchArea { clicked => { root.slash-command-chosen("/health"); } }
+                    c-health := TouchArea { clicked => { root.slash-command-chosen("/health"); root.show-slash-menu = false; } }
                     HorizontalLayout {
                         padding-left: AntigravityTheme.spacing-sm; padding-right: AntigravityTheme.spacing-sm; alignment: space-between;
                         Text { text: "🏥 /health — Run Silicon, VRAM & Council Health Check"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
@@ -465,7 +486,7 @@ export component ChatCanvas inherits Rectangle {
             background: AntigravityTheme.background-input;
             border-radius: AntigravityTheme.radius-md;
             border-width: 1px;
-            border-color: input-area.has-focus ? AntigravityTheme.border-focus : AntigravityTheme.border-subtle;
+            border-color: input-area.has-focus ? (root.active-mode == "plan" ? AntigravityTheme.accent-magenta : (root.active-mode == "goal" ? AntigravityTheme.status-success : AntigravityTheme.border-focus)) : AntigravityTheme.border-subtle;
 
             HorizontalLayout {
                 padding-left: AntigravityTheme.spacing-md;
@@ -540,19 +561,33 @@ export component ChatCanvas inherits Rectangle {
                     }
                 }
 
-                input-area := TextInput {
+                // Input Box with Placeholder
+                Rectangle {
                     horizontal-stretch: 1;
-                    text <=> root.prompt-text;
-                    color: AntigravityTheme.text-primary;
-                    font-size: 13px;
-                    vertical-alignment: center;
+                    clip: true;
 
-                    accepted => {
-                        if root.prompt-text != "" && !root.is-generating {
-                            root.send-message(root.prompt-text);
-                            root.prompt-text = "";
-                            root.show-slash-menu = false;
-                            root.show-mention-menu = false;
+                    if root.prompt-text == "" && !input-area.has-focus: Text {
+                        text: "Ask anything, type / for commands, @ to mention context...";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+
+                    input-area := TextInput {
+                        width: 100%;
+                        height: 100%;
+                        text <=> root.prompt-text;
+                        color: AntigravityTheme.text-primary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+
+                        accepted => {
+                            if root.prompt-text != "" && !root.is-generating {
+                                root.send-message(root.prompt-text);
+                                root.prompt-text = "";
+                                root.show-slash-menu = false;
+                                root.show-mention-menu = false;
+                            }
                         }
                     }
                 }

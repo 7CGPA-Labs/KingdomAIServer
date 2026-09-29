@@ -199,6 +199,11 @@ export component MainWindow inherits Window {
     callback mention-resource(string);
     callback trigger-task(string);
     callback cancel-task(string);
+    callback copy-text(string);
+    callback refresh-diff();
+    callback execute-plan();
+    callback add-task(string, string, string);
+    callback reload-skills();
 
     VerticalLayout {
         spacing: 0px;
@@ -245,6 +250,7 @@ export component MainWindow inherits Window {
                     clear-chat => { root.clear-chat(); }
                     mode-changed(m) => { root.set-mode(m); }
                     mention-chosen(m) => { root.mention-resource(m); }
+                    copy-message(msg) => { root.copy-text(msg); }
                     slash-command-chosen(cmd) => {
                         if cmd == "/top" {
                             root.active-nav = "ktop";
@@ -295,6 +301,8 @@ export component MainWindow inherits Window {
                     cache-hit-ratio: root.cache-hit-ratio;
 
                     purge-cache-clicked => { root.purge-cache(); }
+                    refresh-diff-clicked => { root.refresh-diff(); }
+                    execute-plan-clicked => { root.execute-plan(); }
                 }
             }
 
@@ -314,8 +322,10 @@ export component MainWindow inherits Window {
                 horizontal-stretch: 1;
                 tasks: root.scheduled-tasks;
                 create-task-clicked => {
-                    // Open prompt or pre-populate schedule
-                    root.execute-command("/schedule");
+                    // Toggled inside component
+                }
+                save-new-task(name, sched, prompt) => {
+                    root.add-task(name, sched, prompt);
                 }
                 trigger-task-clicked(id) => {
                     root.trigger-task(id);
@@ -329,10 +339,10 @@ export component MainWindow inherits Window {
                 horizontal-stretch: 1;
                 items: root.skills-list;
                 toggle-filter(f) => {
-                    // Filter handled declaratively or via controller
+                    // Filter handled declaratively in component
                 }
                 reload-customizations => {
-                    root.execute-command("/health");
+                    root.reload-skills();
                 }
             }
 

@@ -21,11 +21,16 @@ if sys.platform == "win32":
 
 
 def _attach_interactive_desktop():
-    """Ensures the thread is attached to the interactive user desktop on Windows."""
+    """Ensures the process and thread are attached to the interactive user desktop on Windows."""
     if sys.platform == "win32":
         try:
             import ctypes
             user32 = ctypes.windll.user32
+            # Connect process to interactive window station WinSta0
+            h_winsta = user32.OpenWindowStationW("WinSta0", False, 0x10000000)
+            if h_winsta:
+                user32.SetProcessWindowStation(h_winsta)
+            # Connect thread to interactive Default desktop
             h_desk = user32.OpenDesktopW("Default", 0, False, 0x10000000)
             if h_desk:
                 user32.SetThreadDesktop(h_desk)

@@ -347,3 +347,27 @@ def test_app_controller_scheduled_tasks():
     ctrl.on_cancel_task("task-cron-2")
     assert len(ctrl.window.chat_messages) == initial_len + 2
     assert "Cancelled task `task-cron-2`" in ctrl.window.chat_messages[-1]["content"]
+
+
+def test_app_controller_interactive_fine_tunings():
+    """Verify live diff refreshing, plan execution, task creation, and skill reloads."""
+    ctrl = AppController(auto_start_telemetry=False)
+
+    # 1. Live diff refresh
+    ctrl.on_refresh_diff()
+    assert len(ctrl.window.diff_lines) > 0
+    assert "Live Git Diff" in ctrl.window.diff_file
+
+    # 2. Add new task
+    initial_tasks_count = len(ctrl.window.scheduled_tasks)
+    ctrl.on_add_task("AST Symbol Indexer", "*/10 * * * *", "Index codebase symbols")
+    assert len(ctrl.window.scheduled_tasks) == initial_tasks_count + 1
+    assert "AST Symbol Indexer" in ctrl.window.chat_messages[-1]["content"]
+
+    # 3. Plan execution
+    ctrl.on_execute_plan()
+    assert "Approved Architectural Plan Execution" in ctrl.window.chat_messages[-1]["content"]
+
+    # 4. Reload skills
+    ctrl.on_reload_skills()
+    assert "Skills & Rules Reloaded from Disk" in ctrl.window.chat_messages[-1]["content"]

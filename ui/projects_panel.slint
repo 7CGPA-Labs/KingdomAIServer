@@ -1,5 +1,6 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export struct ProjectItem {
     id: string,
@@ -98,78 +99,87 @@ export component ProjectsPanel inherits Rectangle {
                     font-weight: 700;
                 }
 
-                for proj in root.projects: Rectangle {
-                    height: 72px;
-                    background: AntigravityTheme.background-input;
-                    border-radius: AntigravityTheme.radius-sm;
-                    border-width: 1px;
-                    border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
+                ScrollView {
+                    vertical-stretch: 1;
 
-                    HorizontalLayout {
-                        padding: AntigravityTheme.spacing-md;
-                        alignment: space-between;
+                    VerticalLayout {
+                        spacing: AntigravityTheme.spacing-sm;
+                        padding-right: 6px;
 
-                        VerticalLayout {
-                            spacing: 4px;
-                            alignment: center;
+                        for proj in root.projects: Rectangle {
+                            height: 72px;
+                            background: AntigravityTheme.background-input;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
 
                             HorizontalLayout {
-                                spacing: AntigravityTheme.spacing-sm;
-                                alignment: start;
+                                padding: AntigravityTheme.spacing-md;
+                                alignment: space-between;
 
-                                Text {
-                                    text: proj.name;
-                                    color: AntigravityTheme.text-primary;
-                                    font-size: 14px;
-                                    font-weight: 700;
-                                    vertical-alignment: center;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    HorizontalLayout {
+                                        spacing: AntigravityTheme.spacing-sm;
+                                        alignment: start;
+
+                                        Text {
+                                            text: proj.name;
+                                            color: AntigravityTheme.text-primary;
+                                            font-size: 14px;
+                                            font-weight: 700;
+                                            vertical-alignment: center;
+                                        }
+
+                                        if proj.is-active: StatusBadge {
+                                            text: "ACTIVE";
+                                            badge-color: AntigravityTheme.status-success;
+                                            y: (parent.height - self.height) / 2;
+                                        }
+
+                                        Text {
+                                            text: "⎇ " + proj.branch;
+                                            color: AntigravityTheme.accent-magenta;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    Text {
+                                        text: proj.path;
+                                        color: AntigravityTheme.text-secondary;
+                                        font-size: 11px;
+                                    }
                                 }
 
-                                if proj.is-active: StatusBadge {
-                                    text: "ACTIVE";
-                                    badge-color: AntigravityTheme.status-success;
-                                    y: (parent.height - self.height) / 2;
-                                }
+                                HorizontalLayout {
+                                    spacing: AntigravityTheme.spacing-sm;
+                                    alignment: center;
 
-                                Text {
-                                    text: "⎇ " + proj.branch;
-                                    color: AntigravityTheme.accent-magenta;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    vertical-alignment: center;
-                                }
-                            }
+                                    Rectangle {
+                                        width: 100px;
+                                        height: 32px;
+                                        border-radius: AntigravityTheme.radius-sm;
+                                        background: proj.is-active ? AntigravityTheme.background-active : (p-btn.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface);
+                                        border-width: 1px;
+                                        border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
 
-                            Text {
-                                text: proj.path;
-                                color: AntigravityTheme.text-secondary;
-                                font-size: 11px;
-                            }
-                        }
+                                        p-btn := TouchArea {
+                                            clicked => { root.select-project(proj.id); }
+                                        }
 
-                        HorizontalLayout {
-                            spacing: AntigravityTheme.spacing-sm;
-                            alignment: center;
-
-                            Rectangle {
-                                width: 100px;
-                                height: 32px;
-                                border-radius: AntigravityTheme.radius-sm;
-                                background: proj.is-active ? AntigravityTheme.background-active : (p-btn.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface);
-                                border-width: 1px;
-                                border-color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.border-subtle;
-
-                                p-btn := TouchArea {
-                                    clicked => { root.select-project(proj.id); }
-                                }
-
-                                Text {
-                                    text: proj.is-active ? "Selected" : "Switch To";
-                                    color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-primary;
-                                    font-size: 11px;
-                                    font-weight: 600;
-                                    horizontal-alignment: center;
-                                    vertical-alignment: center;
+                                        Text {
+                                            text: proj.is-active ? "Selected" : "Switch To";
+                                            color: proj.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-primary;
+                                            font-size: 11px;
+                                            font-weight: 600;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
                                 }
                             }
                         }
