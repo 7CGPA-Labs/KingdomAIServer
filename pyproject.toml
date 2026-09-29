@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kingdom-ai-studio"
-version = "3.0.0-dev"
+version = "3.0.0"
 description = "Kingdom AI Studio V3 - On-Device AI Coding Assistant & Studio (Google Antigravity Clone with Slint GUI)"
 authors = [{ name = "Kingdom AI Server Team" }]
 readme = "README.md"

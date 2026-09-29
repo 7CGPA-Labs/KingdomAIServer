@@ -8,7 +8,7 @@
 $ErrorActionPreference = "Continue"
 
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " [KINGDOM AI SERVER] ZERO-ADMIN ENTERPRISE DEPLOYMENT" -ForegroundColor Yellow
+Write-Host " [KINGDOM AI STUDIO V3] ZERO-ADMIN ENTERPRISE DEPLOYMENT" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow
 
 # Target user-space installation path
@@ -36,7 +36,7 @@ try {
     # Non-elevated execution will silently skip
 }
 
-Write-Host "[3/5] Deploying Kingdom AI Server .pyz bundle..." -ForegroundColor Cyan
+Write-Host "[3/5] Deploying Kingdom AI Studio V3 bundle & UI assets..." -ForegroundColor Cyan
 $ScriptDir = $PSScriptRoot
 $Deployed = $false
 
@@ -44,41 +44,58 @@ $Deployed = $false
 if ($ScriptDir -and (Test-Path "$ScriptDir\bin\kingdom.pyz")) {
     Write-Host "[OK] Found local pre-built .pyz bundle at $ScriptDir\bin" -ForegroundColor Green
     Copy-Item -Path "$ScriptDir\bin\*" -Destination $BinDir -Recurse -Force
+    if (Test-Path "$ScriptDir\ui") {
+        Copy-Item -Path "$ScriptDir\ui" -Destination $InstallDir -Recurse -Force
+    }
+    if (Test-Path "$ScriptDir\config") {
+        Copy-Item -Path "$ScriptDir\config" -Destination $InstallDir -Recurse -Force
+    }
     $Deployed = $true
 }
 
 # 2. If not local, attempt downloading release asset from GitHub
 if (-not $Deployed) {
     $ZipPath = "$env:TEMP\KingdomServer-win64-full.zip"
-    $ReleaseUrl = "https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v2.0.0/KingdomServer-win64-full.zip"
+    $ReleaseUrls = @(
+        "https://github.com/7CGPA-Labs/KingdomAIServer/releases/download/v3.0.0/KingdomServer-win64-full.zip",
+        "https://github.com/7CGPA-Labs/KingdomAIServer/releases/latest/download/KingdomServer-win64-full.zip"
+    )
     
-    Write-Host "Downloading release bundle from GitHub..." -ForegroundColor Yellow
-    try {
-        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            curl.exe -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $ReleaseUrl -o $ZipPath
-        } else {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $ReleaseUrl -OutFile $ZipPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -UseBasicParsing
-        }
-
-        # Check if downloaded file is an HTML block page or real ZIP
-        $HeaderBytes = Get-Content -Path $ZipPath -Encoding Byte -TotalCount 4 -ErrorAction SilentlyContinue
-        $IsZip = ($HeaderBytes -and $HeaderBytes[0] -eq 0x50 -and $HeaderBytes[1] -eq 0x4B)
-
-        if ($IsZip) {
-            Write-Host "[OK] Downloaded release ZIP successfully. Extracting..." -ForegroundColor Green
-            Expand-Archive -Path $ZipPath -DestinationPath "$env:TEMP\KingdomExtract" -Force
-            if (Test-Path "$env:TEMP\KingdomExtract\bin\kingdom.pyz") {
-                Copy-Item -Path "$env:TEMP\KingdomExtract\bin\*" -Destination "$BinDir" -Recurse -Force
-            } elseif (Test-Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\bin\kingdom.pyz") {
-                Copy-Item -Path "$env:TEMP\KingdomExtract\KingdomServer-win64-full\bin\*" -Destination "$BinDir" -Recurse -Force
+    foreach ($ReleaseUrl in $ReleaseUrls) {
+        Write-Host "Downloading release bundle from $ReleaseUrl ..." -ForegroundColor Yellow
+        try {
+            if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+                curl.exe -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" $ReleaseUrl -o $ZipPath
+            } else {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri $ReleaseUrl -OutFile $ZipPath -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -UseBasicParsing
             }
-            Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "$env:TEMP\KingdomExtract" -Recurse -Force -ErrorAction SilentlyContinue
-            $Deployed = $true
+
+            # Check if downloaded file is an HTML block page or real ZIP
+            $HeaderBytes = Get-Content -Path $ZipPath -Encoding Byte -TotalCount 4 -ErrorAction SilentlyContinue
+            $IsZip = ($HeaderBytes -and $HeaderBytes[0] -eq 0x50 -and $HeaderBytes[1] -eq 0x4B)
+
+            if ($IsZip) {
+                Write-Host "[OK] Downloaded release ZIP successfully. Extracting..." -ForegroundColor Green
+                Expand-Archive -Path $ZipPath -DestinationPath "$env:TEMP\KingdomExtract" -Force
+                $extractRoot = if (Test-Path "$env:TEMP\KingdomExtract\bin\kingdom.pyz") { "$env:TEMP\KingdomExtract" } else { "$env:TEMP\KingdomExtract\KingdomServer-win64-full" }
+                if (Test-Path "$extractRoot\bin\kingdom.pyz") {
+                    Copy-Item -Path "$extractRoot\bin\*" -Destination "$BinDir" -Recurse -Force
+                    if (Test-Path "$extractRoot\ui") {
+                        Copy-Item -Path "$extractRoot\ui" -Destination "$InstallDir" -Recurse -Force
+                    }
+                    if (Test-Path "$extractRoot\config") {
+                        Copy-Item -Path "$extractRoot\config" -Destination "$InstallDir" -Recurse -Force
+                    }
+                    $Deployed = $true
+                }
+                Remove-Item -Path $ZipPath -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path "$env:TEMP\KingdomExtract" -Recurse -Force -ErrorAction SilentlyContinue
+                if ($Deployed) { break }
+            }
+        } catch {
+            Write-Host "[WARN] Release download attempt failed from $ReleaseUrl." -ForegroundColor Yellow
         }
-    } catch {
-        Write-Host "[ERROR] Release ZIP download failed." -ForegroundColor Red
     }
 }
 

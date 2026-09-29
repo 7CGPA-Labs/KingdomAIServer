@@ -1,4 +1,4 @@
 """
-Kingdom AI Server V2 Package Root.
+Kingdom AI Studio V3 Package Root.
 """
-__version__ = "2.0.0"
+__version__ = "3.0.0"
