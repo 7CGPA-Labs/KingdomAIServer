@@ -239,7 +239,7 @@ Write-Host "Upgrading pip and setuptools inside venv..." -ForegroundColor Yellow
 & $VenvPython -m pip install --upgrade pip setuptools -q
 
 Write-Host "Installing core Kingdom AI Server dependencies..." -ForegroundColor Yellow
-& $VenvPython -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil jinja2
+& $VenvPython -m pip install --prefer-binary fastapi uvicorn rich httpx truststore sqlite-vec tree-sitter pillow requests pyyaml psutil jinja2 slint
 
 Write-Host "Analyzing CPU & Graphics Hardware Profile..." -ForegroundColor Yellow
 
@@ -357,6 +357,9 @@ if ($gpuCheck -eq "True") {
 
 # Generate localized venv-aware cmd wrappers
 $cpuEnvSet = if ($isCpuOnly) { "set KINGDOM_CPU_MODE=1`r`n" } else { "" }
+$StudioCmd = "@echo off`r`nsetlocal`r`nset PYTHONUTF8=1`r`n$cpuEnvSet`cd /d `"%~dp0..`"`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0kingdom.pyz`" studio %*`r`n) else (`r`n    python.exe `"%~dp0kingdom.pyz`" studio %*`r`n)"
+Set-Content -Path "$BinDir\kingdom_studio.cmd" -Value $StudioCmd -Encoding ASCII
+
 $LauncherCmd = "@echo off`r`nsetlocal`r`nset PYTHONUTF8=1`r`n$cpuEnvSet`cd /d `"%~dp0..`"`r`nif exist `"%~dp0..\venv\Scripts\python.exe`" (`r`n    `"%~dp0..\venv\Scripts\python.exe`" `"%~dp0kingdom.pyz`" server %*`r`n) else (`r`n    python.exe `"%~dp0kingdom.pyz`" server %*`r`n)"
 Set-Content -Path "$BinDir\start_server.cmd" -Value $LauncherCmd -Encoding ASCII
 
@@ -376,12 +379,12 @@ Write-Host "[5/5] Creating user desktop shortcut and updating PATH..." -Foregrou
 try {
     $WshShell = New-Object -ComObject WScript.Shell
     $DesktopPath = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI Terminal.lnk")
-    $Shortcut.TargetPath = "$BinDir\kingdom_cli.cmd"
+    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Kingdom AI Studio.lnk")
+    $Shortcut.TargetPath = "$BinDir\kingdom_studio.cmd"
     $Shortcut.WorkingDirectory = $InstallDir
-    $Shortcut.Description = "Kingdom AI Rich Terminal CLI"
+    $Shortcut.Description = "Kingdom AI Studio V3 - On-Device Antigravity AI Coding Assistant"
     $Shortcut.Save()
-    Write-Host "[OK] Desktop shortcut created successfully!" -ForegroundColor Green
+    Write-Host "[OK] Desktop shortcut created successfully (Kingdom AI Studio)!" -ForegroundColor Green
 } catch {
     Write-Host "[WARN] Desktop shortcut creation skipped." -ForegroundColor Yellow
 }
@@ -395,13 +398,13 @@ if ($UserPath -notlike "*$BinDir*") {
 
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host " KINGDOM AI SERVER & TERMINAL CLI DEPLOYMENT COMPLETE!" -ForegroundColor Green
+Write-Host " KINGDOM AI STUDIO V3 (ANTIGRAVITY GUI) DEPLOYMENT COMPLETE!" -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host " Installation Directory : $InstallDir" -ForegroundColor White
 Write-Host " Models Directory       : $ModelsDir" -ForegroundColor White
-Write-Host " Headless API Endpoint  : http://127.0.0.1:58420" -ForegroundColor White
 Write-Host ""
 Write-Host " Quick Launch Commands:" -ForegroundColor Cyan
+Write-Host "   kingdom_studio          # Launch Google Antigravity-style Desktop GUI" -ForegroundColor Green
 Write-Host "   kingdom_cli             # Launch Rich Terminal CLI" -ForegroundColor Yellow
-Write-Host "   start_server            # Start headless uvicorn server for Continue.dev" -ForegroundColor Yellow
+Write-Host "   start_server            # Start headless API server (optional)" -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow

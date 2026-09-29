@@ -1,35 +1,15 @@
 """
-Kingdom AI Server V2 - Main Entrypoint Launcher.
-Starts the FastAPI OpenAI Server on http://127.0.0.1:58420 and auto-opens the Open WebUI in default browser.
+Kingdom AI Studio V3 - Main Desktop Entrypoint.
+Boots the standalone desktop AI programming studio powered by Slint GUI.
+100% on-device in-process execution with zero server overhead.
+
 Usage:
-    python main.py
+    python main.py             # Launch Kingdom AI Studio V3 Desktop GUI
+    python main.py --server    # Launch legacy V2 HTTP/OpenAI server (deprecated)
 """
 import sys
-import subprocess
-import webbrowser
+import os
 from pathlib import Path
-
-# Auto-detect and switch to virtual environment if uvicorn is missing in active Python interpreter
-try:
-    import uvicorn
-except ImportError:
-    script_dir = Path(__file__).parent.resolve()
-    current_py = Path(sys.executable).resolve()
-    possible_venvs = [
-        script_dir / "venv" / "Scripts" / "python.exe",
-        script_dir.parent / "venv" / "Scripts" / "python.exe",
-        script_dir / "venv" / "bin" / "python",
-        script_dir.parent / "venv" / "bin" / "python",
-    ]
-    for venv_py in possible_venvs:
-        if venv_py.exists() and venv_py.resolve() != current_py:
-            print(f"🔄 Switching to virtual environment Python: {venv_py}")
-            cmd = [str(venv_py), str(Path(__file__).resolve())] + sys.argv[1:]
-            sys.exit(subprocess.call(cmd))
-
-    print(f"❌ Error: 'uvicorn' is not installed in Python environment ({sys.executable}).")
-    print("Please install requirements: pip install -e .")
-    sys.exit(1)
 
 # Enforce UTF-8 console output encoding on Windows
 if sys.platform == "win32":
@@ -39,119 +19,55 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-import os
-import threading
-import time
-from typing import Optional
-from src.config import get_model_config
-from src.inference.inference_engine import LOCAL_BEARER_TOKEN, cache_db, orchestrator, embedder, reranker
-from src.utils.request_tracker import attach_log_interceptor
-from rich.live import Live
-from src.cli.server_dashboard import KingdomTopDashboard, console
 
-def start_server(headless: Optional[bool] = None):
-    config = get_model_config()
-    server_cfg = config.get("server", {})
-    host = server_cfg.get("host", "127.0.0.1")
-    port = server_cfg.get("port", 58420)
-    token = LOCAL_BEARER_TOKEN
+def launch_studio():
+    """Boots the Slint-powered Kingdom AI Studio V3 Desktop GUI."""
+    print("======================================================================")
+    print(" 👑 KINGDOM AI STUDIO V3 • GOOGLE ANTIGRAVITY GUI EDITION")
+    print(" Standalone On-Device AI Coding Assistant (Slint Native Desktop GUI)")
+    print("======================================================================")
+    print(" ● Execution Mode:  100% In-Process (Zero-Server Architecture)")
+    print(" ● VRAM Budget:     <= 6.00 GB (Strict Hardware Safety Ceiling)")
+    print(" ● UI Engine:       Slint Declarative Native GUI (60 FPS)")
+    print("----------------------------------------------------------------------")
 
-    if headless is None:
-        headless = (
-            "--headless" in sys.argv or 
-            "--no-tui" in sys.argv or 
-            os.environ.get("KINGDOM_HEADLESS") == "1" or 
-            not sys.stdout.isatty()
-        )
+    from src.gui import AppController
+    controller = AppController(auto_start_telemetry=True)
+    print(" Launching Kingdom AI Studio desktop window...")
+    controller.run()
 
-    def _open_browser():
-        time.sleep(1.5)
-        try:
-            webbrowser.open(f"http://{host}:{port}")
-        except Exception:
-            pass
 
-    threading.Thread(target=_open_browser, daemon=True).start()
+def launch_legacy_server():
+    """Fallback launcher for legacy HTTP server (deprecated)."""
+    try:
+        import uvicorn
+        from src.config import get_model_config
+        from src.inference.inference_engine import LOCAL_BEARER_TOKEN
 
-    if headless:
+        config = get_model_config()
+        server_cfg = config.get("server", {})
+        host = server_cfg.get("host", "127.0.0.1")
+        port = server_cfg.get("port", 58420)
+        token = LOCAL_BEARER_TOKEN
+
         print("======================================================================")
-        print(" 👑 KINGDOM AI SERVER (V2 Headless Edition) • v2.0.0")
-        print(" Dedicated Local OpenAI-Compatible Server for Continue.dev")
-        print("======================================================================")
-        print(" ● Server Status: ACTIVE")
-        print(f" ● Base URL:      http://{host}:{port}")
-        print(f" ● Bearer Token:  {token}")
-        print(" ● VRAM Ceiling:  <= 6.00 GB (DirectML GPU / CPU AVX2 Fallback)")
-        print("----------------------------------------------------------------------")
-        print(" 📡 Active API Endpoints:")
-        print(f"   • Chat Completions: POST http://{host}:{port}/v1/chat/completions")
-        print(f"   • Text Embeddings:  POST http://{host}:{port}/v1/embeddings")
-        print(f"   • Context Rerank:   POST http://{host}:{port}/v1/rerank")
-        print(f"   • Inline Edits:     POST http://{host}:{port}/v1/edits")
-        print(f"   • Workspace Apply:  POST http://{host}:{port}/v1/apply")
-        print(f"   • WebUI Console:    GET  http://{host}:{port}/")
-        print("----------------------------------------------------------------------")
-        print(" 🏛️ Council Architecture:")
-        print("   • Boss LLM:        Qwen 2.5 Coder 1.5B GGUF")
-        print("   • Minister 1:      BGE Embedder (Semantic Vector Search)")
-        print("   • Minister 2:      BGE Reranker (Cross-Encoder Re-ranking)")
-        print("   • Native Engine:   Tree-Sitter AST & Heuristic Router")
+        print(" 👑 KINGDOM AI SERVER (Legacy Headless Edition - Deprecated)")
+        print(f" Base URL: http://{host}:{port} | Bearer: {token}")
+        print(" Note: Kingdom AI Studio V3 desktop GUI is the recommended interface.")
         print("======================================================================")
         uvicorn.run("src.inference.inference_engine:app", host=host, port=port, reload=False)
+    except ImportError:
+        print("❌ Error: uvicorn is not installed in the active environment.")
+        print("To run the desktop studio, use: python main.py")
+        sys.exit(1)
+
+
+def main():
+    if "--server" in sys.argv or "--headless" in sys.argv or os.environ.get("KINGDOM_LEGACY_SERVER") == "1":
+        launch_legacy_server()
     else:
-        # Intercept uvicorn and app logging to avoid stdout tearing
-        attach_log_interceptor()
+        launch_studio()
 
-        dashboard = KingdomTopDashboard(host=host, port=port, bearer_token=token)
-        dashboard.attach_engines(
-            cache_db=cache_db,
-            orchestrator=orchestrator,
-            embedder=embedder,
-            reranker=reranker
-        )
-
-        server_config = uvicorn.Config(
-            "src.inference.inference_engine:app",
-            host=host,
-            port=port,
-            log_level="info",
-            reload=False
-        )
-        server = uvicorn.Server(server_config)
-        server_thread = threading.Thread(target=server.run, daemon=True)
-        server_thread.start()
-
-        try:
-            with Live(dashboard.build_layout(), console=console, screen=True, refresh_per_second=3) as live:
-                while not server.should_exit and server_thread.is_alive():
-                    time.sleep(0.3)
-                    if sys.platform == "win32":
-                        try:
-                            import msvcrt
-                            while msvcrt.kbhit():
-                                ch = msvcrt.getch()
-                                if ch in (b'\x00', b'\xe0'):
-                                    msvcrt.getch()
-                                    continue
-                                key = ch.decode("utf-8", errors="ignore").lower()
-                                if key == "q":
-                                    server.should_exit = True
-                                    break
-                                elif key == "c":
-                                    cache_db.clear()
-                                    dashboard.status_message = "● CACHE CLEARED"
-                                elif key == "h":
-                                    dashboard.show_help = not dashboard.show_help
-                                elif key == "r":
-                                    dashboard.status_message = "● FORCED REFRESH"
-                        except Exception:
-                            pass
-                    live.update(dashboard.build_layout())
-        except (KeyboardInterrupt, SystemExit):
-            server.should_exit = True
-        finally:
-            server.should_exit = True
-            console.print("[bold yellow]👑 Kingdom AI Server stopped gracefully.[/bold yellow]")
 
 if __name__ == "__main__":
-    start_server()
+    main()

@@ -1,5 +1,8 @@
 """
-Enterprise Security Authentication & Local Token Management.
+[DEPRECATED in V3] Enterprise Security Authentication & Local Token Management.
+NOTE: In Kingdom AI Studio V3, standalone desktop GUI mode operates 100% in-process
+with no network listener or bearer token required. This module is maintained
+for backward compatibility with legacy HTTP server mode.
 Auto-generates and validates 256-bit cryptographically secure hex bearer token stored in %LocalAppData%\\KingdomAIServer\\.token
 """
 import os

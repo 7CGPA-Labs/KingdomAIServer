@@ -30,10 +30,11 @@ def create_release_archive():
         shutil.rmtree(zipapp_stage)
     zipapp_stage.mkdir(parents=True)
 
-    for item in ["src", "config"]:
+    for item in ["src", "config", "ui"]:
         target = project_root / item
         if target.exists():
             shutil.copytree(target, zipapp_stage / item)
+            shutil.copytree(target, staging_dir / item)
     
     for item in ["main.py", "download_models.py"]:
         target = project_root / item
@@ -54,9 +55,12 @@ import os
 
 if len(sys.argv) > 1:
     cmd = sys.argv[1].lower()
-    if cmd == "server":
-        from main import start_server
-        start_server()
+    if cmd in ("studio", "gui"):
+        from main import launch_studio
+        launch_studio()
+    elif cmd == "server":
+        from main import launch_legacy_server
+        launch_legacy_server()
     elif cmd == "cli":
         from src.cli import terminal_ui
         terminal_ui.main()
@@ -64,10 +68,11 @@ if len(sys.argv) > 1:
         from src.utils import downloader
         downloader.main()
     else:
-        print(f"Unknown command: {cmd}")
+        from main import launch_studio
+        launch_studio()
 else:
-    from main import start_server
-    start_server()
+    from main import launch_studio
+    launch_studio()
 """
     (zipapp_stage / "__main__.py").write_text(main_py_content, encoding="utf-8")
 
@@ -86,7 +91,7 @@ else:
     models_dir = staging_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / "README.txt").write_text(
-        "Place the V2 model files here (or run download_models.cmd):\n"
+        "Place the V3 model files here (or run download_models.cmd / download in Studio):\n"
         "- qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\n"
         "- bge-small-en-v1.5-q4_k_m.gguf\n"
         "- bge-reranker-base-q4_k_m.gguf\n",
@@ -94,6 +99,9 @@ else:
     )
 
     # 4. Create local .cmd wrappers in bin/ for testing or manual execution
+    (bin_dir / "kingdom_studio.cmd").write_text(
+        "@echo off\nsetlocal\nset PYTHONUTF8=1\ncd /d \"%~dp0..\"\npython \"%~dp0kingdom.pyz\" studio %*\n", encoding="utf-8"
+    )
     (bin_dir / "start_server.cmd").write_text(
         "@echo off\nsetlocal\nset PYTHONUTF8=1\ncd /d \"%~dp0..\"\npython \"%~dp0kingdom.pyz\" server %*\n", encoding="utf-8"
     )

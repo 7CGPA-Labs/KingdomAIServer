@@ -34,7 +34,7 @@ from src.utils.downloader import ModelDownloader
 
 if __name__ == "__main__":
     print("======================================================================")
-    print(" 📦 KINGDOM AI SERVER V2 - MODEL WEIGHTS AUTO-PROVISIONER")
+    print(" 📦 KINGDOM AI STUDIO V3 - MODEL WEIGHTS AUTO-PROVISIONER")
     print("======================================================================")
     downloader = ModelDownloader()
     downloader.auto_provision_missing()

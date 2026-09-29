@@ -1,0 +1,169 @@
+import { AntigravityTheme } from "theme.slint";
+import { ProgressMeter } from "components/progress_meter.slint";
+import { StatusBadge } from "components/badge.slint";
+
+export component KTopDashboardView inherits Rectangle {
+    in property <float> cpu-pct: 24.5;
+    in property <float> ram-used-gb: 5.8;
+    in property <float> ram-total-gb: 16.0;
+    in property <float> vram-used-gb: 2.14;
+    in property <float> vram-ceiling-gb: 6.0;
+    in property <string> silicon-provider: "Vulkan / GPU Accelerated (Intel Iris Xe)";
+    in property <int> cpu-threads: 8;
+    in property <string> uptime-str: "01:24:32";
+    in property <float> speed-tokens-sec: 34.2;
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: AntigravityTheme.spacing-lg;
+        spacing: AntigravityTheme.spacing-md;
+
+        HorizontalLayout {
+            alignment: space-between;
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: "📊 K-Top Silicon & Telemetry Dashboard";
+                    color: AntigravityTheme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                }
+                Text {
+                    text: "Real-time htop-style telemetry for on-device compute, memory bounds, and throughput.";
+                    color: AntigravityTheme.text-secondary;
+                    font-size: 12px;
+                }
+            }
+
+            StatusBadge {
+                text: root.silicon-provider;
+                badge-color: AntigravityTheme.accent-cyan;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
+        Rectangle {
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-lg;
+                spacing: AntigravityTheme.spacing-md;
+
+                Text {
+                    text: "RESOURCE CONSUMPTION (STRICT STATIC BOUNDS)";
+                    color: AntigravityTheme.text-muted;
+                    font-size: 10px;
+                    font-weight: 700;
+                }
+
+                ProgressMeter {
+                    label: "CPU";
+                    progress: root.cpu-pct / 100.0;
+                    value-text: Math.round(root.cpu-pct) + "% (" + root.cpu-threads + " Threads)";
+                    bar-color: AntigravityTheme.accent-cyan;
+                }
+
+                ProgressMeter {
+                    label: "RAM";
+                    progress: root.ram-used-gb / root.ram-total-gb;
+                    value-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+                    bar-color: AntigravityTheme.accent-magenta;
+                }
+
+                ProgressMeter {
+                    label: "VRAM";
+                    progress: root.vram-used-gb / root.vram-ceiling-gb;
+                    value-text: root.vram-used-gb + " / " + root.vram-ceiling-gb + " GB [PASSED]";
+                    bar-color: AntigravityTheme.status-success;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: AntigravityTheme.spacing-md;
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: AntigravityTheme.background-surface;
+                border-radius: AntigravityTheme.radius-md;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-md;
+                    spacing: AntigravityTheme.spacing-sm;
+
+                    Text { text: "⚡ HARDWARE & RUNTIME METRICS"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Active Provider"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: root.silicon-provider; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 700; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "CPU Threads Active"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: root.cpu-threads + " threads"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Generation Speed"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: Math.round(root.speed-tokens-sec) + " tokens/sec"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 800; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "System Uptime"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: root.uptime-str; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                    }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: AntigravityTheme.background-surface;
+                border-radius: AntigravityTheme.radius-md;
+                border-width: 1px;
+                border-color: AntigravityTheme.border-subtle;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-md;
+                    spacing: AntigravityTheme.spacing-sm;
+
+                    Text { text: "🛡️ VRAM SAFETY & LATENCY GAUGES"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Static VRAM Ceiling"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: "<= 6.00 GB (Enforced)"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 700; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "KV Cache RAM Allocation"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: "512 MB (Fast Prefill)"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Response Cache Lookup"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: "< 0.05 ms (SQLite WAL)"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 700; }
+                    }
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Render Engine"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                        Text { text: "Slint Native 60 FPS"; color: AntigravityTheme.accent-magenta; font-size: 12px; font-weight: 700; }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,98 +1,100 @@
-# 👑 Kingdom AI Server (V2 Headless)
+# 👑 Kingdom AI Studio V3 (Google Antigravity Clone)
 
 [![Build & Package](https://github.com/7CGPA-Labs/KingdomAIServer/actions/workflows/build.yml/badge.svg)](https://github.com/7CGPA-Labs/KingdomAIServer/actions/workflows/build.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform: Windows Enterprise](https://img.shields.io/badge/platform-Windows%20x64-0078D6.svg)](https://microsoft.com/windows)
-[![Port: 58420](https://img.shields.io/badge/port-127.0.0.1%3A58420-success.svg)](http://127.0.0.1:58420)
+[![UI: Slint Native GUI](https://img.shields.io/badge/UI-Slint%20Native%20Desktop-26B5CE.svg)](https://slint.dev)
 [![Engine: llama.cpp GGUF](https://img.shields.io/badge/engine-llama.cpp%20GGUF-orange.svg)](https://github.com/ggerganov/llama.cpp)
-[![VRAM Ceiling: <= 6.00 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%206.00%20GB-brightgreen.svg)](ARCHITECTURE_CHANGES_V2.md)
+[![VRAM Ceiling: <= 6.00 GB](https://img.shields.io/badge/VRAM%20ceiling-%E2%89%A4%206.00%20GB-brightgreen.svg)](v3-architecture.md)
 
-**Kingdom AI Server V2** is an ultra-lean, enterprise-secure local **OpenAI-Compatible AI Server** optimized explicitly for **Continue.dev** and local RAG workflows. 
+**Kingdom AI Studio V3** is an on-device, zero-server standalone **AI Programming Studio** — designed as a native desktop clone of **Google Antigravity GUI** using the **Slint GUI library**.
 
-V2 drops the bulky WebUI, operating completely headless from a single compiled **ZipApp (`.pyz`)**. It guarantees a strict **$\le 6.00$ GB VRAM static ceiling**, powered by `llama.cpp` (DirectML/OpenCL) and Qwen2.5-Coder.
+V3 decommissions the HTTP REST daemon requirement. It executes **100% in-process** directly against the local `llama.cpp` engine, BGE Embedder/Reranker Council, and SQLite WAL cache with an ultra-light on-device memory footprint (< 30 MB RAM) and a guaranteed strict **$\le 6.00$ GB VRAM safety ceiling**.
 
 ---
 
-## 🏗️ System Architecture (Lean 2-Minister Council)
+## 🎨 Antigravity GUI Interface Layout
+
+Kingdom AI Studio V3 features the complete 4-surface Google Antigravity developer layout:
+
+1. **Left Navigation Sidebar (`ui/sidebar.slint`)**: Workspace switcher, navigation tabs (Chat, Models Hub, K-Top, Settings), and pair programming session history.
+2. **Center Chat & Prompt Canvas (`ui/chat_canvas.slint`)**: 60 FPS multi-turn streaming message bubbles, inline syntax-styled code cards, and a floating `/` slash command palette.
+3. **Right Auxiliary Dock (`ui/auxiliary_pane.slint`)**: Real-time status for the Council Ministers (Main Boss, Minister 1 Embedder, Minister 2 Reranker, Tree-Sitter AST), hardware bar gauges, and SQLite WAL cache inspector.
+4. **Persistent Status Bar (`ui/app.slint`)**: Live hardware indicators, token generation speed, and compute silicon engine badges (Vulkan / Intel Iris Xe / CUDA / CPU AVX2).
 
 ```mermaid
 graph TD
-    User["Continue.dev or Terminal CLI"] -->|"HTTP / SSE Port 58420"| Server["FastAPI Server Gateway"]
-    Server -->|"Instant Cache Hit (under 0.05ms)"| Cache["Response Cache DB (SQLite WAL)"]
-    Server -->|"DirectML / CPU Engine"| Engine["llama.cpp GGUF Engine"]
-    Engine -->|"llama-cpp-python"| Boss["Main Boss LLM (Qwen2.5-Coder 1.5B)"]
-    Engine -->|"llama.cpp Embedder"| M1["Minister 1 (Vector Embedder BGE-Small)"]
-    Engine -->|"llama.cpp ReRanker"| M2["Minister 2 (Context Re-Ranker)"]
-
-    Server -->|"Zero-VRAM Utilities"| Utils["Native CPU Pipeline"]
-    Utils --> U1["Tree-sitter AST Parser"]
-    Utils --> U2["SQLite Vector Store"]
-    Utils --> U3["Heuristic Intent Router"]
+    UI["Slint Native GUI (app.slint)<br/>60 FPS Canvas"] <-->|"In-Process Bridge (src/gui)"| Ctrl["AppController"]
+    Ctrl -->|"Stream Tokens"| LLM["LlamaCppOrchestrator<br/>(Qwen2.5-Coder / DeepSeek)"]
+    Ctrl -->|"Instant Hit (< 0.05ms)"| Cache["ResponseCacheDB (SQLite WAL)"]
+    Ctrl -->|"Semantic RAG"| Council["LeanCouncilManager<br/>(BGE Embedder + Reranker)"]
+    Ctrl -->|"500ms Polling"| Telem["TelemetryBridge<br/>(CPU, RAM, DXGI VRAM)"]
+    Ctrl -->|"AST Parsing"| AST["Tree-sitter Chunker"]
 ```
 
 ---
 
-## ⚡ Quick Start & Single-Line Installation
+## ⚡ Quick Start & Installation
 
-Kingdom V2 requires **zero Python setup**. It is distributed as an executable Python Zip archive (`kingdom.pyz`).
+Kingdom V3 is distributed as an executable Python Zip archive (`kingdom.pyz`) and desktop wrapper.
 
-Run the non-admin installer script in PowerShell to download the engine:
+Run the one-line installer in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/7CGPA-Labs/KingdomAIServer/v2.0.0/Deploy-KingdomServer.ps1 | iex
+irm https://raw.githubusercontent.com/7CGPA-Labs/KingdomAIServer/main/Deploy-KingdomServer.ps1 | iex
 ```
 
-### 1. Download Model Weights
-Run the model provisioner to securely pull GGUF weights directly from GitHub Releases:
+### 1. Launch Kingdom AI Studio Desktop GUI
+Run the native desktop application:
 ```powershell
-.\bin\download_models.cmd
+python main.py
 ```
+Or double-click the **Kingdom AI Studio** shortcut created on your desktop (or `.\bin\kingdom_studio.cmd`).
 
-### 2. Launch the CLI or Server
-To use the rich **interactive terminal UI** (includes RAG capabilities):
-```powershell
-.\bin\kingdom_cli.cmd
-```
-
-To start the **background REST server** (for Continue.dev):
-```powershell
-.\bin\start_server.cmd
-```
+### 2. Available Slash Commands
+From the studio prompt box, type `/` to open the command palette:
+* `/top`: Switch to full-screen K-Top hardware & throughput telemetry dashboard.
+* `/models`: Open Models Hub to view, download, and switch models.
+* `/cache`: Inspect SQLite WAL zero-VRAM response cache statistics.
+* `/clearcache`: Purge cached prompt completions.
+* `/health`: Run diagnostics and view system compute health.
+* `/clear`: Clear conversation history.
+* `/help`: Display studio guide and command list.
+* `/switch <model_id>`: Dynamically switch active model weights in-process.
+* `/download <model_id>`: Download weights from HuggingFace directly in the background.
 
 ---
 
-## 🧠 Standalone RAG CLI
+## 📦 Supported Model Catalog
 
-The `kingdom_cli.cmd` now includes built-in semantic codebase indexing! You can index a project folder on your machine directly into the SQLite Vector Store using AST (Tree-Sitter) chunking.
-
-From inside the CLI, type:
-```bash
-/index C:\Path\To\Your\Project
-```
-Once indexed, the server will automatically use **Minister 1 (Embedder)** and **Minister 2 (Re-Ranker)** to RAG-enrich your chat prompts behind the scenes.
+Kingdom AI Studio V3 provides instant one-click switching and downloading for:
+| Model ID | Base Architecture | Approx Size | VRAM Budget | Primary Role |
+| :--- | :--- | :--- | :--- | :--- |
+| `qwen2.5-coder-1.5b` | Qwen 2.5 Coder 1.5B (Q4_K_M) | 1.1 GB | ~1.1 GB | Default Senior Software Engineer (Fast & Lean) |
+| `qwen2.5-coder-3b` | Qwen 2.5 Coder 3B (Q4_K_M) | 2.0 GB | ~2.9 GB | Balanced high-performance coding model |
+| `qwen3-coder-1.7b` | Qwen 3 Coder 1.7B (Q4_K_M) | 1.25 GB | ~1.8 GB | Next-gen ultra-fast agentic coding model |
+| `qwen3-coder-4b` | Qwen 3 Coder 4B (Q4_K_M) | 2.8 GB | ~4.2 GB | Advanced reasoning & repo-scale architect |
+| `deepseek-coder-1.3b` | DeepSeek Coder 1.3B (Q4_K_M) | 0.95 GB | ~1.05 GB | Ultra-lightweight multi-language coding engine |
 
 ---
 
-## 🔌 Continue.dev VS Code Integration Guide
+## 🔌 Legacy Headless Server & Continue.dev (Optional)
 
-Add the following configuration to your `~/.continue/config.json`:
+If you still need the background HTTP/OpenAI server for IDE extensions (e.g., Continue.dev):
+```powershell
+python main.py --server
+```
 
+Configuration for `~/.continue/config.json`:
 ```json
 {
   "models": [
     {
-      "title": "Kingdom AI Server (Chat & Apply)",
+      "title": "Kingdom AI Studio (Chat & Apply)",
       "provider": "openai",
       "model": "qwen2.5-coder-1.5b",
       "apiBase": "http://127.0.0.1:58420/v1",
-      "apiKey": "local-token"
-    },
-    {
-      "title": "Kingdom Editor (Ctrl+I)",
-      "provider": "openai",
-      "model": "qwen2.5-coder-1.5b",
-      "apiBase": "http://127.0.0.1:58420/v1/edits",
       "apiKey": "local-token"
     }
   ],
@@ -101,35 +103,18 @@ Add the following configuration to your `~/.continue/config.json`:
     "model": "bge-small-en-v1.5",
     "apiBase": "http://127.0.0.1:58420/v1",
     "apiKey": "local-token"
-  },
-  "reranker": {
-    "name": "cohere",
-    "params": {
-      "model": "bge-reranker-base",
-      "apiBase": "http://127.0.0.1:58420/v1",
-      "apiKey": "local-token"
-    }
-  },
-  "rules": [
-    "You are a surgical code editor. Never rewrite the entire file or output unmodified code. Only output the exact lines that changed, surrounded by strict Git-style diffs.",
-    "Provide zero conversational filler. Do not explain the code unless explicitly asked. Output only the solution.",
-    "Never hardcode API keys, passwords, or internal IP addresses. Always use environment variables."
-  ]
+  }
 }
 ```
 
 ---
 
-## 🔌 Available REST API Endpoints
+## 🧪 Running Tests
 
-The server exposes strict OpenAI-compatible endpoints to integrate seamlessly with Continue.dev and other IDE plugins:
-
-*   `POST /v1/chat/completions`: The core ChatML interface. Now fully supports OpenAI **Tool Calling** (`<tools>` and `<tool_call>`).
-*   `POST /v1/embeddings`: OpenAI-compatible embeddings endpoint used by Continue.dev (`embeddingsProvider`) to build local codebase indices via Minister 1 (BGE-Small).
-*   `POST /v1/rerank`: Cohere-compatible reranking endpoint used to filter RAG context (`reranker`).
-*   `POST /v1/edits`: OpenAI-compatible edit API for code mutation (`Ctrl+I` / `Cmd+I`).
-*   `POST /v1/apply`: Custom endpoint for executing inline code application instructions.
-*   `GET /`: Dynamic HTML server diagnostic and token status page.
+Verify the entire test suite (100 tests):
+```powershell
+pytest -v
+```
 
 ---
 

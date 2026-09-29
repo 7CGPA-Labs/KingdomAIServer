@@ -1,5 +1,8 @@
 """
-Headless OpenAI-Compatible REST Gateway & Priority Inference Scheduler for Kingdom AI Server V2.
+[DEPRECATED in V3] Headless OpenAI-Compatible REST Gateway & Priority Inference Scheduler.
+NOTE: In Kingdom AI Studio V3, HTTP server mode is deprecated in favor of direct
+in-process execution via Slint Desktop GUI (src.gui.app_controller). This module
+is maintained for backward compatibility with legacy --server and existing test suites.
 Enforces loopback-only binding, local Bearer secret auth, CSPA origin defense, and 2 MB payload size limits.
 Exposes OpenAI-compatible endpoints (/v1/chat/completions, /v1/embeddings, /v1/rerank, /v1/edits, /v1/apply) for Continue.dev IDE extension.
 """

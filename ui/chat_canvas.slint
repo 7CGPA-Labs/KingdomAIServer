@@ -1,0 +1,344 @@
+import { AntigravityTheme } from "theme.slint";
+import { CodeCard } from "components/code_card.slint";
+
+export struct ChatMessage {
+    id: string,
+    role: string,
+    content: string,
+    timestamp: string,
+}
+
+export component ChatCanvas inherits Rectangle {
+    in property <[ChatMessage]> messages: [
+        { id: "1", role: "assistant", content: "Greetings! I am Kingdom AI Studio V3 powered by your on-device LLM. How can I assist you with your codebase today?", timestamp: "12:00" }
+    ];
+    in-out property <string> prompt-text: "";
+    in property <bool> is-generating: false;
+    in property <string> streaming-text: "";
+    in-out property <bool> show-slash-menu: false;
+
+    callback send-message(string);
+    callback stop-generation();
+    callback slash-command-chosen(string);
+    callback clear-chat();
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: AntigravityTheme.spacing-lg;
+        spacing: AntigravityTheme.spacing-md;
+
+        // Top Canvas Controls Bar
+        Rectangle {
+            height: 38px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-sm;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-subtle;
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-md;
+                padding-right: AntigravityTheme.spacing-md;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: AntigravityTheme.spacing-sm;
+                    alignment: center;
+
+                    Text {
+                        text: "💬 Active Pair Programming Session";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    width: 80px;
+                    height: 24px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: clr-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    y: (parent.height - self.height) / 2;
+
+                    clr-touch := TouchArea {
+                        clicked => { root.clear-chat(); }
+                    }
+
+                    Text {
+                        text: "Clear Canvas";
+                        color: clr-touch.has-hover ? AntigravityTheme.status-warning : AntigravityTheme.text-muted;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Messages Stream Container
+        messages-container := Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+
+            VerticalLayout {
+                spacing: AntigravityTheme.spacing-lg;
+                alignment: end;
+
+                for msg in root.messages: Rectangle {
+                    background: transparent;
+
+                    HorizontalLayout {
+                        alignment: msg.role == "user" ? end : start;
+
+                        Rectangle {
+                            max-width: 720px;
+                            min-width: 240px;
+                            border-radius: AntigravityTheme.radius-md;
+                            background: msg.role == "user" ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
+                            border-width: 1px;
+                            border-color: msg.role == "user" ? AntigravityTheme.border-focus.transparentize(60%) : AntigravityTheme.border-subtle;
+
+                            VerticalLayout {
+                                padding: AntigravityTheme.spacing-md;
+                                spacing: AntigravityTheme.spacing-xs;
+
+                                HorizontalLayout {
+                                    alignment: space-between;
+
+                                    Text {
+                                        text: msg.role == "user" ? "You" : "Kingdom Assistant (Boss LLM)";
+                                        color: msg.role == "user" ? AntigravityTheme.accent-cyan : AntigravityTheme.accent-magenta;
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                    }
+
+                                    Text {
+                                        text: msg.timestamp;
+                                        color: AntigravityTheme.text-muted;
+                                        font-size: 10px;
+                                    }
+                                }
+
+                                Text {
+                                    text: msg.content;
+                                    color: AntigravityTheme.text-primary;
+                                    font-size: 13px;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Streaming Assistant Token Bubble
+                if root.is-generating: Rectangle {
+                    background: transparent;
+
+                    HorizontalLayout {
+                        alignment: start;
+
+                        Rectangle {
+                            max-width: 720px;
+                            min-width: 240px;
+                            border-radius: AntigravityTheme.radius-md;
+                            background: AntigravityTheme.background-surface;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.accent-cyan.transparentize(50%);
+
+                            VerticalLayout {
+                                padding: AntigravityTheme.spacing-md;
+                                spacing: AntigravityTheme.spacing-xs;
+
+                                HorizontalLayout {
+                                    spacing: AntigravityTheme.spacing-xs;
+
+                                    Text {
+                                        text: "Kingdom Assistant (Streaming...)";
+                                        color: AntigravityTheme.accent-magenta;
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                    }
+                                }
+
+                                Text {
+                                    text: root.streaming-text;
+                                    color: AntigravityTheme.text-primary;
+                                    font-size: 13px;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Floating Slash Commands Popup
+        if root.show-slash-menu: Rectangle {
+            height: 180px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.accent-cyan;
+            clip: true;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-sm;
+                spacing: 2px;
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-bottom: 4px;
+
+                    Text {
+                        text: "COMMAND PALETTE (Click to execute)";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 9px;
+                        font-weight: 700;
+                    }
+                }
+
+                Rectangle {
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: cmd1-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    cmd1-touch := TouchArea { clicked => { root.slash-command-chosen("/top"); } }
+
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "📊 /top — Open K-Top Silicon & Telemetry Dashboard"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Telemetry"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: cmd2-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    cmd2-touch := TouchArea { clicked => { root.slash-command-chosen("/models"); } }
+
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "📦 /models — Open Model Hub (Download & Hot-Swap)"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Engine"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: cmd3-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    cmd3-touch := TouchArea { clicked => { root.slash-command-chosen("/cache"); } }
+
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "⚡ /cache — Inspect SQLite WAL Response Cache"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Cache"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: cmd4-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    cmd4-touch := TouchArea { clicked => { root.slash-command-chosen("/audit"); } }
+
+                    HorizontalLayout {
+                        padding-left: AntigravityTheme.spacing-sm;
+                        padding-right: AntigravityTheme.spacing-sm;
+                        alignment: space-between;
+                        Text { text: "🔍 /audit — Native Tree-sitter AST Vulnerability Scan"; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Security"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                    }
+                }
+            }
+        }
+
+        // Bottom Prompt Input Box
+        Rectangle {
+            height: 56px;
+            background: AntigravityTheme.background-input;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: input-area.has-focus ? AntigravityTheme.border-focus : AntigravityTheme.border-subtle;
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-md;
+                padding-right: AntigravityTheme.spacing-sm;
+                spacing: AntigravityTheme.spacing-sm;
+                alignment: center;
+
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: slash-btn-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
+
+                    slash-btn-touch := TouchArea {
+                        clicked => { root.show-slash-menu = !root.show-slash-menu; }
+                    }
+
+                    Text {
+                        text: "/";
+                        color: AntigravityTheme.accent-cyan;
+                        font-size: 16px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                input-area := TextInput {
+                    horizontal-stretch: 1;
+                    text <=> root.prompt-text;
+                    color: AntigravityTheme.text-primary;
+                    font-size: 13px;
+                    vertical-alignment: center;
+
+                    accepted => {
+                        if root.prompt-text != "" && !root.is-generating {
+                            root.send-message(root.prompt-text);
+                            root.prompt-text = "";
+                            root.show-slash-menu = false;
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 38px;
+                    height: 38px;
+                    border-radius: AntigravityTheme.radius-md;
+                    background: root.is-generating ? AntigravityTheme.status-error : (root.prompt-text != "" ? AntigravityTheme.accent-cyan : AntigravityTheme.background-surface);
+
+                    btn-touch := TouchArea {
+                        clicked => {
+                            if root.is-generating {
+                                root.stop-generation();
+                            } else if root.prompt-text != "" {
+                                root.send-message(root.prompt-text);
+                                root.prompt-text = "";
+                                root.show-slash-menu = false;
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: root.is-generating ? "■" : "▲";
+                        color: root.is-generating || root.prompt-text != "" ? #ffffff : AntigravityTheme.text-muted;
+                        font-size: 15px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

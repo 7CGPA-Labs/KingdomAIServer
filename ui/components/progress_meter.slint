@@ -1,0 +1,56 @@
+import { AntigravityTheme } from "../theme.slint";
+
+export component ProgressMeter inherits Rectangle {
+    in property <string> label: "CPU";
+    in property <float> progress: 0.0; // 0.0 to 1.0
+    in property <string> value-text: "0.0%";
+    in property <color> bar-color: AntigravityTheme.accent-cyan;
+    in property <color> track-color: AntigravityTheme.border-subtle;
+
+    height: 28px;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: AntigravityTheme.spacing-md;
+        alignment: space-between;
+
+        Text {
+            text: root.label;
+            color: AntigravityTheme.text-primary;
+            font-size: 12px;
+            font-weight: 700;
+            vertical-alignment: center;
+            width: 50px;
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            height: 10px;
+            background: root.track-color;
+            border-radius: 5px;
+            y: (parent.height - self.height) / 2;
+            clip: true;
+
+            Rectangle {
+                x: 0px;
+                y: 0px;
+                height: parent.height;
+                width: parent.width * Math.max(0.0, Math.min(1.0, root.progress));
+                background: root.bar-color;
+                border-radius: 5px;
+
+                animate width { duration: 250ms; easing: ease-out; }
+            }
+        }
+
+        Text {
+            text: root.value-text;
+            color: AntigravityTheme.text-secondary;
+            font-size: 12px;
+            font-weight: 600;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            width: 95px;
+        }
+    }
+}

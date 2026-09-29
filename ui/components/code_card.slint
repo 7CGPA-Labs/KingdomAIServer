@@ -1,0 +1,67 @@
+import { AntigravityTheme } from "../theme.slint";
+
+export component CodeCard inherits Rectangle {
+    in property <string> language: "python";
+    in property <string> code: "";
+    callback copy-clicked();
+
+    background: AntigravityTheme.background-input;
+    border-radius: AntigravityTheme.radius-md;
+    border-width: 1px;
+    border-color: AntigravityTheme.border-subtle;
+    clip: true;
+
+    VerticalLayout {
+        Rectangle {
+            height: 32px;
+            background: AntigravityTheme.background-surface;
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-md;
+                padding-right: AntigravityTheme.spacing-md;
+                alignment: space-between;
+
+                Text {
+                    text: root.language;
+                    color: AntigravityTheme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 55px;
+                    height: 22px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: copy-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                    y: (parent.height - self.height) / 2;
+
+                    copy-touch := TouchArea {
+                        clicked => { root.copy-clicked(); }
+                    }
+
+                    Text {
+                        text: "Copy";
+                        color: copy-touch.has-hover ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
+                        font-size: 11px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            padding: AntigravityTheme.spacing-md;
+
+            Text {
+                text: root.code;
+                color: AntigravityTheme.text-primary;
+                font-family: "Consolas, 'Courier New', monospace";
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

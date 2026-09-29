@@ -1,0 +1,184 @@
+import { AntigravityTheme } from "theme.slint";
+import { StatusBadge } from "components/badge.slint";
+import { ProgressMeter } from "components/progress_meter.slint";
+
+export struct ModelCardItem {
+    id: string,
+    name: string,
+    repo-id: string,
+    approx-size-mb: int,
+    vram-required-mb: int,
+    is-installed: bool,
+    is-active: bool,
+    actual-disk-mb: float,
+}
+
+export component ModelsHubView inherits Rectangle {
+    in property <string> active-model-id: "qwen2.5-coder-1.5b";
+    in property <[ModelCardItem]> models: [
+        { id: "qwen2.5-coder-1.5b", name: "Qwen 2.5 Coder 1.5B", repo-id: "Qwen/Qwen2.5-Coder-1.5B-GGUF", approx-size-mb: 1100, vram-required-mb: 1100, is-installed: true, is-active: true, actual-disk-mb: 1115.3 },
+        { id: "qwen2.5-coder-3b", name: "Qwen 2.5 Coder 3B", repo-id: "Qwen/Qwen2.5-Coder-3B-GGUF", approx-size-mb: 2000, vram-required-mb: 2900, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "qwen2.5-coder-7b", name: "Qwen 2.5 Coder 7B", repo-id: "Qwen/Qwen2.5-Coder-7B-GGUF", approx-size-mb: 4700, vram-required-mb: 5200, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "deepseek-coder-1.3b", name: "DeepSeek Coder 1.3B", repo-id: "deepseek-ai/deepseek-coder-1.3b", approx-size-mb: 950, vram-required-mb: 1050, is-installed: false, is-active: false, actual-disk-mb: 0.0 }
+    ];
+
+    in property <bool> is-downloading: false;
+    in property <float> download-progress: 0.0;
+    in property <string> download-status: "Ready";
+
+    callback switch-model(string);
+    callback download-model(string);
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: AntigravityTheme.spacing-lg;
+        spacing: AntigravityTheme.spacing-md;
+
+        HorizontalLayout {
+            alignment: space-between;
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: "📦 Models Hub & Weight Manager";
+                    color: AntigravityTheme.text-primary;
+                    font-size: 18px;
+                    font-weight: 800;
+                }
+                Text {
+                    text: "Download, verify, and hot-swap on-device GGUF models within <= 6.00 GB VRAM limit.";
+                    color: AntigravityTheme.text-secondary;
+                    font-size: 12px;
+                }
+            }
+        }
+
+        if root.is-downloading: Rectangle {
+            height: 64px;
+            background: AntigravityTheme.background-surface;
+            border-radius: AntigravityTheme.radius-md;
+            border-width: 1px;
+            border-color: AntigravityTheme.accent-cyan;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-xs;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Downloading from HuggingFace..."; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 700; }
+                    Text { text: root.download-status; color: AntigravityTheme.text-secondary; font-size: 11px; }
+                }
+
+                ProgressMeter {
+                    label: "Progress";
+                    progress: root.download-progress;
+                    value-text: Math.round(root.download-progress * 100.0) + "%";
+                    bar-color: AntigravityTheme.accent-cyan;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: AntigravityTheme.spacing-sm;
+
+            for model in root.models: Rectangle {
+                height: 72px;
+                background: AntigravityTheme.background-surface;
+                border-radius: AntigravityTheme.radius-md;
+                border-width: 1px;
+                border-color: model.is-active ? AntigravityTheme.border-focus : AntigravityTheme.border-subtle;
+
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-lg;
+                    padding-right: AntigravityTheme.spacing-lg;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 3px;
+
+                        HorizontalLayout {
+                            spacing: AntigravityTheme.spacing-sm;
+
+                            Text {
+                                text: model.name;
+                                color: model.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-primary;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            if model.is-active: StatusBadge {
+                                text: "ACTIVE";
+                                badge-color: AntigravityTheme.status-success;
+                            }
+                        }
+
+                        Text {
+                            text: model.repo-id + " • Size: ~" + model.approx-size-mb + " MB • Required VRAM: " + model.vram-required-mb + " MB";
+                            color: AntigravityTheme.text-muted;
+                            font-size: 11px;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: AntigravityTheme.spacing-md;
+                        alignment: center;
+
+                        if model.is-installed && !model.is-active: Rectangle {
+                            width: 110px;
+                            height: 32px;
+                            border-radius: AntigravityTheme.radius-sm;
+                            background: sw-touch.has-hover ? AntigravityTheme.accent-cyan : AntigravityTheme.background-input;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.accent-cyan;
+
+                            sw-touch := TouchArea {
+                                clicked => { root.switch-model(model.id); }
+                            }
+
+                            Text {
+                                text: "Hot-Swap";
+                                color: sw-touch.has-hover ? #ffffff : AntigravityTheme.accent-cyan;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if !model.is-installed: Rectangle {
+                            width: 110px;
+                            height: 32px;
+                            border-radius: AntigravityTheme.radius-sm;
+                            background: dl-touch.has-hover ? AntigravityTheme.accent-magenta : AntigravityTheme.background-input;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.accent-magenta;
+
+                            dl-touch := TouchArea {
+                                clicked => { root.download-model(model.id); }
+                            }
+
+                            Text {
+                                text: "⬇ Download";
+                                color: dl-touch.has-hover ? #ffffff : AntigravityTheme.accent-magenta;
+                                font-size: 12px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        if model.is-installed: Text {
+                            text: "📦 " + Math.round(model.actual-disk-mb) + " MB";
+                            color: AntigravityTheme.text-muted;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
