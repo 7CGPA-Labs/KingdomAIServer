@@ -14,20 +14,11 @@ import slint
 
 logger = logging.getLogger("kingdom.gui.controller")
 
-def _dispatch_ui(callback: Callable[[], None]) -> None:
-    """Dispatches a callback to the Slint UI thread safely across Slint versions."""
-    if threading.current_thread() is threading.main_thread():
-        callback()
-        return
-
-    invoke_fn = getattr(slint, "invoke_from_event_loop", None) or getattr(getattr(slint, "native", None), "invoke_from_event_loop", None)
-    if invoke_fn:
-        try:
-            invoke_fn(callback)
-            return
-        except Exception:
-            pass
-    callback()
+from src.gui.dispatcher import (
+    dispatch_ui as _dispatch_ui,
+    process_pending_ui_callbacks,
+    has_native_event_loop_invocation
+)
 
 
 from src.gui.models_adapter import (
@@ -1236,6 +1227,12 @@ class AppController:
     def run(self) -> None:
         """Start background threads and launch the Slint event loop."""
         self.telemetry.start()
+        queue_timer = None
+        if not has_native_event_loop_invocation() and hasattr(slint, "Timer"):
+            import datetime
+            queue_timer = slint.Timer()
+            queue_timer.start(slint.TimerMode.Repeated, datetime.timedelta(milliseconds=30), process_pending_ui_callbacks)
+
         try:
             self.window.show()
             # Seamless Windows DWM title bar theme blending (immersive dark mode & caption color)
@@ -1251,6 +1248,8 @@ class AppController:
                 logger.debug("DWM title bar theming error: %s", e)
             self.window.run()
         finally:
+            if queue_timer:
+                queue_timer.stop()
             self.telemetry.stop()
             if self.active_inference_worker:
                 self.active_inference_worker.cancel()
@@ -1259,8 +1258,12 @@ class AppController:
 
     def pump_events_until(self, predicate: Callable[[], bool], timeout_sec: float = 5.0) -> bool:
         """Pumps the Slint event loop until predicate() returns True or timeout expires.
-        Ensures thread-safe UI callbacks queued via invoke_from_event_loop are executed on main thread.
+        Ensures thread-safe UI callbacks queued via invoke_from_event_loop or fallback dispatcher are executed on main thread.
         """
+        process_pending_ui_callbacks()
+        if predicate():
+            return True
+
         start_t = time.time()
         if hasattr(slint, "run_event_loop") and hasattr(slint, "Timer"):
             import datetime
@@ -1268,6 +1271,7 @@ class AppController:
             success = [False]
 
             def _check():
+                process_pending_ui_callbacks()
                 if predicate():
                     success[0] = True
                     timer.stop()
@@ -1278,12 +1282,16 @@ class AppController:
 
             timer.start(slint.TimerMode.Repeated, datetime.timedelta(milliseconds=30), _check)
             slint.run_event_loop()
+            process_pending_ui_callbacks()
             return success[0]
         else:
             # Fallback for Slint runtimes without module-level run_event_loop
             while time.time() - start_t < timeout_sec:
+                process_pending_ui_callbacks()
                 if predicate():
                     return True
-                time.sleep(0.05)
+                time.sleep(0.02)
+            process_pending_ui_callbacks()
             return predicate()
+
 

@@ -10,8 +10,10 @@ from typing import Optional, Any
 import slint
 
 from src.utils.telemetry import HardwareTelemetry
+from src.gui.dispatcher import dispatch_ui
 
 logger = logging.getLogger("kingdom.gui.telemetry")
+
 
 class TelemetryBridge:
     """Bridges background hardware and cache metrics to the Slint MainWindow."""
@@ -101,17 +103,7 @@ class TelemetryBridge:
                 except Exception as e:
                     logger.debug("Failed applying telemetry to UI: %s", e)
 
-            if threading.current_thread() is threading.main_thread():
-                _apply()
-            else:
-                invoke_fn = getattr(slint, "invoke_from_event_loop", None) or getattr(getattr(slint, "native", None), "invoke_from_event_loop", None)
-                if invoke_fn:
-                    try:
-                        invoke_fn(_apply)
-                        return
-                    except Exception:
-                        pass
-                _apply()
+            dispatch_ui(_apply)
         except Exception as e:
             logger.debug("Telemetry snapshot failed: %s", e)
 
