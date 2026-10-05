@@ -407,7 +407,7 @@ export component SettingsModal inherits Rectangle {
                                             if m.is-installed && !m.is-active: Text { text: "INSTALLED"; color: AntigravityTheme.status-success; font-size: 10px; font-weight: 600; vertical-alignment: center; }
                                         }
 
-                                        Text { text: m.repo-id + " • Size: " + m.approx-size-mb + " MB • VRAM: " + m.vram-required-mb + " MB"; color: AntigravityTheme.text-muted; font-size: 10px; }
+                                        Text { text: "\{m.repo-id} • Size: \{m.approx-size-mb} MB • VRAM: \{m.vram-required-mb} MB"; color: AntigravityTheme.text-muted; font-size: 10px; }
                                     }
 
                                     VerticalLayout {
@@ -456,7 +456,7 @@ export component SettingsModal inherits Rectangle {
                                         HorizontalLayout {
                                             spacing: 6px; alignment: center;
                                             AntigravityIcon { name: "crown"; icon-size: 14px; icon-color: AntigravityTheme.accent-blue; }
-                                            Text { text: "Boss LLM (" + root.active-model + ")"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                                            Text { text: "Boss LLM (\{root.active-model})"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
                                         }
                                         Text { text: "Primary code generation and reasoning engine on Vulkan backend."; color: AntigravityTheme.text-muted; font-size: 11px; }
                                     }
@@ -594,7 +594,7 @@ export component SettingsModal inherits Rectangle {
                                         HorizontalLayout {
                                             spacing: 6px;
                                             Text { text: s.name; color: AntigravityTheme.text-primary; font-size: 12.5px; font-weight: 600; }
-                                            Text { text: "[" + s.category + "]"; color: AntigravityTheme.accent-cyan; font-size: 10px; vertical-alignment: center; }
+                                            Text { text: "[\{s.category}]"; color: AntigravityTheme.accent-cyan; font-size: 10px; vertical-alignment: center; }
                                             Text { text: s.scope; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
                                         }
                                         Text { text: s.description; color: AntigravityTheme.text-muted; font-size: 11px; overflow: elide; max-width: 480px; }

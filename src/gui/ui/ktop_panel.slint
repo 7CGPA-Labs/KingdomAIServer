@@ -121,13 +121,13 @@ export component KTopDashboardView inherits Rectangle {
                     HorizontalLayout {
                         alignment: space-between;
                         Text { text: "CPU Threads Active"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: root.cpu-threads + " threads"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
+                        Text { text: "\{root.cpu-threads} threads"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 700; }
                     }
 
                     HorizontalLayout {
                         alignment: space-between;
                         Text { text: "Generation Speed"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                        Text { text: Math.round(root.speed-tokens-sec) + " tokens/sec"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 800; }
+                        Text { text: "\{Math.round(root.speed-tokens-sec)} tokens/sec"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 800; }
                     }
 
                     HorizontalLayout {

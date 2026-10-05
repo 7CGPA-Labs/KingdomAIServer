@@ -81,7 +81,7 @@ export component ModelsHubView inherits Rectangle {
                 ProgressMeter {
                     label: "Progress";
                     progress: root.download-progress;
-                    value-text: Math.round(root.download-progress * 100.0) + "%";
+                    value-text: "\{Math.round(root.download-progress * 100.0)}%";
                     bar-color: AntigravityTheme.accent-cyan;
                 }
             }
@@ -123,7 +123,7 @@ export component ModelsHubView inherits Rectangle {
                         }
 
                         Text {
-                            text: model.repo-id + " • Size: ~" + model.approx-size-mb + " MB • Required VRAM: " + model.vram-required-mb + " MB";
+                            text: "\{model.repo-id} • Size: ~\{model.approx-size-mb} MB • Required VRAM: \{model.vram-required-mb} MB";
                             color: AntigravityTheme.text-muted;
                             font-size: 11px;
                         }
@@ -186,7 +186,7 @@ export component ModelsHubView inherits Rectangle {
                             alignment: center;
                             AntigravityIcon { name: "box"; icon-size: 11px; icon-color: AntigravityTheme.text-muted; }
                             Text {
-                                text: Math.round(model.actual-disk-mb) + " MB";
+                                text: "\{Math.round(model.actual-disk-mb)} MB";
                                 color: AntigravityTheme.text-muted;
                                 font-size: 11px;
                                 vertical-alignment: center;

@@ -207,7 +207,7 @@ export component AuxiliaryPane inherits Rectangle {
 
                             HorizontalLayout {
                                 alignment: space-between;
-                                Text { text: "Inference Engine (" + root.boss-name + ")"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                                Text { text: "Inference Engine (\{root.boss-name})"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                                 HorizontalLayout {
                                     spacing: 4px;
                                     alignment: center;
@@ -249,8 +249,8 @@ export component AuxiliaryPane inherits Rectangle {
 
                         f-t := TouchArea {
                             clicked => {
-                                root.open-tab("diff:" + root.diff-file, root.diff-file, "diff", true, "diff");
-                                root.active-tab = "diff:" + root.diff-file;
+                                root.open-tab("diff:\{root.diff-file}", root.diff-file, "diff", true, "diff");
+                                root.active-tab = "diff:\{root.diff-file}";
                             }
                         }
 
@@ -391,7 +391,7 @@ export component AuxiliaryPane inherits Rectangle {
         // =====================================================================
         // VIEW 2: DIFF VIEW (Dynamic Tab for any open file diff)
         // =====================================================================
-        if (root.active-tab == "diffs" || root.active-tab == "review" || root.active-tab == "diff:" + root.diff-file): ScrollView {
+        if (root.active-tab == "diffs" || root.active-tab == "review" || root.active-tab == "diff:\{root.diff-file}"): ScrollView {
             vertical-stretch: 1;
 
             VerticalLayout {
@@ -595,7 +595,7 @@ export component AuxiliaryPane inherits Rectangle {
 
                 VerticalLayout {
                     spacing: 6px;
-                    Text { text: "Target File: " + root.diff-file; color: AntigravityTheme.text-secondary; font-size: 12.5px; font-weight: 600; }
+                    Text { text: "Target File: \{root.diff-file}"; color: AntigravityTheme.text-secondary; font-size: 12.5px; font-weight: 600; }
 
                     Rectangle {
                         height: 24px;
