@@ -6,9 +6,17 @@ Sidebar, Chat Canvas, Auxiliary Inspector, Models Hub, K-Top Dashboard, and Mast
 import pytest
 from pathlib import Path
 
+def _safe_load_slint(path):
+    import slint
+    try:
+        return slint.load_file(str(path))
+    except Exception as e:
+        diags = getattr(e, "diagnostics", e.args[1] if hasattr(e, "args") and len(e.args) > 1 else [])
+        details = "\n".join(str(d) for d in diags)
+        raise AssertionError(f"Could not compile {path}:\n{details}") from e
+
 def test_slint_subcomponents_compilation():
     """Assert all individual Slint component files compile cleanly."""
-    import slint
     ui_dir = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui"
     
     files = [
@@ -30,14 +38,13 @@ def test_slint_subcomponents_compilation():
 
     for f in files:
         assert f.exists(), f"Missing file: {f}"
-        ns = slint.load_file(str(f))
+        ns = _safe_load_slint(f)
         assert ns is not None
 
 def test_master_app_shell_full_properties():
     """Assert MainWindow instantiates with full reactive state properties and Antigravity layout defaults."""
-    import slint
     app_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "app.slint"
-    ns = slint.load_file(str(app_path))
+    ns = _safe_load_slint(app_path)
     assert hasattr(ns, "MainWindow")
 
     app = ns.MainWindow()
@@ -114,9 +121,8 @@ def test_master_app_shell_full_properties():
 
 def test_master_app_callbacks_registered():
     """Assert all user action callbacks are exposed by MainWindow for Python AppController binding."""
-    import slint
     app_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "app.slint"
-    ns = slint.load_file(str(app_path))
+    ns = _safe_load_slint(app_path)
     app = ns.MainWindow()
 
     callbacks = [
@@ -149,9 +155,8 @@ def test_master_app_callbacks_registered():
 
 def test_progress_meter_clamping():
     """Assert progress meter component handles values between 0.0 and 1.0."""
-    import slint
     meter_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "components" / "progress_meter.slint"
-    ns = slint.load_file(str(meter_path))
+    ns = _safe_load_slint(meter_path)
     assert hasattr(ns, "ProgressMeter")
 
     meter = ns.ProgressMeter()

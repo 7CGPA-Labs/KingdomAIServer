@@ -97,7 +97,13 @@ class AppController:
             raise FileNotFoundError(f"Slint UI file not found: {self.ui_path}")
 
         # Load Slint UI Component Module
-        self.ui_module = slint.load_file(str(self.ui_path))
+        try:
+            self.ui_module = slint.load_file(str(self.ui_path))
+        except Exception as e:
+            diags = getattr(e, "diagnostics", e.args[1] if hasattr(e, "args") and len(e.args) > 1 else [])
+            for d in diags:
+                logger.error("Slint compilation error in %s: %s", self.ui_path, str(d))
+            raise
         if not hasattr(self.ui_module, "MainWindow"):
             raise AttributeError("Loaded Slint module does not export MainWindow component")
 
