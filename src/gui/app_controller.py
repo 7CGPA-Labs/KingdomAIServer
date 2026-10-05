@@ -764,7 +764,7 @@ class AppController:
                     continue
                 prefix = raw_line[0] if raw_line and raw_line[0] in ("+", "-", " ") else " "
                 content = raw_line[1:] if len(raw_line) > 1 else ""
-                lines.append({"line_number": ln, "prefix": prefix, "content": content})
+                lines.append({"line_number": str(ln), "prefix": prefix, "content": content})
                 if prefix != "-":
                     ln += 1
                 if len(lines) >= 150:
@@ -772,8 +772,8 @@ class AppController:
 
             if not lines:
                 lines = [
-                    {"line_number": 1, "prefix": " ", "content": "// Working tree clean. No uncommitted modifications."},
-                    {"line_number": 2, "prefix": " ", "content": "// File: src/gui/ui/app.slint (Live Git Diff)"}
+                    {"line_number": "1", "prefix": " ", "content": "// Working tree clean. No uncommitted modifications."},
+                    {"line_number": "2", "prefix": " ", "content": "// File: src/gui/ui/app.slint (Live Git Diff)"}
                 ]
 
             self.window.diff_lines = slint.ListModel(lines)

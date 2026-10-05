@@ -343,12 +343,12 @@ export component MainWindow inherits Window {
     in-out property <string> artifact-summary: "Kingdom AI Studio Implementation Plan";
     in-out property <string> diff-file: "src/gui/ui/app.slint";
     in-out property <[DiffLineItem]> diff-lines: [
-        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
-        { line-number: 15, prefix: "-", content: "    // Dual titlebars" },
-        { line-number: 15, prefix: "+", content: "    // Single unified Studio topbar" },
-        { line-number: 16, prefix: "+", content: "    UnifiedTopBar {" },
-        { line-number: 17, prefix: "+", content: "        height: 34px;" },
-        { line-number: 18, prefix: " ", content: "    }" }
+        { line-number: "14", prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: "15", prefix: "-", content: "    // Dual titlebars" },
+        { line-number: "15", prefix: "+", content: "    // Single unified Studio topbar" },
+        { line-number: "16", prefix: "+", content: "    UnifiedTopBar {" },
+        { line-number: "17", prefix: "+", content: "        height: 34px;" },
+        { line-number: "18", prefix: " ", content: "    }" }
     ];
 
     // User Action Callbacks (bound to Python AppController)
@@ -652,9 +652,9 @@ export component MainWindow inherits Window {
                     diff-lines: root.diff-lines;
 
                     cpu-progress: root.cpu-pct / 100.0;
-                    cpu-text: Math.round(root.cpu-pct) + "%";
+                    cpu-text: "\{Math.round(root.cpu-pct)}%";
                     ram-progress: root.ram-used-gb / root.ram-total-gb;
-                    ram-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+                    ram-text: "\{root.ram-used-gb} / \{root.ram-total-gb} GB";
                     vram-progress: root.vram-used-gb / root.vram-ceiling-gb;
                     vram-text: root.vram-status;
                     speed-tokens-sec: root.speed-tokens-sec;
@@ -929,9 +929,9 @@ export component MainWindow inherits Window {
         silicon-provider: root.silicon-provider;
         vram-status: root.vram-status;
         cpu-progress: root.cpu-pct / 100.0;
-        cpu-text: Math.round(root.cpu-pct) + "%";
+        cpu-text: "\{Math.round(root.cpu-pct)}%";
         ram-progress: root.ram-used-gb / root.ram-total-gb;
-        ram-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+        ram-text: "\{root.ram-used-gb} / \{root.ram-total-gb} GB";
         vram-progress: root.vram-used-gb / root.vram-ceiling-gb;
         speed-tokens-sec: root.speed-tokens-sec;
         cache-entries: root.cache-entries;

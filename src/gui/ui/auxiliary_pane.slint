@@ -3,7 +3,7 @@ import { AntigravityIcon } from "components/icon.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export struct DiffLineItem {
-    line-number: int,
+    line-number: string,
     prefix: string, // "+", "-", " "
     content: string,
 }
@@ -41,12 +41,12 @@ export component AuxiliaryPane inherits Rectangle {
     // Diffs stats
     in property <string> diff-file: "src/gui/ui/app.slint";
     in property <[DiffLineItem]> diff-lines: [
-        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
-        { line-number: 15, prefix: "-", content: "    // Dual titlebars" },
-        { line-number: 15, prefix: "+", content: "    // Single unified Studio topbar" },
-        { line-number: 16, prefix: "+", content: "    UnifiedTopBar {" },
-        { line-number: 17, prefix: "+", content: "        height: 34px;" },
-        { line-number: 18, prefix: " ", content: "    }" }
+        { line-number: "14", prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: "15", prefix: "-", content: "    // Dual titlebars" },
+        { line-number: "15", prefix: "+", content: "    // Single unified Studio topbar" },
+        { line-number: "16", prefix: "+", content: "    UnifiedTopBar {" },
+        { line-number: "17", prefix: "+", content: "        height: 34px;" },
+        { line-number: "18", prefix: " ", content: "    }" }
     ];
 
     // Hardware Telemetry
@@ -181,7 +181,7 @@ export component AuxiliaryPane inherits Rectangle {
 
                     HorizontalLayout {
                         alignment: space-between;
-                        Text { text: "Subagents (" + root.active-subagents-count + ")"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        Text { text: "Subagents (\{root.active-subagents-count})"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                         AntigravityIcon { name: "chevron-down"; icon-size: 12px; icon-color: AntigravityTheme.text-muted; }
                     }
 
@@ -559,7 +559,7 @@ export component AuxiliaryPane inherits Rectangle {
                         HorizontalLayout {
                             alignment: space-between;
                             Text { text: "Inference Speed"; color: AntigravityTheme.text-secondary; font-size: 12px; }
-                            Text { text: root.speed-tokens-sec + " tokens/s"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 600; }
+                            Text { text: "\{root.speed-tokens-sec} tokens/s"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 600; }
                         }
                     }
                 }

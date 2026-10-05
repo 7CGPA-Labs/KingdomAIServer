@@ -71,21 +71,21 @@ export component KTopDashboardView inherits Rectangle {
                 ProgressMeter {
                     label: "CPU";
                     progress: root.cpu-pct / 100.0;
-                    value-text: Math.round(root.cpu-pct) + "% (" + root.cpu-threads + " Threads)";
+                    value-text: "\{Math.round(root.cpu-pct)}% (\{root.cpu-threads} Threads)";
                     bar-color: AntigravityTheme.accent-cyan;
                 }
 
                 ProgressMeter {
                     label: "RAM";
                     progress: root.ram-used-gb / root.ram-total-gb;
-                    value-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+                    value-text: "\{root.ram-used-gb} / \{root.ram-total-gb} GB";
                     bar-color: AntigravityTheme.accent-magenta;
                 }
 
                 ProgressMeter {
                     label: "VRAM";
                     progress: root.vram-used-gb / root.vram-ceiling-gb;
-                    value-text: root.vram-used-gb + " / " + root.vram-ceiling-gb + " GB [PASSED]";
+                    value-text: "\{root.vram-used-gb} / \{root.vram-ceiling-gb} GB [PASSED]";
                     bar-color: AntigravityTheme.status-success;
                 }
             }
