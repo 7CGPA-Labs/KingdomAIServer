@@ -1,6 +1,7 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
 import { ScrollView } from "std-widgets.slint";
+import { AntigravityIcon } from "components/icon.slint";
 
 export struct SkillCardItem {
     id: string,
@@ -21,7 +22,7 @@ export component SkillsPanel inherits Rectangle {
             category: "skill",
             scope: "Global",
             status: "ACTIVE",
-            description: "Antigravity Customization System guide for skills, rules, plugins, hooks, and MCP servers.",
+            description: "Studio Customization System guide for skills, rules, plugins, hooks, and MCP servers.",
             tools-count: 4
         },
         {
@@ -30,7 +31,7 @@ export component SkillsPanel inherits Rectangle {
             category: "skill",
             scope: "Global",
             status: "ACTIVE",
-            description: "Comprehensive guide, slash commands, keybindings, and reference for Antigravity 2.0.",
+            description: "Comprehensive guide, slash commands, keybindings, and reference for Kingdom AI Studio.",
             tools-count: 6
         },
         {
@@ -86,14 +87,20 @@ export component SkillsPanel inherits Rectangle {
 
             VerticalLayout {
                 spacing: 2px;
-                Text {
-                    text: "🧩 Skills, Rules & MCP Customizations";
-                    color: AntigravityTheme.text-primary;
-                    font-size: 18px;
-                    font-weight: 800;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    AntigravityIcon { name: "puzzle"; icon-size: 18px; icon-color: AntigravityTheme.accent-blue; }
+                    Text {
+                        text: "Skills, Rules & MCP Customizations";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
-                    text: "Unified Antigravity customization engine: progressive skills, hierarchical rules, and MCP tools.";
+                    text: "Unified Studio customization engine: progressive skills, hierarchical rules, and MCP tools.";
                     color: AntigravityTheme.text-secondary;
                     font-size: 12px;
                 }
@@ -109,13 +116,17 @@ export component SkillsPanel inherits Rectangle {
                     clicked => { root.reload-customizations(); }
                 }
 
-                Text {
-                    text: "↻ Reload All";
-                    color: #000000;
-                    font-size: 12px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    AntigravityIcon { name: "refresh"; icon-size: 13px; icon-color: #000000; }
+                    Text {
+                        text: "Reload All";
+                        color: #000000;
+                        font-size: 12px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }
@@ -145,7 +156,12 @@ export component SkillsPanel inherits Rectangle {
                     border-radius: AntigravityTheme.radius-sm;
                     background: root.active-filter == "skill" ? AntigravityTheme.background-active : transparent;
                     TouchArea { clicked => { root.active-filter = "skill"; root.toggle-filter("skill"); } }
-                    Text { text: "⚡ Skills (3)"; color: root.active-filter == "skill" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 4px;
+                        AntigravityIcon { name: "zap"; icon-size: 12px; icon-color: root.active-filter == "skill" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; }
+                        Text { text: "Skills (3)"; color: root.active-filter == "skill" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                    }
                 }
 
                 Rectangle {
@@ -153,15 +169,25 @@ export component SkillsPanel inherits Rectangle {
                     border-radius: AntigravityTheme.radius-sm;
                     background: root.active-filter == "rule" ? AntigravityTheme.background-active : transparent;
                     TouchArea { clicked => { root.active-filter = "rule"; root.toggle-filter("rule"); } }
-                    Text { text: "📋 Rules (1)"; color: root.active-filter == "rule" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 4px;
+                        AntigravityIcon { name: "file-text"; icon-size: 12px; icon-color: root.active-filter == "rule" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; }
+                        Text { text: "Rules (1)"; color: root.active-filter == "rule" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                    }
                 }
 
                 Rectangle {
-                    width: 130px;
+                    width: 140px;
                     border-radius: AntigravityTheme.radius-sm;
                     background: root.active-filter == "mcp" ? AntigravityTheme.background-active : transparent;
                     TouchArea { clicked => { root.active-filter = "mcp"; root.toggle-filter("mcp"); } }
-                    Text { text: "🔌 MCP Servers (2)"; color: root.active-filter == "mcp" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 4px;
+                        AntigravityIcon { name: "puzzle"; icon-size: 12px; icon-color: root.active-filter == "mcp" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; }
+                        Text { text: "MCP Servers (2)"; color: root.active-filter == "mcp" ? AntigravityTheme.accent-cyan : AntigravityTheme.text-secondary; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                    }
                 }
             }
         }

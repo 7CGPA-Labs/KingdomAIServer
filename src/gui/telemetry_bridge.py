@@ -16,9 +16,10 @@ logger = logging.getLogger("kingdom.gui.telemetry")
 class TelemetryBridge:
     """Bridges background hardware and cache metrics to the Slint MainWindow."""
 
-    def __init__(self, ui_handle: Any, cache_db: Optional[Any] = None, poll_interval_sec: float = 0.5):
+    def __init__(self, ui_handle: Any, cache_db: Optional[Any] = None, poll_interval_sec: float = 0.5, orchestrator: Optional[Any] = None):
         self.ui = ui_handle
         self.cache_db = cache_db
+        self.orchestrator = orchestrator
         self.poll_interval = poll_interval_sec
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -91,6 +92,12 @@ class TelemetryBridge:
                     # Only update silicon provider if non-empty
                     if gpu_name:
                         self.ui.silicon_provider = f"Vulkan / {gpu_name}"
+                    if self.orchestrator and hasattr(self.ui, "boss_status"):
+                        is_loaded = getattr(self.orchestrator, "is_loaded", False)
+                        if is_loaded:
+                            self.ui.boss_status = "ACTIVE"
+                        elif getattr(self.ui, "boss_status", "") not in ("ACTIVE", "LOADING"):
+                            self.ui.boss_status = "STANDBY"
                 except Exception as e:
                     logger.debug("Failed applying telemetry to UI: %s", e)
 

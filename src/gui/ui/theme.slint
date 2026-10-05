@@ -1,0 +1,70 @@
+// Kingdom AI Studio V3 - Google Antigravity 2.0 Theme Tokens
+export global AntigravityTheme {
+    // Canvas & Surface Palette (Google Antigravity 2.0 Dark Mode)
+    in-out property <color> background-canvas: #131315;
+    in-out property <color> background-surface: #17181c;
+    in-out property <color> background-surface-hover: #222328;
+    in-out property <color> background-input: #1a1b1f;
+    in-out property <color> background-card: #1e1f24;
+    in-out property <color> background-active: #2a2c34;
+    in-out property <color> background-modal: #18191d;
+    in-out property <color> background-overlay: #000000a0;
+
+    // Borders & Dividers
+    in-out property <color> border-subtle: #27282e;
+    in-out property <color> border-strong: #33353d;
+    in-out property <color> border-focus: #4b4e5a;
+    in-out property <color> border-pill: #2e3038;
+
+    // Typography
+    in-out property <color> text-primary: #e6e7eb;
+    in-out property <color> text-secondary: #9ea2b0;
+    in-out property <color> text-muted: #646775;
+    in-out property <color> text-disabled: #444754;
+
+    // Typography Tokens (VS Code / Studio Standard)
+    in-out property <string> font-family: "Segoe UI";
+    in-out property <string> font-code: "Consolas";
+    in-out property <length> font-xs: 11px;
+    in-out property <length> font-sm: 12px;
+    in-out property <length> font-base: 13px;
+    in-out property <length> font-md: 14px;
+    in-out property <length> font-lg: 16px;
+    in-out property <length> font-xl: 20px;
+
+    // Antigravity Brand & Action Hues
+    in-out property <color> accent-blue: #3b82f6;
+    in-out property <color> accent-cyan: #38bdf8;
+    in-out property <color> accent-magenta: #a855f7;
+    in-out property <color> status-success: #22c55e;
+    in-out property <color> status-warning: #f59e0b;
+    in-out property <color> status-error: #ef4444;
+    in-out property <color> status-info: #60a5fa;
+
+    // Diff Hues
+    in-out property <color> diff-add-bg: #142a1f;
+    in-out property <color> diff-add-text: #4ade80;
+    in-out property <color> diff-del-bg: #2d1618;
+    in-out property <color> diff-del-text: #f87171;
+
+    // Radii
+    in-out property <length> radius-xs: 4px;
+    in-out property <length> radius-sm: 6px;
+    in-out property <length> radius-md: 10px;
+    in-out property <length> radius-lg: 14px;
+    in-out property <length> radius-xl: 18px;
+    in-out property <length> radius-pill: 9999px;
+
+    // Spacing scale
+    in-out property <length> spacing-xs: 4px;
+    in-out property <length> spacing-sm: 8px;
+    in-out property <length> spacing-md: 12px;
+    in-out property <length> spacing-lg: 16px;
+    in-out property <length> spacing-xl: 24px;
+}
+
+export component ThemePreview inherits Window {
+    background: AntigravityTheme.background-canvas;
+    min-width: 100px;
+    min-height: 100px;
+}

@@ -18,10 +18,10 @@ V3 decommissions the HTTP REST daemon requirement. It executes **100% in-process
 
 Kingdom AI Studio V3 features the complete 4-surface Google Antigravity developer layout:
 
-1. **Left Navigation Sidebar (`ui/sidebar.slint`)**: Workspace switcher, navigation tabs (Chat, Models Hub, K-Top, Settings), and pair programming session history.
-2. **Center Chat & Prompt Canvas (`ui/chat_canvas.slint`)**: 60 FPS multi-turn streaming message bubbles, inline syntax-styled code cards, and a floating `/` slash command palette.
-3. **Right Auxiliary Dock (`ui/auxiliary_pane.slint`)**: Real-time status for the Council Ministers (Main Boss, Minister 1 Embedder, Minister 2 Reranker, Tree-Sitter AST), hardware bar gauges, and SQLite WAL cache inspector.
-4. **Persistent Status Bar (`ui/app.slint`)**: Live hardware indicators, token generation speed, and compute silicon engine badges (Vulkan / Intel Iris Xe / CUDA / CPU AVX2).
+1. **Left Navigation Sidebar (`src/gui/ui/sidebar.slint`)**: Workspace switcher, navigation tabs (Chat, Models Hub, K-Top, Settings), and pair programming session history.
+2. **Center Chat & Prompt Canvas (`src/gui/ui/chat_canvas.slint`)**: 60 FPS multi-turn streaming message bubbles, inline syntax-styled code cards, and a floating `/` slash command palette.
+3. **Right Auxiliary Dock (`src/gui/ui/auxiliary_pane.slint`)**: Real-time status for the Council Ministers (Main Boss, Minister 1 Embedder, Minister 2 Reranker, Tree-Sitter AST), hardware bar gauges, and SQLite WAL cache inspector.
+4. **Persistent Status Bar (`src/gui/ui/app.slint`)**: Live hardware indicators, token generation speed, and compute silicon engine badges (Vulkan / Intel Iris Xe / CUDA / CPU AVX2).
 
 ```mermaid
 graph TD

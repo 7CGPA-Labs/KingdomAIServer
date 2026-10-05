@@ -1,5 +1,6 @@
 @echo off
-REM Kingdom AI Server - Rich Terminal CLI Launcher
+REM [DEPRECATED in V3] Kingdom AI Server - Legacy Terminal CLI Launcher
+REM Redirects to Kingdom AI Studio V3 Slint Native Desktop GUI
 REM Runs via corporate-approved python.exe (no .exe binaries)
 setlocal
 set PYTHONUTF8=1

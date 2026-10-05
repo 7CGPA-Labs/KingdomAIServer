@@ -51,7 +51,8 @@ def launch_studio():
     print("----------------------------------------------------------------------")
 
     from src.gui import AppController
-    controller = AppController(auto_start_telemetry=True)
+    ui_path = Path(__file__).resolve().parent / "src" / "gui" / "ui" / "app.slint"
+    controller = AppController(ui_path=ui_path if ui_path.exists() else None, auto_start_telemetry=True)
     print(" Launching Kingdom AI Studio desktop window...")
     controller.run()
 

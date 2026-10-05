@@ -1,22 +1,26 @@
 """
-Kingdom AI Server - Rich Terminal CLI (Direct Inline Code Architecture).
-Interacts with LLM engine, 2-Minister Council, and hardware telemetry via direct Python calls.
-No HTTP REST endpoints are used - all communication is in-process.
+[DEPRECATED in V3] Legacy Rich Terminal CLI for Kingdom AI Server.
+NOTE: In Kingdom AI Studio V3, the architecture is 100% on-device in-process
+Slint Native Desktop GUI. All terminal UI capabilities (chat, model management,
+telemetry, RAG indexing, security audits) have been superseded by the Slint GUI (main.py).
+This module is maintained as a lightweight deprecation stub pointing to main.py.
 """
 import sys
 import time
+import warnings
 from typing import Optional
+from pathlib import Path
 
 try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
-    from rich.markdown import Markdown
     from rich.text import Text
-    from rich.theme import Theme
 except ImportError:
-    print("[ERROR] 'rich' package is required. Install with: pip install rich")
-    sys.exit(1)
+    Console = None
+    Panel = None
+    Table = None
+    Text = None
 
 from src.core.local_llm import LlamaCppOrchestrator
 from src.core.hardware import HardwareManager, STATIC_VRAM_CEILING_MB
@@ -25,29 +29,21 @@ from src.prompts.templates import HeuristicIntentRouter
 from src.rag.embedder import BGEEmbedder
 from src.rag.retriever import BGEReranker
 
-# Custom Rich theme
-kingdom_theme = Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "bold red",
-    "success": "bold green",
-    "header": "bold magenta",
-    "metric": "bold cyan",
-})
-
-console = Console(theme=kingdom_theme)
-
 
 class KingdomCLI:
-    """Direct inline code terminal interface for Kingdom AI Server."""
+    """[DEPRECATED in V3] Lightweight backward-compatible stub for legacy Terminal CLI."""
 
     def __init__(self):
+        warnings.warn(
+            "KingdomCLI is deprecated and decommissioned in V3. "
+            "Use Kingdom AI Studio V3 Slint Desktop GUI (main.py / src.gui.app_controller).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.orchestrator = LlamaCppOrchestrator()
         self.hw_manager = HardwareManager()
-        
         self.active_model_name = "qwen2.5-coder-1.5b"
         self.active_model_vram = 1100
-        
         self.cache_db = ResponseCacheDB()
         self.router = HeuristicIntentRouter()
         self.embedder = BGEEmbedder()
@@ -66,204 +62,35 @@ class KingdomCLI:
             total += 35
         if self.reranker and getattr(self.reranker, "is_model_loaded", False):
             total += 110
-        self.hw_manager.vram_allocated_mb = total
+        if self.hw_manager:
+            self.hw_manager.vram_allocated_mb = total
         return total
 
-    def display_banner(self):
-        """Display startup banner with system diagnostics."""
-        diag = self.hw_manager.detect_environment()
-        provider_name = diag.get("selected_provider", "DirectML / Vulkan")
-
-        banner_text = Text()
-        banner_text.append("👑 KINGDOM AI SERVER CLI\n", style="bold magenta")
-        banner_text.append(f"   Engine: llama.cpp ({provider_name})\n", style="info")
-        banner_text.append(f"   Active Model: {self.active_model_name}\n", style="info")
-        banner_text.append(f"   VRAM Ceiling: {STATIC_VRAM_CEILING_MB} MB\n", style="info")
-        banner_text.append(f"   System RAM: {diag['available_ram_gb']} GB available / {diag['system_ram_gb']} GB total\n", style="info")
-        banner_text.append(f"   CPU Threads: {diag['cpu_cores']}\n", style="info")
-        banner_text.append(f"   Model Status: {'✅ Loaded' if self.orchestrator.is_loaded else '○ Lazy Load'}\n", style="success" if self.orchestrator.is_loaded else "warning")
-
-        console.print(Panel(banner_text, title="[bold]System Diagnostics[/bold]", border_style="cyan"))
-        console.print()
-        console.print("[dim]Commands: /top (htop monitor)  /models  /download <model>  /switch <model>  /health  /cache  /clearcache  /index <path>  /clearindex  /audit  /clear  /quit[/dim]")
-        console.print("[dim]Type your message and press Enter to chat.[/dim]")
-        console.print()
-
-    def show_health(self):
-        """Display hardware telemetry via direct inline code."""
-        from src.utils.telemetry import HardwareTelemetry
-        diag = self.hw_manager.detect_environment()
-        cache_stats = self.cache_db.get_stats()
-        telemetry = HardwareTelemetry.snapshot()
-
-        table = Table(title="🔍 Health & Telemetry", border_style="cyan")
-        table.add_column("Metric", style="bold")
-        table.add_column("Value", style="metric")
-
-        table.add_row("GPU Provider", diag["selected_provider"])
-        table.add_row("VRAM Ceiling", f"{STATIC_VRAM_CEILING_MB} MB")
-        table.add_row("VRAM Allocated", f"{self.current_vram_allocated_mb} MB")
-        table.add_row("System RAM", f"{diag['available_ram_gb']} GB / {diag['system_ram_gb']} GB ({telemetry.get('ram_percent', 0.0)}% used)")
-        table.add_row("CPU Threads", str(diag["cpu_cores"]))
-        table.add_row("CPU Utilization", f"{telemetry.get('cpu_percent', 0.0):.1f}%")
-        table.add_row("Active Model", self.active_model_name)
-        table.add_row("Boss LLM Loaded", "✅ Yes" if self.orchestrator.is_loaded else "○ No (Lazy Load)")
-        table.add_row("Embedder Loaded", "✅ Yes" if getattr(self.embedder, "is_model_loaded", False) else "○ No (Lazy Load)")
-        table.add_row("Reranker Loaded", "✅ Yes" if getattr(self.reranker, "is_model_loaded", False) else "○ No (Lazy Load)")
-        table.add_row("Cache Entries", str(cache_stats.get("total_entries", 0)))
-        table.add_row("Cache Hit Ratio", f"{cache_stats.get('hit_ratio_pct', 0):.1f}%")
-        table.add_row("Session Queries", str(self.total_queries))
-        table.add_row("Session Cache Hits", str(self.total_cache_hits))
-
-        console.print(table)
-
-    def show_cache_stats(self):
-        """Display detailed cache statistics via direct inline code."""
-        stats = self.cache_db.get_stats()
-
-        table = Table(title="📦 Response Cache Statistics", border_style="green")
-        table.add_column("Metric", style="bold")
-        table.add_column("Value", style="metric")
-
-        for key, value in stats.items():
-            table.add_row(str(key), str(value))
-
-        console.print(table)
-
     def show_models(self):
-        """Display list of installed and available HuggingFace upgrade models."""
+        """Display model list (stub for deprecated CLI)."""
         from src.utils.verifier import MODEL_MANIFEST, UPGRADE_MODELS
         from src.utils import get_models_dir
 
         models_dir = get_models_dir()
-        table = Table(title="🤖 Model Registry & Upgrades", border_style="cyan")
-        table.add_column("Command Identifier", style="bold cyan")
-        table.add_column("Model Name", style="white")
-        table.add_column("Source", style="dim")
-        table.add_column("Size", style="yellow")
-        table.add_column("VRAM Est.", style="metric")
-        table.add_column("Status", style="bold")
+        if Console and Table:
+            console = Console()
+            table = Table(title="🤖 Model Registry & Upgrades [DEPRECATED CLI STUB]")
+            table.add_column("Identifier", style="bold cyan")
+            table.add_column("Model Name", style="white")
+            table.add_column("Status", style="bold")
 
-        # 1. Core Default Model
-        default_file = models_dir / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
-        is_default_active = (self.active_model_name in ("qwen2.5-coder-1.5b", "Senior Software Engineer (Main Boss GGUF)"))
-        actual_default_mb = round(default_file.stat().st_size / (1024 * 1024), 1) if default_file.exists() else 0
-        if is_default_active and self.orchestrator.is_loaded:
-            default_status = f"[bold green]🟢 ACTIVE ({actual_default_mb} MB)[/bold green]"
-        elif default_file.exists() and default_file.stat().st_size > 100 * 1024 * 1024:
-            default_status = f"[green]📦 Installed ({actual_default_mb} MB)[/green]"
+            table.add_row("qwen2.5-coder-1.5b", "Qwen2.5-Coder-1.5B (Default Boss)", "Available")
+            for key, spec in UPGRADE_MODELS.items():
+                target_file = models_dir / spec.get("filename", "")
+                status = "Installed" if target_file.exists() else "Available"
+                table.add_row(key, spec.get("name", key), status)
+            console.print(table)
         else:
-            default_status = "[yellow]⬇ Not Downloaded[/yellow]"
-
-        table.add_row(
-            "qwen2.5-coder-1.5b",
-            "Qwen2.5-Coder-1.5B (Default Boss)",
-            "GitHub Releases",
-            f"{actual_default_mb} MB" if actual_default_mb > 0 else "~1100 MB",
-            "~1100 MB",
-            default_status
-        )
-
-        # 2. Upgrade Models from Hugging Face
-        for key, spec in UPGRADE_MODELS.items():
-            target_file = models_dir / spec["filename"]
-            is_active = (self.active_model_name == key or self.active_model_name == spec["name"])
-            actual_mb = round(target_file.stat().st_size / (1024 * 1024), 1) if target_file.exists() else 0
-
-            if is_active and self.orchestrator.is_loaded:
-                status = f"[bold green]🟢 ACTIVE ({actual_mb} MB)[/bold green]"
-            elif target_file.exists() and target_file.stat().st_size >= int(spec["approx_size_mb"] * 1024 * 1024 * 0.4):
-                status = f"[green]📦 Installed ({actual_mb} MB)[/green]"
-            else:
-                status = "[yellow]⬇ Available (HuggingFace)[/yellow]"
-
-            table.add_row(
-                key,
-                spec["name"],
-                f"HF: {spec['repo_id'].split('/')[0]}",
-                f"{actual_mb} MB" if actual_mb > 0 else f"~{spec['approx_size_mb']} MB",
-                f"~{spec['vram_required_mb']} MB",
-                status
-            )
-
-        # 3. Council Ministers
-        table.add_section()
-        for filename, spec in MODEL_MANIFEST.items():
-            if spec["id"] == "main_boss_qwen2.5":
-                continue
-            mf_file = models_dir / filename
-            is_min_loaded = False
-            if spec["id"] == "minister_1" and getattr(self.embedder, "is_model_loaded", False):
-                is_min_loaded = True
-            elif spec["id"] == "minister_2" and getattr(self.reranker, "is_model_loaded", False):
-                is_min_loaded = True
-
-            actual_mb = round(mf_file.stat().st_size / (1024 * 1024), 1) if mf_file.exists() else 0
-            if is_min_loaded:
-                min_status = f"[bold green]🟢 ACTIVE ({actual_mb} MB)[/bold green]"
-            elif mf_file.exists():
-                min_status = f"[green]📦 Installed ({actual_mb} MB)[/green]"
-            else:
-                min_status = "[yellow]⬇ Missing[/yellow]"
-
-            table.add_row(
-                spec["id"],
-                spec["name"],
-                "GitHub Releases",
-                f"{actual_mb} MB" if actual_mb > 0 else f"~{spec['approx_size_mb']} MB",
-                f"~{spec['approx_size_mb']} MB",
-                min_status
-            )
-
-        console.print(table)
-        console.print("[dim]Use [bold cyan]/download <model>[/bold cyan] to download from HuggingFace, and [bold cyan]/switch <model>[/bold cyan] to hot-swap active model weights.[/dim]\n")
-
-    def download_model_cli(self, model_query: str):
-        """Interactive download of upgrade models directly from HuggingFace."""
-        from src.utils.verifier import get_upgrade_model_spec, UPGRADE_MODELS
-        from src.utils.downloader import ModelDownloader
-        from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
-
-        spec = get_upgrade_model_spec(model_query)
-        if not spec:
-            console.print(f"[error]Unknown model '{model_query}'. Available upgrade models:[/error]")
-            for k in UPGRADE_MODELS.keys():
-                console.print(f"  • [bold cyan]{k}[/bold cyan]")
-            return
-
-        downloader = ModelDownloader()
-        approx_bytes = int(spec["approx_size_mb"] * 1024 * 1024)
-        console.print(f"\n[bold gold1]📦 DOWNLOADING FROM HUGGINGFACE HUB[/bold gold1]")
-        console.print(f"[info]Repository: [bold]{spec['repo_id']}[/bold][/info]")
-        console.print(f"[info]Filename:   [bold]{spec['filename']}[/bold][/info]\n")
-
-        with Progress(
-            TextColumn("[bold blue]{task.fields[name]}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            DownloadColumn(),
-            TransferSpeedColumn(),
-            TimeRemainingColumn(),
-            console=console,
-            refresh_per_second=10
-        ) as progress:
-            task_id = progress.add_task("download", name=spec["name"], total=approx_bytes)
-            success = downloader.download_from_huggingface(
-                repo_id=spec["repo_id"],
-                filename=spec["filename"],
-                progress=progress,
-                task_id=task_id
-            )
-
-        if success:
-            console.print(f"\n[bold green]✔ Successfully downloaded {spec['name']}![/bold green]")
-            console.print(f"[dim]Run [bold cyan]/switch {spec['id']}[/bold cyan] to hot-swap the active LLM engine.[/dim]\n")
-        else:
-            console.print(f"\n[error]Failed to download {spec['name']}. Please check network or proxy settings.[/error]\n")
+            print("[Models] qwen2.5-coder-1.5b (Default Boss)")
 
     def switch_model_cli(self, model_query: str):
         """Hot-swap active LLM weights in-process without restarting server."""
-        from src.utils.verifier import get_upgrade_model_spec, UPGRADE_MODELS
+        from src.utils.verifier import get_upgrade_model_spec
         from src.utils import get_models_dir
 
         models_dir = get_models_dir()
@@ -272,379 +99,78 @@ class KingdomCLI:
         if spec:
             target_filename = spec["filename"]
             target_name = spec["id"]
-            display_name = spec["name"]
             target_vram = spec["vram_required_mb"]
-        elif model_query.lower() in ("default", "1.5b", "qwen2.5-coder-1.5b", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"):
+        elif model_query.lower() in ("default", "1.5b", "qwen2.5-coder-1.5b"):
             target_filename = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
             target_name = "qwen2.5-coder-1.5b"
-            display_name = "Qwen2.5-Coder-1.5B (Default Boss)"
             target_vram = 1100
         else:
-            target_file = None
-            for f in models_dir.glob("*.gguf"):
-                if model_query.lower() in f.name.lower():
-                    target_file = f
-                    target_filename = f.name
-                    target_name = f.stem
-                    display_name = f.stem
-                    target_vram = 2000
-                    break
-            if not target_file:
-                console.print(f"[error]Unknown model '{model_query}'. Use /models to see available models.[/error]")
-                return
+            target_filename = f"{model_query}.gguf"
+            target_name = model_query
+            target_vram = 2000
 
         target_path = models_dir / target_filename
         if not target_path.exists():
-            console.print(f"[warning]Model file '{target_filename}' is not downloaded yet.[/warning]")
-            console.print(f"[dim]Run [bold cyan]/download {target_name}[/bold cyan] to download it from HuggingFace first.[/dim]")
+            print(f"[Warning] Model file '{target_filename}' is not downloaded yet.")
             return
 
-        # VRAM Budget Validation
         vram_diff = target_vram - self.active_model_vram
         projected_vram = self.current_vram_allocated_mb + vram_diff
         if projected_vram > STATIC_VRAM_CEILING_MB:
-            console.print(
-                f"[error]Cannot switch: {display_name} requires {target_vram} MB VRAM.\n"
-                f"Total projected VRAM ({projected_vram} MB) exceeds maximum static ceiling ({STATIC_VRAM_CEILING_MB} MB)![/error]"
-            )
+            print(f"[Error] Cannot switch: requires {target_vram} MB VRAM, exceeding ceiling.")
             return
 
-        with console.status(f"[bold cyan]Hot-swapping weights to {display_name}...[/bold cyan]", spinner="dots"):
-            success = self.orchestrator.switch_model(str(target_path), model_name=target_name)
-
+        success = self.orchestrator.switch_model(str(target_path), model_name=target_name)
         if success or target_path.exists():
             self.active_model_name = target_name
             self.active_model_vram = target_vram
-            self.hw_manager.vram_allocated_mb = self.current_vram_allocated_mb
-            console.print(Panel(
-                f"[bold green]✔ Model Swapped Successfully[/bold green]\n"
-                f"Active Model:    [bold cyan]{display_name}[/bold cyan]\n"
-                f"Model Artifact:  {target_path.name}\n"
-                f"VRAM Allocated:  {self.current_vram_allocated_mb} MB / {STATIC_VRAM_CEILING_MB} MB Ceiling",
-                border_style="green",
-                title="[bold]Active LLM Hot-Swapped[/bold]"
-            ))
-        else:
-            console.print(f"[error]Failed to load weights for {display_name}.[/error]")
+            if self.hw_manager:
+                self.hw_manager.vram_allocated_mb = self.current_vram_allocated_mb
 
+    def show_health(self):
+        """Display hardware telemetry (stub)."""
+        print(f"[Health] Active Model: {self.active_model_name} | VRAM: {self.current_vram_allocated_mb} MB")
+
+    def show_cache_stats(self):
+        """Display cache stats (stub)."""
+        stats = self.cache_db.get_stats()
+        print(f"[Cache Stats] Entries: {stats.get('total_cached_entries', 0)}")
 
     def show_top_monitor(self):
-        """Open full-screen interactive K-Top (htop-style) live system monitor."""
-        from rich.live import Live
-        from src.cli.server_dashboard import KingdomTopDashboard
-        from src.inference.inference_engine import LOCAL_BEARER_TOKEN
-
-        dashboard = KingdomTopDashboard(
-            host="127.0.0.1",
-            port=58420,
-            bearer_token=LOCAL_BEARER_TOKEN
-        )
-        dashboard.attach_engines(
-            cache_db=self.cache_db,
-            orchestrator=self.orchestrator,
-            embedder=self.embedder,
-            reranker=self.reranker
-        )
-        dashboard.status_message = "● IN-PROCESS (Direct Python Session)"
-
-        try:
-            with Live(dashboard.build_layout(), console=console, screen=True, refresh_per_second=3) as live:
-                while True:
-                    time.sleep(0.3)
-                    if sys.platform == "win32":
-                        try:
-                            import msvcrt
-                            if msvcrt.kbhit():
-                                ch = msvcrt.getch()
-                                if ch in (b'\x00', b'\xe0'):
-                                    msvcrt.getch()
-                                    continue
-                                key = ch.decode("utf-8", errors="ignore").lower()
-                                if key in ("q", "\x1b"):  # 'q' or ESC
-                                    break
-                                elif key == "c":
-                                    self.cache_db.clear()
-                                    dashboard.status_message = "● CACHE CLEARED"
-                                elif key == "h":
-                                    dashboard.show_help = not dashboard.show_help
-                                elif key == "r":
-                                    dashboard.status_message = "● FORCED REFRESH"
-                        except Exception:
-                            pass
-                    else:
-                        break
-                    live.update(dashboard.build_layout())
-        except (KeyboardInterrupt, Exception):
-            pass
+        """Deprecated monitor launcher."""
+        from src.cli.server_dashboard import main as dashboard_main
+        dashboard_main()
 
     def process_chat(self, user_input: str) -> Optional[str]:
-        """Process a chat message through the full inline pipeline."""
+        """Process chat (stub)."""
         self.total_queries += 1
-
-        # Step 1: Cache hit check (< 0.05 ms)
-        msgs = self.chat_history + [{"role": "user", "content": user_input}]
-        import json
-        prompt_summary = json.dumps(msgs)
-        cache_key = ResponseCacheDB.compute_cache_key(self.active_model_name, prompt_summary, "", 0.7, 512)
-
-        cached = self.cache_db.get(cache_key)
-        if cached:
-            self.total_cache_hits += 1
-            # Extract text from cached response
-            if isinstance(cached, dict):
-                choices = cached.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", str(cached))
-            return str(cached)
-
-        # Step 2: Route intent (< 0.05 ms)
-        route_info = self.router.route_intent(user_input)
-
-        # Step 3: RAG enrichment if needed (embedding + reranking)
-        context_chunks = []
-        if route_info["target_agent"] == "MINISTER_1_2_RAG":
-            try:
-                from src.rag.vector_store import VectorStore
-                query_vec = self.embedder.embed_query(user_input)
-                vs = VectorStore()
-                candidates = vs.search_similar(query_vec, top_k=5)
-                if candidates:
-                    context_chunks = self.reranker.rerank(user_input, candidates, top_k=3)
-            except Exception:
-                pass
-
-        # Step 4: Build enriched prompt and generate
-        enriched_msgs = list(msgs)
-        if context_chunks:
-            context_text = "\n".join(c.get("content", "") for c in context_chunks)
-            enriched_msgs.insert(0, {"role": "system", "content": f"Relevant workspace context:\n{context_text}"})
-
-        prompt = self.orchestrator.format_chat_prompt(enriched_msgs)
-        result = self.orchestrator.generate_completion(prompt, max_tokens=512, temperature=0.7)
-
-        response_text = result.get("text", "")
-
-        # Step 5: Cache the response (only if it's a real response, not a placeholder)
-        if "uninitialized - placeholder" not in response_text:
-            created_time = int(time.time())
-            response_data = {
-                "id": f"chatcmpl-{created_time}",
-                "object": "chat.completion",
-                "created": created_time,
-                "model": self.active_model_name,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": response_text}, "finish_reason": "stop"}],
-                "usage": result.get("usage", {})
-            }
-            self.cache_db.put(cache_key, response_text, response_data, query_type="CHAT")
-
-        # Update chat history
-        self.chat_history.append({"role": "user", "content": user_input})
-        self.chat_history.append({"role": "assistant", "content": response_text})
-
-        return response_text
-
-    def display_response(self, text: str, elapsed_ms: float):
-        """Display assistant response with telemetry."""
-        # Render response as markdown
-        console.print(Panel(Markdown(text), title="[bold green]👑 Assistant[/bold green]", border_style="green"))
-
-        # Telemetry bar
-        telemetry = Text()
-        telemetry.append(f"  ⏱ {elapsed_ms:.1f}ms", style="dim cyan")
-        telemetry.append(f"  |  📦 Cache Hits: {self.total_cache_hits}/{self.total_queries}", style="dim")
-        telemetry.append(f"  |  🧠 VRAM: {self.current_vram_allocated_mb}/{STATIC_VRAM_CEILING_MB} MB", style="dim")
-        console.print(telemetry)
-        console.print()
+        res = self.orchestrator.generate_completion(user_input, max_tokens=128)
+        return res.get("text", "")
 
     def run(self):
-        """Main interactive REPL loop."""
-        self.display_banner()
-
-        while True:
-            try:
-                user_input = console.input("[bold cyan]You >[/bold cyan] ").strip()
-
-                if not user_input:
-                    continue
-
-                # Command handling
-                if user_input.lower() in ("/quit", "/exit", "/q"):
-                    console.print("[dim]Goodbye! 👋[/dim]")
-                    break
-                elif user_input.lower() in ("/top", "/htop", "/monitor"):
-                    self.show_top_monitor()
-                    continue
-                elif user_input.lower() in ("/models", "/model"):
-                    self.show_models()
-                    continue
-                elif user_input.lower() == "/download":
-                    console.print("[warning]Usage: /download <model>[/warning]")
-                    self.show_models()
-                    continue
-                elif user_input.lower().startswith("/download "):
-                    target_model = user_input[10:].strip()
-                    self.download_model_cli(target_model)
-                    continue
-                elif user_input.lower() == "/switch":
-                    console.print("[warning]Usage: /switch <model>[/warning]")
-                    self.show_models()
-                    continue
-                elif user_input.lower().startswith("/switch "):
-                    target_model = user_input[8:].strip()
-                    self.switch_model_cli(target_model)
-                    continue
-                elif user_input.lower() == "/health":
-                    self.show_health()
-                    continue
-                elif user_input.lower() == "/cache":
-                    self.show_cache_stats()
-                    continue
-                elif user_input.lower() == "/clearcache":
-                    self.cache_db.clear()
-                    self.total_cache_hits = 0
-                    console.print("[success]Cache database cleared successfully.[/success]")
-                    continue
-                elif user_input.lower().startswith("/index "):
-                    target_path = user_input[7:].strip()
-                    self.index_workspace(target_path)
-                    continue
-                elif user_input.lower() == "/clearindex":
-                    from src.rag.vector_store import VectorStore
-                    vs = VectorStore()
-                    vs.clear_vault()
-                    console.print("[success]Vector Store (RAG memory) cleared successfully.[/success]")
-                    continue
-                elif user_input.lower() == "/audit":
-                    self.audit_workspace()
-                    continue
-                elif user_input.lower() == "/clear":
-                    self.chat_history.clear()
-                    console.clear()
-                    self.display_banner()
-                    console.print("[success]Chat history cleared.[/success]")
-                    continue
-
-                # Process chat with spinner
-                start_time = time.perf_counter()
-                with console.status("[bold cyan]Thinking...[/bold cyan]", spinner="dots"):
-                    response = self.process_chat(user_input)
-                elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-
-                if response:
-                    self.display_response(response, elapsed_ms)
-                else:
-                    console.print("[warning]No response generated.[/warning]")
-
-            except KeyboardInterrupt:
-                console.print("\n[dim]Interrupted. Type /quit to exit.[/dim]")
-            except EOFError:
-                break
-            except Exception as e:
-                console.print(f"[error]Error: {e}[/error]")
-
-    def index_workspace(self, target_path: str):
-        """Index a local directory into the SQLite vector database."""
-        from pathlib import Path
-        path = Path(target_path).resolve()
-        if not path.exists() or not path.is_dir():
-            console.print(f"[error]Invalid directory path: {path}[/error]")
-            return
-
-        console.print(f"[info]Indexing workspace: {path}[/info]")
-        from src.processing.chunking import TreeSitterChunker
-        from src.rag.vector_store import VectorStore
-        chunker = TreeSitterChunker()
-        vs = VectorStore()
-
-        # Ensure embedder is loaded
-        if not self.embedder.is_model_loaded:
-            with console.status("Loading Minister 1 (Embedder)..."):
-                self.embedder._load_session()
-
-        valid_exts = {".py", ".js", ".ts", ".cpp", ".c", ".rs", ".go"}
-        files_indexed = 0
-        chunks_indexed = 0
-
-        with console.status("[bold cyan]Scanning and Chunking...[/bold cyan]", spinner="dots") as status:
-            for filepath in path.rglob("*"):
-                if filepath.is_file() and filepath.suffix in valid_exts:
-                    try:
-                        content = filepath.read_text(encoding="utf-8")
-                        chunks = chunker.chunk_file(content, filepath.suffix)
-                        for chunk in chunks:
-                            text = chunk.get("content", "")
-                            if text:
-                                vec = self.embedder.embed_query(text)
-                                vs.insert_chunk(
-                                    str(filepath), 
-                                    text, 
-                                    vec, 
-                                    chunk.get("start_line", 1), 
-                                    chunk.get("end_line", 1)
-                                )
-                                chunks_indexed += 1
-                        files_indexed += 1
-                        status.update(f"[bold cyan]Scanning... Indexed {files_indexed} files ({chunks_indexed} chunks)[/bold cyan]")
-                    except Exception as e:
-                        pass
-
-        console.print(f"[success]Indexing complete! {files_indexed} files and {chunks_indexed} chunks added to Vector Store.[/success]")
-
-    def audit_workspace(self):
-        """Run VulnerabilityScanner on all chunks in the Vector Store."""
-        from pathlib import Path
-        from src.rag.vector_store import VectorStore
-        from src.processing.preprocessor import VulnerabilityScanner
-        from rich.table import Table
-
-        vs = VectorStore()
-        scanner = VulnerabilityScanner()
-        chunks = vs.get_all_chunks()
-        
-        if not chunks:
-            console.print("[warning]Vector Store is empty. Use /index <path> to index a codebase first.[/warning]")
-            return
-            
-        console.print(f"[info]Auditing {len(chunks)} chunks in Vector Store...[/info]")
-        
-        all_findings = []
-        with console.status("[bold cyan]Running Security Audit...[/bold cyan]", spinner="dots"):
-            for chunk in chunks:
-                findings = scanner.scan_security_issues(chunk["content"])
-                for f in findings:
-                    f["file_path"] = chunk["file_path"]
-                    # Add chunk line offset
-                    f["actual_line"] = f["line_number"] + chunk["line_start"] - 1
-                    all_findings.append(f)
-                    
-        if not all_findings:
-            console.print("[success]Audit complete! 0 vulnerabilities found.[/success]")
-            return
-            
-        table = Table(title="Security Audit Findings")
-        table.add_column("Severity", style="bold red")
-        table.add_column("File", style="cyan")
-        table.add_column("Line", style="yellow")
-        table.add_column("Description", style="white")
-        
-        for f in sorted(all_findings, key=lambda x: (x["severity"], x["file_path"])):
-            severity_label = f["severity"].upper()
-            color = "red" if severity_label == "CRITICAL" or severity_label == "HIGH" else "yellow"
-            table.add_row(
-                f"[{color}]{severity_label}[/{color}]",
-                Path(f["file_path"]).name,
-                str(f["actual_line"]),
-                f["description"]
-            )
-            
-        console.print(table)
-        console.print(f"[warning]Found {len(all_findings)} potential security issues.[/warning]")
+        """Deprecated interactive REPL loop - redirects to Slint GUI."""
+        main()
 
 
 def main():
-    """Entry point for the Kingdom CLI."""
-    cli = KingdomCLI()
-    cli.run()
+    """Legacy CLI entry point - notifies deprecation and launches Slint Desktop Studio."""
+    warnings.warn(
+        "Kingdom AI Terminal CLI is deprecated and decommissioned in V3. "
+        "Redirecting to Kingdom AI Studio V3 Slint Native Desktop GUI (main.py).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    print("======================================================================")
+    print(" ⚠️  NOTICE: Kingdom AI Terminal CLI (TUI) is DECOMMISSIONED in V3.")
+    print(" All features (chat, models hub, telemetry, RAG, security audits)")
+    print(" are now available in Kingdom AI Studio V3 Slint Native Desktop GUI.")
+    print(" Redirecting to Kingdom AI Studio V3 (main.py)...")
+    print("======================================================================")
+    try:
+        from main import launch_studio
+        launch_studio()
+    except Exception as exc:
+        print(f"To launch the V3 Desktop GUI, run: python main.py ({exc})")
 
 
 if __name__ == "__main__":

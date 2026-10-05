@@ -1,0 +1,958 @@
+import { ScrollView } from "std-widgets.slint";
+import { AntigravityTheme } from "theme.slint";
+import { LeftSidebar, SessionItem, ProjectExplorerItem, ProjectConversationItem } from "sidebar.slint";
+import { ChatCanvas, ChatMessage } from "chat_canvas.slint";
+import { AuxiliaryPane, DiffLineItem, AuxTabItem } from "auxiliary_pane.slint";
+import { ModelsHubView, ModelCardItem } from "models_hub.slint";
+import { KTopDashboardView } from "ktop_panel.slint";
+import { TasksPanel, ScheduledTaskItem } from "tasks_panel.slint";
+import { SkillsPanel, SkillCardItem } from "skills_panel.slint";
+import { ProjectsPanel, ProjectItem } from "projects_panel.slint";
+import { SettingsModal } from "settings_modal.slint";
+import { AntigravityIcon } from "components/icon.slint";
+
+export struct PaletteItem {
+    id: string,
+    category: string,
+    title: string,
+    shortcut: string,
+    icon-name: string,
+}
+
+component PaletteCommandRow inherits Rectangle {
+    in-out property <string> category: "";
+    in-out property <string> title: "";
+    in-out property <string> shortcut: "";
+    in-out property <string> icon-name: "search";
+    callback clicked();
+
+    height: 32px;
+    border-radius: AntigravityTheme.radius-xs;
+    background: row-ta.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+
+    row-ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: center;
+
+            AntigravityIcon {
+                name: root.icon-name;
+                icon-size: 14px;
+                icon-color: row-ta.has-hover ? AntigravityTheme.accent-blue : AntigravityTheme.text-secondary;
+            }
+
+            Rectangle {
+                border-radius: 2px;
+                background: AntigravityTheme.background-surface;
+                height: 16px;
+
+                HorizontalLayout {
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    Text {
+                        text: root.category;
+                        font-size: 9.5px;
+                        font-weight: 600;
+                        color: AntigravityTheme.text-muted;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Text {
+                text: root.title;
+                color: row-ta.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                font-size: 12px;
+                font-weight: 500;
+                vertical-alignment: center;
+            }
+        }
+
+        if root.shortcut != "": Rectangle {
+            height: 18px;
+            border-radius: 2px;
+            background: AntigravityTheme.background-surface;
+
+            HorizontalLayout {
+                padding-left: 5px;
+                padding-right: 5px;
+                Text {
+                    text: root.shortcut;
+                    color: AntigravityTheme.text-muted;
+                    font-size: 10px;
+                    font-weight: 500;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Kingdom AI Studio";
+    icon: @image-url("assets/icons/crown.svg");
+    default-font-family: AntigravityTheme.font-family;
+    default-font-size: AntigravityTheme.font-base;
+    min-width: 1100px;
+    min-height: 720px;
+    preferred-width: 1300px;
+    preferred-height: 860px;
+    background: AntigravityTheme.background-canvas;
+
+    // Frameless Window Control Callbacks
+    callback close-requested();
+    callback minimize-requested();
+    callback maximize-requested();
+    callback drag-window();
+
+    // Navigation & View State
+    in-out property <string> active-nav: "chat";
+    in-out property <string> active-workspace: "KingdomAIServer";
+    in-out property <string> conversation-title: "Active pair programming session";
+    in-out property <string> active-conversation-id: "conv-1";
+    in-out property <string> active-mode: "normal"; // "normal", "plan", "goal"
+    in-out property <string> aux-active-tab: "council"; // "council" ("overview"), "diffs", "tasks", "process", "artifacts", "walkthrough"
+    in-out property <bool> is-sidebar-collapsed: false;
+    in-out property <bool> is-aux-collapsed: false;
+    in-out property <bool> show-settings-modal: false;
+    in-out property <string> open-menu: "";
+    in-out property <bool> show-command-palette: false;
+    in-out property <string> command-palette-query: "";
+    in-out property <[PaletteItem]> palette-commands: [
+        { id: "file-add-project", category: "File", title: "Add Projects / Open Folder...", shortcut: "Ctrl+O", icon-name: "folder" },
+        { id: "file-new-conv", category: "File", title: "New Conversation", shortcut: "Ctrl+N", icon-name: "plus" },
+        { id: "file-clear-chat", category: "File", title: "Clear Chat History", shortcut: "Ctrl+L", icon-name: "trash" },
+        { id: "file-exit", category: "File", title: "Exit Kingdom AI Studio", shortcut: "Alt+F4", icon-name: "power" },
+        { id: "view-toggle-sidebar", category: "View", title: "Toggle Left Projects Sidebar", shortcut: "Ctrl+B", icon-name: "sidebar" },
+        { id: "view-toggle-aux", category: "View", title: "Toggle Right Auxiliary Panel", shortcut: "Ctrl+J", icon-name: "panel-right" },
+        { id: "view-overview", category: "View", title: "Show Overview Dashboard", shortcut: "Overview", icon-name: "users" },
+        { id: "view-tasks", category: "View", title: "Show Scheduled Tasks & Watchdog", shortcut: "Watchdog", icon-name: "terminal" },
+        { id: "view-diffs", category: "View", title: "Show Git Diffs & Artifacts", shortcut: "Diffs", icon-name: "file-text" },
+        { id: "view-telemetry", category: "View", title: "Show Silicon Telemetry (K-Top)", shortcut: "K-Top", icon-name: "cpu" },
+        { id: "view-reset-layout", category: "View", title: "Reset Layout (Show All Panels)", shortcut: "", icon-name: "layout" },
+        { id: "window-minimize", category: "Window", title: "Minimize Window", shortcut: "Win+Down", icon-name: "minus" },
+        { id: "window-maximize", category: "Window", title: "Maximize / Restore Window", shortcut: "Win+Up", icon-name: "maximize" },
+        { id: "studio-settings", category: "Studio", title: "Preferences & Hardware Settings", shortcut: "Ctrl+,", icon-name: "settings" },
+        { id: "studio-models", category: "Studio", title: "Models Catalog Hub", shortcut: "/models", icon-name: "database" },
+        { id: "studio-purge-cache", category: "Studio", title: "Purge LLM Response Cache", shortcut: "/clearcache", icon-name: "trash" },
+        { id: "studio-reload-skills", category: "Studio", title: "Reload Customizations & Skills", shortcut: "/reload", icon-name: "refresh-cw" }
+    ];
+
+    // Hierarchical Project Tree & Dynamic Aux Tabs
+    in-out property <[ProjectExplorerItem]> project-tree: [
+        {
+            id: "proj-1",
+            name: "KingdomAIServer",
+            path: "C:/Users/gagan/Projects/KingdomAIServer",
+            is-expanded: true,
+            is-active: true,
+            conversations: [
+                { id: "conv-1", title: "Active pair programming session", timestamp: "Active", is-active: true },
+                { id: "conv-2", title: "Topbar & dynamic tabs migration", timestamp: "10m", is-active: false },
+                { id: "conv-3", title: "VRAM watchdog & memory ceiling", timestamp: "2h", is-active: false },
+                { id: "conv-4", title: "Tree-sitter AST intelligence", timestamp: "1d", is-active: false }
+            ]
+        },
+        {
+            id: "proj-2",
+            name: "7CGPA-Labs-Core",
+            path: "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+            is-expanded: true,
+            is-active: false,
+            conversations: [
+                { id: "conv-5", title: "Semantic search embeddings", timestamp: "3d", is-active: false },
+                { id: "conv-6", title: "Model quantization benchmarks", timestamp: "1w", is-active: false }
+            ]
+        },
+        {
+            id: "proj-3",
+            name: "Cloud-Orchestrator",
+            path: "C:/Users/gagan/Projects/Cloud-Orchestrator",
+            is-expanded: false,
+            is-active: false,
+            conversations: [
+                { id: "conv-7", title: "Microservices deployment DAG", timestamp: "2w", is-active: false }
+            ]
+        }
+    ];
+
+    in-out property <[AuxTabItem]> aux-tabs: [
+        { id: "council", title: "Overview", tab-type: "overview", can-close: false, icon-name: "users" }
+    ];
+
+    // Silicon & Model Telemetry
+    in-out property <string> active-model: "Qwen 2.5 Coder 1.5B";
+    in-out property <string> silicon-provider: "Vulkan / GPU Accelerated (Intel Iris Xe)";
+    in-out property <string> vram-status: "2.14 / 6.00 GB";
+    in-out property <int> cpu-threads: 8;
+    in-out property <float> cpu-pct: 25.0;
+    in-out property <float> ram-used-gb: 5.8;
+    in-out property <float> ram-total-gb: 16.0;
+    in-out property <float> vram-used-gb: 2.14;
+    in-out property <float> vram-ceiling-gb: 6.0;
+    in-out property <float> speed-tokens-sec: 34.2;
+    in-out property <string> uptime-str: "00:00:00";
+
+    // Chat & LLM Generation State
+    in-out property <bool> is-generating: false;
+    in-out property <string> streaming-text: "";
+    in-out property <[ChatMessage]> chat-messages: [
+        { id: "1", role: "assistant", content: "I am ready to assist you with your project. Type your prompt below or use / for commands.", timestamp: "Just now" }
+    ];
+
+    // Models Hub State
+    in-out property <[ModelCardItem]> model-list: [
+        { id: "qwen2.5-coder-1.5b", name: "Qwen 2.5 Coder 1.5B", repo-id: "Qwen/Qwen2.5-Coder-1.5B-GGUF", approx-size-mb: 1100, vram-required-mb: 1100, is-installed: true, is-active: true, actual-disk-mb: 1115.3 },
+        { id: "qwen2.5-coder-3b", name: "Qwen 2.5 Coder 3B", repo-id: "Qwen/Qwen2.5-Coder-3B-GGUF", approx-size-mb: 2000, vram-required-mb: 2900, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "qwen2.5-coder-7b", name: "Qwen 2.5 Coder 7B", repo-id: "Qwen/Qwen2.5-Coder-7B-GGUF", approx-size-mb: 4700, vram-required-mb: 5200, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "deepseek-coder-1.3b", name: "DeepSeek Coder 1.3B", repo-id: "deepseek-ai/deepseek-coder-1.3b", approx-size-mb: 950, vram-required-mb: 1050, is-installed: false, is-active: false, actual-disk-mb: 0.0 }
+    ];
+    in-out property <bool> is-downloading: false;
+    in-out property <float> download-progress: 0.0;
+    in-out property <string> download-status: "Ready";
+
+    // Response Cache State
+    in-out property <int> cache-entries: 0;
+    in-out property <int> cache-hits: 0;
+    in-out property <float> cache-hit-ratio: 0.0;
+
+    // Council Minister Statuses
+    in-out property <string> boss-status: "ACTIVE";
+    in-out property <string> m1-status: "ACTIVE";
+    in-out property <string> m2-status: "ACTIVE";
+    in-out property <string> ast-status: "READY";
+
+    // Session History
+    in-out property <[SessionItem]> session-list: [
+        { id: "1", title: "Active pair programming session", timestamp: "Active" }
+    ];
+
+    // Scheduled Tasks List
+    in-out property <[ScheduledTaskItem]> scheduled-tasks: [
+        {
+            id: "task-cron-1",
+            name: "Telemetry & VRAM Watchdog",
+            schedule: "*/5 * * * *",
+            task-type: "cron",
+            status: "ACTIVE",
+            last-run: "2 mins ago",
+            next-run: "in 3 mins",
+            prompt: "Audit VRAM ceiling <= 6.00 GB and flush expired KV cache"
+        },
+        {
+            id: "task-cron-2",
+            name: "Workspace Git Sync & Health Check",
+            schedule: "0 * * * *",
+            task-type: "cron",
+            status: "SCHEDULED",
+            last-run: "45 mins ago",
+            next-run: "in 15 mins",
+            prompt: "Verify git status and AST integrity of changed files"
+        }
+    ];
+
+    // Customization Skills & Rules
+    in-out property <[SkillCardItem]> skills-list: [
+        {
+            id: "skill-agy-customizations",
+            name: "agy-customizations",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Studio Customization System guide for skills, rules, plugins, hooks, and MCP servers.",
+            tools-count: 4
+        },
+        {
+            id: "skill-antigravity-guide",
+            name: "antigravity-guide",
+            category: "skill",
+            scope: "Global",
+            status: "ACTIVE",
+            description: "Comprehensive guide, slash commands, keybindings, and reference for Kingdom AI Studio.",
+            tools-count: 6
+        },
+        {
+            id: "skill-code-implementer",
+            name: "code-implementer",
+            category: "skill",
+            scope: "Workspace",
+            status: "ACTIVE",
+            description: "High-precision code refactorer and multi-file implementation agent persona.",
+            tools-count: 5
+        },
+        {
+            id: "rule-agents-md",
+            name: "AGENTS.md (Root Guidelines)",
+            category: "rule",
+            scope: "Workspace",
+            status: "LOADED",
+            description: "Hierarchy rules: Keep responses concise, verify code changes with pytest, maintain VRAM <= 6.00 GB.",
+            tools-count: 0
+        },
+        {
+            id: "mcp-filesystem",
+            name: "mcp-local-filesystem",
+            category: "mcp",
+            scope: "Global",
+            status: "CONNECTED",
+            description: "Model Context Protocol stdio transport for safe workspace file operations.",
+            tools-count: 8
+        },
+        {
+            id: "mcp-ast-tools",
+            name: "mcp-treesitter-ast",
+            category: "mcp",
+            scope: "Workspace",
+            status: "CONNECTED",
+            description: "Structural code parser and symbol graph extractor using native Tree-sitter AST.",
+            tools-count: 3
+        }
+    ];
+
+    // Projects List
+    in-out property <[ProjectItem]> projects-list: [
+        {
+            id: "proj-1",
+            name: "KingdomAIServer",
+            path: "C:/Users/gagan/Projects/KingdomAIServer",
+            branch: "main",
+            is-active: true,
+            last-opened: "Now"
+        },
+        {
+            id: "proj-2",
+            name: "7CGPA-Labs-Core",
+            path: "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+            branch: "main",
+            is-active: false,
+            last-opened: "Yesterday"
+        }
+    ];
+
+    // Inspector Artifacts & Diffs State
+    in-out property <string> artifact-title: "Implementation Plan";
+    in-out property <string> artifact-summary: "Kingdom AI Studio Implementation Plan";
+    in-out property <string> diff-file: "src/gui/ui/app.slint";
+    in-out property <[DiffLineItem]> diff-lines: [
+        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: 15, prefix: "-", content: "    // Dual titlebars" },
+        { line-number: 15, prefix: "+", content: "    // Single unified Studio topbar" },
+        { line-number: 16, prefix: "+", content: "    UnifiedTopBar {" },
+        { line-number: 17, prefix: "+", content: "        height: 34px;" },
+        { line-number: 18, prefix: " ", content: "    }" }
+    ];
+
+    // User Action Callbacks (bound to Python AppController)
+    callback send-message(string);
+    callback stop-generation();
+    callback switch-model(string);
+    callback download-model(string);
+    callback select-workspace();
+    callback purge-cache();
+    callback clear-chat();
+    callback new-chat();
+    callback execute-command(string);
+    callback set-mode(string);
+    callback mention-resource(string);
+    callback trigger-task(string);
+    callback cancel-task(string);
+    callback copy-text(string);
+    callback refresh-diff();
+    callback execute-plan();
+    callback add-task(string, string, string);
+    callback reload-skills();
+    callback conversation-selected(string, string, string, string);
+    callback toggle-project-expand(string);
+    callback open-aux-tab(string, string, string, bool, string);
+    callback close-aux-tab(string);
+    callback execute-palette-command(string);
+    callback filter-palette-commands(string);
+
+    // =========================================================================
+    // MASTER LAYOUT ROOT
+    // =========================================================================
+    VerticalLayout {
+        spacing: 0px;
+
+        // ---------------------------------------------------------------------
+        // 1. SINGLE UNIFIED TITLE BAR (32px) - Google Antigravity 2.0 Pixel-to-Pixel
+        // ---------------------------------------------------------------------
+        // ---------------------------------------------------------------------
+        // 1. SINGLE UNIFIED TITLE BAR (32px) - Google Antigravity 2.0 Pixel-to-Pixel
+        // ---------------------------------------------------------------------
+        // ---------------------------------------------------------------------
+        // 1. NOTEPAD++ STYLE COMPACT UTILITY TOOLBAR (34px)
+        // ---------------------------------------------------------------------
+        Rectangle {
+            height: 34px;
+            background: AntigravityTheme.background-canvas;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 8px;
+
+                // Left: Spacer to keep Command Palette perfectly centered
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: transparent;
+                }
+
+                // Center: Command Palette Trigger Pill
+                Rectangle {
+                    width: 520px;
+                    height: 26px;
+                    border-radius: AntigravityTheme.radius-xs;
+                    border-width: 1px;
+                    border-color: cp-btn.has-hover ? AntigravityTheme.border-focus : AntigravityTheme.border-subtle;
+                    background: cp-btn.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-surface;
+                    y: (parent.height - self.height) / 2;
+
+                    cp-btn := TouchArea {
+                        clicked => {
+                            root.show-command-palette = !root.show-command-palette;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 8px;
+                        alignment: center;
+
+                        AntigravityIcon {
+                            name: "search";
+                            icon-size: 13px;
+                            icon-color: cp-btn.has-hover ? AntigravityTheme.accent-blue : AntigravityTheme.text-muted;
+                        }
+
+                        Text {
+                            horizontal-stretch: 1;
+                            text: "Type a command or search... (Ctrl+P / Ctrl+Shift+P)";
+                            font-size: 12px;
+                            color: cp-btn.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-muted;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+
+                        Rectangle {
+                            height: 16px;
+                            border-radius: 2px;
+                            background: AntigravityTheme.background-canvas;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
+
+                            HorizontalLayout {
+                                padding-left: 5px;
+                                padding-right: 5px;
+                                Text {
+                                    text: "Ctrl+P";
+                                    font-size: 10px;
+                                    font-weight: 600;
+                                    color: AntigravityTheme.text-muted;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right: Spacer + Actions (Settings Gear, Left Toggle, Right Toggle)
+                HorizontalLayout {
+                    horizontal-stretch: 1;
+                    alignment: end;
+                    spacing: 4px;
+
+                    // 1. Settings Gear Icon (Right side of Command Palette)
+                    Rectangle {
+                        width: 28px;
+                        height: 26px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: root.show-settings-modal ? AntigravityTheme.background-active : (set-btn.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        set-btn := TouchArea {
+                            clicked => { root.show-settings-modal = !root.show-settings-modal; }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            AntigravityIcon {
+                                name: "settings";
+                                icon-size: 15px;
+                                icon-color: root.show-settings-modal ? AntigravityTheme.accent-blue : (set-btn.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary);
+                            }
+                        }
+                    }
+
+                    // 2. Left Side Panel Toggle [| ]
+                    Rectangle {
+                        width: 28px;
+                        height: 26px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: side-tog.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                        side-tog := TouchArea {
+                            clicked => { root.is-sidebar-collapsed = !root.is-sidebar-collapsed; }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            AntigravityIcon {
+                                name: "sidebar";
+                                icon-size: 15px;
+                                icon-color: (!root.is-sidebar-collapsed) ? AntigravityTheme.accent-blue : (side-tog.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-muted);
+                            }
+                        }
+                    }
+
+                    // 3. Right Side Panel Toggle [ |]
+                    Rectangle {
+                        width: 28px;
+                        height: 26px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: aux-tog.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                        aux-tog := TouchArea {
+                            clicked => { root.is-aux-collapsed = !root.is-aux-collapsed; }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            AntigravityIcon {
+                                name: "panel-right";
+                                icon-size: 15px;
+                                icon-color: (!root.is-aux-collapsed) ? AntigravityTheme.accent-blue : (aux-tog.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-muted);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Toolbar bottom border divider (1px Notepad++ subtle border)
+        Rectangle {
+            height: 1px;
+            background: AntigravityTheme.border-subtle;
+        }
+
+
+        // ---------------------------------------------------------------------
+        // 2. MAIN WORKSPACE (Sidebar + Center Dynamic View + Auxiliary Inspector)
+        // ---------------------------------------------------------------------
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: 0px;
+
+            // 1. Left Navigation Sidebar
+            if !root.is-sidebar-collapsed: LeftSidebar {
+                active-nav <=> root.active-nav;
+                active-workspace: root.active-workspace;
+                active-conversation-id: root.active-conversation-id;
+                project-tree: root.project-tree;
+                sessions: root.session-list;
+                projects: root.projects-list;
+                is-generating: root.is-generating;
+
+                nav-selected(nav) => {
+                    root.active-nav = nav;
+                }
+                new-chat-clicked => {
+                    root.new-chat();
+                    root.active-nav = "chat";
+                }
+                select-workspace-clicked => {
+                    root.select-workspace();
+                }
+                session-selected(id) => {
+                    root.active-nav = "chat";
+                }
+                conversation-selected(proj-id, conv-id, proj-name, conv-title) => {
+                    root.active-workspace = proj-name;
+                    root.conversation-title = conv-title;
+                    root.active-conversation-id = conv-id;
+                    root.conversation-selected(proj-id, conv-id, proj-name, conv-title);
+                    root.active-nav = "chat";
+                }
+                toggle-project-expand(proj-id) => {
+                    root.toggle-project-expand(proj-id);
+                }
+                open-settings-clicked => {
+                    root.show-settings-modal = true;
+                }
+            }
+
+            // 2. Center Dynamic Content Area
+            if root.active-nav == "chat": HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: 0px;
+
+                ChatCanvas {
+                    horizontal-stretch: 1;
+                    messages: root.chat-messages;
+                    is-generating: root.is-generating;
+                    streaming-text: root.streaming-text;
+                    active-mode <=> root.active-mode;
+                    active-workspace: root.active-workspace;
+                    conversation-title: root.conversation-title;
+                    active-model: root.active-model;
+                    models: root.model-list;
+
+                    send-message(p) => { root.send-message(p); }
+                    stop-generation => { root.stop-generation(); }
+                    clear-chat => { root.clear-chat(); }
+                    mode-changed(m) => { root.set-mode(m); }
+                    mention-chosen(m) => { root.mention-resource(m); }
+                    copy-message(msg) => { root.copy-text(msg); }
+                    switch-model(id) => { root.switch-model(id); }
+                    open-review => {
+                        root.aux-active-tab = "diffs";
+                        if root.is-aux-collapsed { root.is-aux-collapsed = false; }
+                    }
+                    open-artifact => {
+                        root.aux-active-tab = "artifacts";
+                        if root.is-aux-collapsed { root.is-aux-collapsed = false; }
+                    }
+                    slash-command-chosen(cmd) => {
+                        if cmd == "/top" {
+                            root.show-settings-modal = true;
+                        } else if cmd == "/models" {
+                            root.show-settings-modal = true;
+                        } else if cmd == "/schedule" {
+                            root.active-nav = "tasks";
+                        } else if cmd == "/plan" {
+                            root.active-mode = "plan";
+                            root.aux-active-tab = "artifacts";
+                            root.execute-command(cmd);
+                        } else if cmd == "/goal" {
+                            root.active-mode = "goal";
+                            root.execute-command(cmd);
+                        } else {
+                            root.execute-command(cmd);
+                        }
+                    }
+                }
+
+                // 3. Right Auxiliary Dynamic Tabbed Inspector
+                if !root.is-aux-collapsed: AuxiliaryPane {
+                    active-tab <=> root.aux-active-tab;
+                    tabs: root.aux-tabs;
+                    boss-name: root.active-model;
+                    boss-status: root.boss-status;
+                    m1-status: root.m1-status;
+                    m2-status: root.m2-status;
+                    ast-status: root.ast-status;
+                    worker-state: root.is-generating ? "Generating" : (root.is-downloading ? "Downloading" : "Idle");
+
+                    artifact-title: root.artifact-title;
+                    artifact-summary: root.artifact-summary;
+                    diff-file: root.diff-file;
+                    diff-lines: root.diff-lines;
+
+                    cpu-progress: root.cpu-pct / 100.0;
+                    cpu-text: Math.round(root.cpu-pct) + "%";
+                    ram-progress: root.ram-used-gb / root.ram-total-gb;
+                    ram-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+                    vram-progress: root.vram-used-gb / root.vram-ceiling-gb;
+                    vram-text: root.vram-status;
+                    speed-tokens-sec: root.speed-tokens-sec;
+
+                    cache-entries: root.cache-entries;
+                    cache-hits: root.cache-hits;
+                    cache-hit-ratio: root.cache-hit-ratio;
+
+                    tab-selected(id) => { root.aux-active-tab = id; }
+                    tab-closed(id) => { root.close-aux-tab(id); }
+                    open-tab(id, title, tab-type, can-close, icon-name) => { root.open-aux-tab(id, title, tab-type, can-close, icon-name); }
+                    purge-cache-clicked => { root.purge-cache(); }
+                    refresh-diff-clicked => { root.refresh-diff(); }
+                    execute-plan-clicked => { root.execute-plan(); }
+                }
+            }
+
+            if root.active-nav == "projects": ProjectsPanel {
+                horizontal-stretch: 1;
+                projects: root.projects-list;
+                select-project(id) => {
+                    root.active-workspace = "KingdomAIServer";
+                    root.active-nav = "chat";
+                }
+                open-folder-clicked => {
+                    root.select-workspace();
+                }
+            }
+
+            if root.active-nav == "tasks": TasksPanel {
+                horizontal-stretch: 1;
+                tasks: root.scheduled-tasks;
+                save-new-task(name, sched, prompt) => {
+                    root.add-task(name, sched, prompt);
+                }
+                trigger-task-clicked(id) => {
+                    root.trigger-task(id);
+                }
+                cancel-task-clicked(id) => {
+                    root.cancel-task(id);
+                }
+            }
+
+            if root.active-nav == "skills": SkillsPanel {
+                horizontal-stretch: 1;
+                items: root.skills-list;
+                reload-customizations => {
+                    root.reload-skills();
+                }
+            }
+
+            if root.active-nav == "models": ModelsHubView {
+                horizontal-stretch: 1;
+                active-model-id: root.active-model;
+                models: root.model-list;
+                is-downloading: root.is-downloading;
+                download-progress: root.download-progress;
+                download-status: root.download-status;
+
+                switch-model(id) => { root.switch-model(id); }
+                download-model(id) => { root.download-model(id); }
+            }
+
+            if root.active-nav == "ktop": KTopDashboardView {
+                horizontal-stretch: 1;
+                cpu-pct: root.cpu-pct;
+                ram-used-gb: root.ram-used-gb;
+                ram-total-gb: root.ram-total-gb;
+                vram-used-gb: root.vram-used-gb;
+                vram-ceiling-gb: root.vram-ceiling-gb;
+                silicon-provider: root.silicon-provider;
+                cpu-threads: root.cpu-threads;
+                uptime-str: root.uptime-str;
+                speed-tokens-sec: root.speed-tokens-sec;
+            }
+
+            if root.active-nav == "settings": Rectangle {
+                horizontal-stretch: 1;
+                background: AntigravityTheme.background-canvas;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-xl;
+                    spacing: AntigravityTheme.spacing-lg;
+
+                    Text {
+                        text: "Studio Settings & Policies";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 20px;
+                        font-weight: 700;
+                    }
+
+                    Rectangle {
+                        background: AntigravityTheme.background-surface;
+                        border-radius: AntigravityTheme.radius-md;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        VerticalLayout {
+                            padding: AntigravityTheme.spacing-lg;
+                            spacing: AntigravityTheme.spacing-md;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Compute Backend"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: root.silicon-provider; color: AntigravityTheme.accent-cyan; font-size: 13px; font-weight: 700; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "VRAM Memory Budget Ceiling"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: "<= 6.00 GB (Strict Safety Limit)"; color: AntigravityTheme.status-success; font-size: 13px; font-weight: 700; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Tool Execution Sandbox"; color: AntigravityTheme.text-secondary; font-size: 13px; }
+                                Text { text: "proceed-in-sandbox (Safe Isolation)"; color: AntigravityTheme.status-success; font-size: 13px; font-weight: 700; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // APPLICATION TOP-LEVEL DROPDOWN MENUS OVERLAY
+    // =========================================================================
+    // =========================================================================
+    // UNIFIED COMMAND PALETTE MODAL OVERLAY (VS Code / Sublime / Notepad++ style)
+    // =========================================================================
+    if root.show-command-palette: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #00000075;
+
+        // Dismiss when clicking outside the palette
+        TouchArea {
+            clicked => {
+                root.show-command-palette = false;
+            }
+        }
+
+        // Palette Card
+        Rectangle {
+            width: Math.min(580px, root.width - 40px);
+            height: Math.min(430px, root.height - 80px);
+            x: (parent.width - self.width) / 2;
+            y: 40px;
+            background: AntigravityTheme.background-card;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-strong;
+            border-radius: AntigravityTheme.radius-md;
+            drop-shadow-blur: 24px;
+            drop-shadow-color: #00000095;
+
+            VerticalLayout {
+                padding: 10px;
+                spacing: 8px;
+
+                // Search Input Header
+                Rectangle {
+                    height: 36px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-focus;
+                    background: AntigravityTheme.background-surface;
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 8px;
+                        alignment: center;
+
+                        AntigravityIcon {
+                            name: "search";
+                            icon-size: 14px;
+                            icon-color: AntigravityTheme.accent-blue;
+                        }
+
+                        cp-input := TextInput {
+                            text <=> root.command-palette-query;
+                            color: AntigravityTheme.text-primary;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            edited => {
+                                root.filter-palette-commands(self.text);
+                            }
+                        }
+
+                        if root.command-palette-query != "": Rectangle {
+                            width: 20px;
+                            height: 20px;
+                            background: transparent;
+                            TouchArea {
+                                clicked => {
+                                    root.command-palette-query = "";
+                                    root.filter-palette-commands("");
+                                }
+                            }
+                            HorizontalLayout {
+                                alignment: center;
+                                AntigravityIcon {
+                                    name: "x";
+                                    icon-size: 12px;
+                                    icon-color: AntigravityTheme.text-muted;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Divider
+                Rectangle {
+                    height: 1px;
+                    background: AntigravityTheme.border-subtle;
+                }
+
+                // Scrollable Command List
+                ScrollView {
+                    vertical-stretch: 1;
+
+                    VerticalLayout {
+                        spacing: 3px;
+                        padding-right: 4px;
+
+                        for item in root.palette-commands: PaletteCommandRow {
+                            category: item.category;
+                            title: item.title;
+                            shortcut: item.shortcut;
+                            icon-name: item.icon-name;
+                            clicked => {
+                                root.execute-palette-command(item.id);
+                                root.show-command-palette = false;
+                            }
+                        }
+                    }
+                }
+
+                // Footer Hint Bar
+                HorizontalLayout {
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    spacing: 12px;
+                    alignment: space-between;
+
+                    Text {
+                        text: "Click any command to execute • Click backdrop to dismiss";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "Command Palette";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // SETTINGS MODAL DIALOG OVERLAY (House for Models, Council, Customizations, K-Top)
+    // =========================================================================
+    if root.show-settings-modal: SettingsModal {
+        width: 100%;
+        height: 100%;
+        active-model: root.active-model;
+        silicon-provider: root.silicon-provider;
+        vram-status: root.vram-status;
+        cpu-progress: root.cpu-pct / 100.0;
+        cpu-text: Math.round(root.cpu-pct) + "%";
+        ram-progress: root.ram-used-gb / root.ram-total-gb;
+        ram-text: root.ram-used-gb + " / " + root.ram-total-gb + " GB";
+        vram-progress: root.vram-used-gb / root.vram-ceiling-gb;
+        speed-tokens-sec: root.speed-tokens-sec;
+        cache-entries: root.cache-entries;
+        cache-hits: root.cache-hits;
+        cache-hit-ratio: root.cache-hit-ratio;
+        models: root.model-list;
+        is-downloading: root.is-downloading;
+        download-progress: root.download-progress;
+        download-status: root.download-status;
+        skills: root.skills-list;
+        boss-status: root.boss-status;
+        m1-status: root.m1-status;
+        m2-status: root.m2-status;
+        ast-status: root.ast-status;
+        active-workspace: root.active-workspace;
+
+        close-modal => { root.show-settings-modal = false; }
+        switch-model(id) => { root.switch-model(id); }
+        download-model(id) => { root.download-model(id); }
+        reload-skills => { root.reload-skills(); }
+        purge-cache => { root.purge-cache(); }
+        select-workspace => { root.select-workspace(); }
+    }
+}

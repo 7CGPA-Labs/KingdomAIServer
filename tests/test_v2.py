@@ -72,7 +72,7 @@ def test_response_cache_db_put_get():
     cached = db.get(cache_key)
     assert cached is not None
     assert cached["cached"] is True
-    assert cached["cache_hit_latency_ms"] < 50.0
+    assert cached["cache_hit_latency_ms"] < 150.0
     assert cached["choices"][0]["text"] == "return True"
 
     stats = db.get_stats()

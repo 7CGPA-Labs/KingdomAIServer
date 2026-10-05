@@ -71,7 +71,7 @@ def test_build_slint_model_list(tmp_path):
 
 def test_telemetry_bridge_updates(tmp_path):
     """Verify TelemetryBridge samples hardware and applies values to Slint window."""
-    app_path = Path(__file__).resolve().parent.parent / "ui" / "app.slint"
+    app_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "app.slint"
     ns = slint.load_file(str(app_path))
     window = ns.MainWindow()
 
@@ -371,3 +371,53 @@ def test_app_controller_interactive_fine_tunings():
     # 4. Reload skills
     ctrl.on_reload_skills()
     assert "Skills & Rules Reloaded from Disk" in ctrl.window.chat_messages[-1]["content"]
+
+
+def test_hierarchical_project_explorer_and_conversation_switching():
+    """Verify hierarchical project tree, conversation loading into chat canvas, and breadcrumb updates."""
+    ctrl = AppController(auto_start_telemetry=False)
+    assert ctrl.window.conversation_title == "Active pair programming session"
+    assert ctrl.window.active_workspace == "KingdomAIServer"
+    assert ctrl.window.active_conversation_id == "conv-1"
+
+    # Switch to conversation under 7CGPA-Labs-Core
+    ctrl.on_select_conversation("proj-2", "conv-5", "7CGPA-Labs-Core", "Semantic search embeddings")
+    assert ctrl.window.active_workspace == "7CGPA-Labs-Core"
+    assert ctrl.window.conversation_title == "Semantic search embeddings"
+    assert ctrl.window.active_conversation_id == "conv-5"
+    assert len(ctrl.window.chat_messages) > 0
+    assert "semantic code search" in ctrl.window.chat_messages[0]["content"].lower()
+
+    # Toggle expansion of project
+    ctrl.on_toggle_project_expand("proj-3")
+    p3 = next(p for p in ctrl._projects_tree if p["id"] == "proj-3")
+    assert p3["is_expanded"] is True
+
+
+def test_dynamic_auxiliary_tabs_lifecycle():
+    """Verify dynamic tab creation, switching, and closing with static permanent Overview tab."""
+    ctrl = AppController(auto_start_telemetry=False)
+    assert len(ctrl._aux_tabs) == 1
+    assert ctrl._aux_tabs[0]["id"] in ("overview", "council")
+    assert ctrl._aux_tabs[0]["can_close"] is False
+
+    # Open diff tab
+    ctrl.on_open_aux_tab("diff:app.slint", "app.slint", "diff", True, "diff")
+    assert len(ctrl._aux_tabs) == 2
+    assert ctrl.window.aux_active_tab == "diff:app.slint"
+
+    # Open tasks tab
+    ctrl.on_open_aux_tab("tasks", "Tasks", "tasks", True, "clock")
+    assert len(ctrl._aux_tabs) == 3
+    assert ctrl.window.aux_active_tab == "tasks"
+
+    # Close tasks tab -> falls back to previous tab
+    ctrl.on_close_aux_tab("tasks")
+    assert len(ctrl._aux_tabs) == 2
+    assert ctrl.window.aux_active_tab == "diff:app.slint"
+
+    # Overview cannot be closed
+    ctrl.on_close_aux_tab("council")
+    assert len(ctrl._aux_tabs) == 2
+    assert any(t["id"] in ("overview", "council") for t in ctrl._aux_tabs)
+

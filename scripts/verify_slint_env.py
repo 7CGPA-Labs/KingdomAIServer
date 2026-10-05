@@ -23,12 +23,12 @@ def verify_slint_environment():
 
     # 2. Check UI Directory Scaffolding
     project_root = Path(__file__).resolve().parent.parent
-    ui_dir = project_root / "ui"
+    ui_dir = project_root / "src" / "gui" / "ui"
     app_slint = ui_dir / "app.slint"
     theme_slint = ui_dir / "theme.slint"
     badge_slint = ui_dir / "components" / "badge.slint"
 
-    for file_path, name in [(theme_slint, "ui/theme.slint"), (badge_slint, "ui/components/badge.slint"), (app_slint, "ui/app.slint")]:
+    for file_path, name in [(theme_slint, "src/gui/ui/theme.slint"), (badge_slint, "src/gui/ui/components/badge.slint"), (app_slint, "src/gui/ui/app.slint")]:
         if file_path.exists():
             print(f"[OK] Scaffolding file found: {name}")
         else:
@@ -36,13 +36,13 @@ def verify_slint_environment():
             return False
 
     # 3. Dynamic Compilation of .slint Markup
-    print("\nCompiling ui/app.slint with native Slint compiler...")
+    print("\nCompiling src/gui/ui/app.slint with native Slint compiler...")
     try:
         ns = slint.load_file(str(app_slint))
         if not hasattr(ns, "MainWindow"):
             print("[ERROR] 'MainWindow' component not found in compiled namespace.")
             return False
-        print("[OK] ui/app.slint compiled successfully.")
+        print("[OK] src/gui/ui/app.slint compiled successfully.")
     except Exception as e:
         print(f"[ERROR] Compilation error: {e}")
         return False

@@ -1,0 +1,802 @@
+import { AntigravityTheme } from "theme.slint";
+import { AntigravityIcon } from "components/icon.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ModelCardItem } from "models_hub.slint";
+
+export struct ChatMessage {
+    id: string,
+    role: string, // "user", "assistant", "system"
+    content: string,
+    timestamp: string,
+    thought: string,
+    tool-activity: string,
+    changed-files: string,
+    artifact-name: string,
+}
+
+export component ChatCanvas inherits Rectangle {
+    in property <[ChatMessage]> messages: [
+        { id: "1", role: "assistant", content: "I am ready to assist you with your project. Type your prompt below or use / for commands.", timestamp: "Just now", thought: "", tool-activity: "", changed-files: "", artifact-name: "" }
+    ];
+    in-out property <string> prompt-text: "";
+    in property <bool> is-generating: false;
+    in property <string> streaming-text: "";
+    in-out property <bool> show-slash-menu: false;
+    in-out property <bool> show-mention-menu: false;
+    in-out property <bool> show-model-menu: false;
+    in-out property <bool> show-project-menu: false;
+    in-out property <bool> show-thought-disclosure: false;
+    in-out property <string> active-mode: "normal"; // "normal", "plan", "goal"
+    in property <string> active-workspace: "KingdomAIServer";
+    in property <string> active-model: "Qwen 2.5 Coder 1.5B";
+    in property <string> conversation-title: "Active Pair Programming Session";
+    in property <[ModelCardItem]> models: [
+        { id: "qwen2.5-coder-1.5b", name: "Qwen 2.5 Coder 1.5B", repo-id: "Qwen/Qwen2.5-Coder-1.5B-GGUF", approx-size-mb: 1100, vram-required-mb: 1100, is-installed: true, is-active: true, actual-disk-mb: 1115.3 },
+        { id: "qwen2.5-coder-3b", name: "Qwen 2.5 Coder 3B", repo-id: "Qwen/Qwen2.5-Coder-3B-GGUF", approx-size-mb: 2000, vram-required-mb: 2900, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "qwen2.5-coder-7b", name: "Qwen 2.5 Coder 7B", repo-id: "Qwen/Qwen2.5-Coder-7B-GGUF", approx-size-mb: 4700, vram-required-mb: 5200, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "deepseek-coder-1.3b", name: "DeepSeek Coder 1.3B", repo-id: "deepseek-ai/deepseek-coder-1.3b", approx-size-mb: 950, vram-required-mb: 1050, is-installed: false, is-active: false, actual-disk-mb: 0.0 }
+    ];
+
+    callback send-message(string);
+    callback stop-generation();
+    callback slash-command-chosen(string);
+    callback mention-chosen(string);
+    callback mode-changed(string);
+    callback clear-chat();
+    callback copy-message(string);
+    callback switch-model(string);
+    callback open-artifact();
+    callback open-review();
+
+    background: AntigravityTheme.background-canvas;
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // =====================================================================
+        // TOP BREADCRUMB BAR (When active chat messages exist)
+        // =====================================================================
+        if root.messages.length > 0: Rectangle {
+            height: 38px;
+            background: AntigravityTheme.background-canvas;
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-lg;
+                padding-right: AntigravityTheme.spacing-lg;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: AntigravityTheme.spacing-sm;
+                    alignment: center;
+
+                    Text {
+                        text: root.active-workspace;
+                        color: AntigravityTheme.text-secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "/";
+                        color: AntigravityTheme.text-muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.conversation-title;
+                        color: AntigravityTheme.text-secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        max-width: 450px;
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // CENTER AREA: EMPTY STATE (Centered) OR ACTIVE MESSAGES STREAM
+        // =====================================================================
+        if root.messages.length == 0: Rectangle {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: AntigravityTheme.spacing-md;
+
+                // 1. Centered Project Selector Pill Dropdown
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        height: 28px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: proj-btn.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                        proj-btn := TouchArea {
+                            clicked => {
+                                root.show-project-menu = !root.show-project-menu;
+                                root.show-model-menu = false;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: center;
+
+                            AntigravityIcon { name: "folder"; icon-size: 13px; icon-color: AntigravityTheme.accent-blue; }
+                            Text {
+                                text: root.active-workspace;
+                                color: AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: 500;
+                                vertical-alignment: center;
+                            }
+                            AntigravityIcon { name: "chevron-down"; icon-size: 11px; icon-color: AntigravityTheme.text-muted; }
+                        }
+                    }
+                }
+
+                // 2. Large Centered Floating Prompt Box with Inverse Model Dropup
+                HorizontalLayout {
+                    alignment: center;
+
+                    Rectangle {
+                        width: 620px;
+                        height: 120px;
+                        background: AntigravityTheme.background-card;
+                        border-radius: AntigravityTheme.radius-lg;
+                        border-width: 1px;
+                        border-color: center-in.has-focus ? AntigravityTheme.border-focus : AntigravityTheme.border-strong;
+
+                        // FLOATING INVERSE MODEL DROPUP OVERLAY (L87)
+                        if root.show-model-menu: Rectangle {
+                            x: 32px;
+                            y: -168px;
+                            width: 280px;
+                            height: 160px;
+                            background: AntigravityTheme.background-card;
+                            border-radius: AntigravityTheme.radius-md;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-strong;
+                            clip: true;
+
+                            VerticalLayout {
+                                padding: AntigravityTheme.spacing-sm;
+                                spacing: 2px;
+
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-sm;
+                                    padding-bottom: 4px;
+                                    Text { text: "Model"; color: AntigravityTheme.text-muted; font-size: 11px; font-weight: 600; }
+                                }
+
+                                for m in root.models: Rectangle {
+                                    height: 28px;
+                                    border-radius: AntigravityTheme.radius-xs;
+                                    background: m.name == root.active-model ? AntigravityTheme.background-active : (m-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                                    m-touch := TouchArea {
+                                        clicked => {
+                                            root.switch-model(m.id);
+                                            root.show-model-menu = false;
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 8px;
+                                        padding-right: 8px;
+                                        alignment: space-between;
+                                        Text { text: m.name; color: m.name == root.active-model ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; font-size: 12px; font-weight: m.name == root.active-model ? 600 : 400; vertical-alignment: center; }
+                                        HorizontalLayout {
+                                            alignment: end;
+                                            spacing: 3px;
+                                            if m.is-installed: Text { text: "Fast"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                                            if m.is-installed: AntigravityIcon { name: "info"; icon-size: 10px; icon-color: AntigravityTheme.text-muted; }
+                                            if !m.is-installed: Text { text: "Download"; color: AntigravityTheme.accent-cyan; font-size: 10px; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            padding: AntigravityTheme.spacing-md;
+                            spacing: AntigravityTheme.spacing-sm;
+
+                            // Text area with padding
+                            Rectangle {
+                                vertical-stretch: 1;
+                                clip: true;
+
+                                HorizontalLayout {
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+
+                                    Rectangle {
+                                        horizontal-stretch: 1;
+
+                                        if root.prompt-text == "" && !center-in.has-focus: Text {
+                                            text: "Ask anything, @ to mention, / for actions";
+                                            color: AntigravityTheme.text-muted;
+                                            font-size: AntigravityTheme.font-sm;
+                                            horizontal-alignment: left;
+                                            x: 0px;
+                                            y: 1px;
+                                        }
+
+                                        center-in := TextInput {
+                                            width: 100%;
+                                            height: 100%;
+                                            text <=> root.prompt-text;
+                                            color: AntigravityTheme.text-primary;
+                                            font-size: AntigravityTheme.font-base;
+
+                                            accepted => {
+                                                if root.prompt-text != "" && !root.is-generating {
+                                                    root.send-message(root.prompt-text);
+                                                    root.prompt-text = "";
+                                                    root.show-model-menu = false;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom Toolbar inside prompt card
+                            HorizontalLayout {
+                                height: 32px;
+                                alignment: space-between;
+
+                                HorizontalLayout {
+                                    spacing: AntigravityTheme.spacing-sm;
+                                    alignment: center;
+
+                                    // Context '+' button
+                                    Rectangle {
+                                        width: 24px;
+                                        height: 24px;
+                                        border-radius: AntigravityTheme.radius-xs;
+                                        background: c-plus.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                        c-plus := TouchArea { }
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            AntigravityIcon { name: "plus"; icon-size: 14px; icon-color: c-plus.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                                        }
+                                    }
+
+                                    // Model selector pill
+                                    Rectangle {
+                                        height: 24px;
+                                        border-radius: AntigravityTheme.radius-xs;
+                                        background: c-mod-pill.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                        c-mod-pill := TouchArea {
+                                            clicked => {
+                                                root.show-model-menu = !root.show-model-menu;
+                                                root.show-project-menu = false;
+                                            }
+                                        }
+
+                                        HorizontalLayout {
+                                            padding-left: 6px;
+                                            padding-right: 6px;
+                                            spacing: 4px;
+                                            alignment: center;
+                                            Text { text: root.active-model; color: AntigravityTheme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                                            AntigravityIcon { name: root.show-model-menu ? "chevron-up" : "chevron-down"; icon-size: 10px; icon-color: AntigravityTheme.text-muted; }
+                                        }
+                                    }
+                                }
+
+                                // Send circular arrow button
+                                Rectangle {
+                                    width: 28px;
+                                    height: 28px;
+                                    border-radius: 14px;
+                                    background: root.prompt-text != "" ? AntigravityTheme.accent-blue : AntigravityTheme.background-surface-hover;
+                                    c-send := TouchArea {
+                                        clicked => {
+                                            if root.prompt-text != "" && !root.is-generating {
+                                                root.send-message(root.prompt-text);
+                                                root.prompt-text = "";
+                                                root.show-model-menu = false;
+                                            }
+                                        }
+                                    }
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        AntigravityIcon {
+                                            name: "send";
+                                            icon-size: 13px;
+                                            icon-color: root.prompt-text != "" ? #ffffff : AntigravityTheme.text-muted;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Local Target Environment Pill
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 620px;
+                        HorizontalLayout {
+                            alignment: start;
+                            Rectangle {
+                                height: 24px;
+                                border-radius: AntigravityTheme.radius-xs;
+                                background: loc-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                loc-t := TouchArea { }
+                                HorizontalLayout {
+                                    padding-left: 6px; padding-right: 6px; spacing: 4px; alignment: center;
+                                    AntigravityIcon { name: "monitor"; icon-size: 12px; icon-color: AntigravityTheme.text-secondary; }
+                                    Text { text: "Local (Vulkan GPU)"; color: AntigravityTheme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                                    AntigravityIcon { name: "chevron-down"; icon-size: 10px; icon-color: AntigravityTheme.text-muted; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // ACTIVE MESSAGES STREAM (100% Dynamic, Zero Hardcoded Mockups)
+        // =====================================================================
+        if root.messages.length > 0: ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding-left: AntigravityTheme.spacing-xl;
+                padding-right: AntigravityTheme.spacing-xl;
+                padding-top: AntigravityTheme.spacing-md;
+                padding-bottom: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-lg;
+
+                for msg in root.messages: VerticalLayout {
+                    spacing: AntigravityTheme.spacing-sm;
+
+                    // USER MESSAGE ROW
+                    if msg.role == "user": HorizontalLayout {
+                        alignment: end;
+
+                        Rectangle {
+                            max-width: 760px;
+                            min-width: 240px;
+                            background: AntigravityTheme.background-card;
+                            border-radius: AntigravityTheme.radius-lg;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
+
+                            VerticalLayout {
+                                padding-left: AntigravityTheme.spacing-lg;
+                                padding-right: AntigravityTheme.spacing-lg;
+                                padding-top: AntigravityTheme.spacing-md;
+                                padding-bottom: AntigravityTheme.spacing-md;
+                                spacing: AntigravityTheme.spacing-xs;
+
+                                Text {
+                                    text: msg.content;
+                                    color: AntigravityTheme.text-primary;
+                                    font-size: 13.5px;
+                                    wrap: word-wrap;
+                                }
+
+                                HorizontalLayout {
+                                    alignment: end;
+                                    spacing: AntigravityTheme.spacing-sm;
+
+                                    Text {
+                                        text: msg.timestamp;
+                                        color: AntigravityTheme.text-muted;
+                                        font-size: 10px;
+                                        vertical-alignment: center;
+                                    }
+
+                                    // Copy Icon
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        background: transparent;
+                                        u-cp := TouchArea { clicked => { root.copy-message(msg.content); } }
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            AntigravityIcon {
+                                                name: "copy";
+                                                icon-size: 11px;
+                                                icon-color: u-cp.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-muted;
+                                            }
+                                        }
+                                    }
+
+                                    // Branch/Edit Icon
+                                    Rectangle {
+                                        width: 18px;
+                                        height: 18px;
+                                        background: transparent;
+                                        u-ed := TouchArea { clicked => { root.prompt-text = msg.content; } }
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            AntigravityIcon {
+                                                name: "edit";
+                                                icon-size: 11px;
+                                                icon-color: u-ed.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-muted;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ASSISTANT MESSAGE ROW
+                    if msg.role == "assistant": VerticalLayout {
+                        spacing: AntigravityTheme.spacing-sm;
+
+                        // 1. Thought Disclosure Widget (Rendered ONLY if thought text exists)
+                        if msg.thought != "": Rectangle {
+                            height: 24px;
+                            border-radius: AntigravityTheme.radius-xs;
+                            background: th-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                            th-touch := TouchArea {
+                                clicked => { root.show-thought-disclosure = !root.show-thought-disclosure; }
+                            }
+
+                            HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                AntigravityIcon {
+                                    name: root.show-thought-disclosure ? "chevron-down" : "chevron-right";
+                                    icon-size: 11px;
+                                    icon-color: AntigravityTheme.text-muted;
+                                }
+                                Text {
+                                    text: "Worked for 12s";
+                                    color: AntigravityTheme.text-muted;
+                                    font-size: 12px;
+                                    font-weight: 500;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+
+                        // Disclosed Reasoning Steps
+                        if root.show-thought-disclosure && msg.thought != "": Rectangle {
+                            background: AntigravityTheme.background-surface;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
+                            VerticalLayout {
+                                padding: AntigravityTheme.spacing-sm;
+                                Text { text: msg.thought; color: AntigravityTheme.text-secondary; font-size: 11px; wrap: word-wrap; }
+                            }
+                        }
+
+                        // 2. Action / Activity Chips (Rendered ONLY if tool operations occurred)
+                        if msg.tool-activity != "": HorizontalLayout {
+                            spacing: AntigravityTheme.spacing-sm;
+                            alignment: start;
+
+                            Rectangle {
+                                height: 24px;
+                                border-radius: AntigravityTheme.radius-xs;
+                                background: AntigravityTheme.background-surface;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                HorizontalLayout {
+                                    padding-left: 8px; padding-right: 8px; spacing: 4px; alignment: center;
+                                    Text { text: msg.tool-activity; color: AntigravityTheme.text-secondary; font-size: 11px; vertical-alignment: center; }
+                                }
+                            }
+                        }
+
+                        // 3. Response Content Body
+                        Text {
+                            text: msg.content;
+                            color: AntigravityTheme.text-primary;
+                            font-size: 13.5px;
+                            wrap: word-wrap;
+                        }
+
+                        // 4. Inline Changed Files Banner (Rendered ONLY if files were changed)
+                        if msg.changed-files != "": Rectangle {
+                            height: 38px;
+                            background: AntigravityTheme.background-card;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
+
+                            HorizontalLayout {
+                                padding-left: AntigravityTheme.spacing-md;
+                                padding-right: AntigravityTheme.spacing-sm;
+                                alignment: space-between;
+
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    alignment: center;
+                                    Text { text: msg.changed-files; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 500; vertical-alignment: center; }
+                                }
+
+                                Rectangle {
+                                    width: 72px;
+                                    height: 26px;
+                                    border-radius: AntigravityTheme.radius-xs;
+                                    background: rev-btn.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                    border-width: 1px;
+                                    border-color: AntigravityTheme.border-strong;
+                                    rev-btn := TouchArea { clicked => { root.open-review(); } }
+
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        spacing: 4px;
+                                        AntigravityIcon { name: "diff"; icon-size: 11px; icon-color: AntigravityTheme.text-primary; }
+                                        Text { text: "Review"; color: AntigravityTheme.text-primary; font-size: 11px; font-weight: 500; vertical-alignment: center; }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 5. Embedded Artifact Card (Rendered ONLY if an artifact was created)
+                        if msg.artifact-name != "": Rectangle {
+                            height: 52px;
+                            background: AntigravityTheme.background-card;
+                            border-radius: AntigravityTheme.radius-sm;
+                            border-width: 1px;
+                            border-color: AntigravityTheme.border-subtle;
+
+                            art-touch := TouchArea { clicked => { root.open-artifact(); } }
+
+                            VerticalLayout {
+                                padding-left: AntigravityTheme.spacing-md;
+                                padding-right: AntigravityTheme.spacing-md;
+                                alignment: center;
+                                spacing: 2px;
+
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    AntigravityIcon { name: "file-text"; icon-size: 13px; icon-color: AntigravityTheme.accent-blue; }
+                                    Text { text: msg.artifact-name; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                                }
+
+                                Text { text: "Click to inspect structured implementation plan"; color: AntigravityTheme.text-muted; font-size: 11px; }
+                            }
+                        }
+
+                    }
+                }
+
+                // Streaming Assistant Token Bubble
+                if root.is-generating: VerticalLayout {
+                    spacing: AntigravityTheme.spacing-sm;
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        Text { text: "Working."; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; }
+                    }
+
+                    Text {
+                        text: root.streaming-text;
+                        color: AntigravityTheme.text-primary;
+                        font-size: 13.5px;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // BOTTOM DOCKED PROMPT BOX (With Floating Inverse Model Dropup - L87)
+        // =====================================================================
+        if root.messages.length > 0: Rectangle {
+            height: 90px;
+            background: AntigravityTheme.background-canvas;
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-xl;
+                padding-right: AntigravityTheme.spacing-xl;
+                padding-bottom: AntigravityTheme.spacing-md;
+                alignment: center;
+
+                Rectangle {
+                    width: 100%;
+                    height: 74px;
+                    background: AntigravityTheme.background-card;
+                    border-radius: AntigravityTheme.radius-lg;
+                    border-width: 1px;
+                    border-color: bottom-in.has-focus ? AntigravityTheme.border-focus : AntigravityTheme.border-strong;
+
+                    // FLOATING INVERSE MODEL DROPUP OVERLAY (L87)
+                    if root.show-model-menu: Rectangle {
+                        x: 38px;
+                        y: -168px;
+                        width: 280px;
+                        height: 160px;
+                        background: AntigravityTheme.background-card;
+                        border-radius: AntigravityTheme.radius-md;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-strong;
+                        clip: true;
+
+                        VerticalLayout {
+                            padding: AntigravityTheme.spacing-sm;
+                            spacing: 2px;
+
+                            HorizontalLayout {
+                                padding-left: AntigravityTheme.spacing-sm;
+                                padding-bottom: 4px;
+                                Text { text: "Model"; color: AntigravityTheme.text-muted; font-size: 11px; font-weight: 600; }
+                            }
+
+                            for m in root.models: Rectangle {
+                                height: 28px;
+                                border-radius: AntigravityTheme.radius-xs;
+                                background: m.name == root.active-model ? AntigravityTheme.background-active : (mb-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                                mb-touch := TouchArea {
+                                    clicked => {
+                                        root.switch-model(m.id);
+                                        root.show-model-menu = false;
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    alignment: space-between;
+                                    Text { text: m.name; color: m.name == root.active-model ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; font-size: 12px; font-weight: m.name == root.active-model ? 600 : 400; vertical-alignment: center; }
+                                    HorizontalLayout {
+                                        alignment: end;
+                                        spacing: 3px;
+                                        if m.is-installed: Text { text: "Fast"; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                                        if m.is-installed: AntigravityIcon { name: "info"; icon-size: 10px; icon-color: AntigravityTheme.text-muted; }
+                                        if !m.is-installed: Text { text: "Download"; color: AntigravityTheme.accent-cyan; font-size: 10px; vertical-alignment: center; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-sm;
+                        spacing: 4px;
+
+                        // Text input line with padding
+                        Rectangle {
+                            vertical-stretch: 1;
+                            clip: true;
+
+                            HorizontalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+                                padding-top: 3px;
+                                padding-bottom: 2px;
+
+                                Rectangle {
+                                    horizontal-stretch: 1;
+
+                                    if root.prompt-text == "" && !bottom-in.has-focus: Text {
+                                        text: "Ask anything, @ to mention, / for actions";
+                                        color: AntigravityTheme.text-muted;
+                                        font-size: 12px;
+                                        horizontal-alignment: left;
+                                        x: 0px;
+                                        y: 1px;
+                                    }
+
+                                    bottom-in := TextInput {
+                                        width: 100%;
+                                        height: 100%;
+                                        text <=> root.prompt-text;
+                                        color: AntigravityTheme.text-primary;
+                                        font-size: 13px;
+
+                                        accepted => {
+                                            if root.prompt-text != "" && !root.is-generating {
+                                                root.send-message(root.prompt-text);
+                                                root.prompt-text = "";
+                                                root.show-slash-menu = false;
+                                                root.show-mention-menu = false;
+                                                root.show-model-menu = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Toolbar inside docked prompt card
+                        HorizontalLayout {
+                            height: 28px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: AntigravityTheme.spacing-sm;
+                                alignment: center;
+
+                                // Attachment '+'
+                                Rectangle {
+                                    width: 24px;
+                                    height: 24px;
+                                    border-radius: AntigravityTheme.radius-xs;
+                                    background: b-plus.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                    b-plus := TouchArea { }
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        AntigravityIcon {
+                                            name: "plus";
+                                            icon-size: 14px;
+                                            icon-color: b-plus.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                        }
+                                    }
+                                }
+
+                                // Model dropdown pill
+                                Rectangle {
+                                    height: 24px;
+                                    border-radius: AntigravityTheme.radius-xs;
+                                    background: b-mod.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                                    b-mod := TouchArea {
+                                        clicked => {
+                                            root.show-model-menu = !root.show-model-menu;
+                                            root.show-slash-menu = false;
+                                            root.show-mention-menu = false;
+                                        }
+                                    }
+                                    HorizontalLayout {
+                                        padding-left: 6px; padding-right: 6px; spacing: 4px; alignment: center;
+                                        Text { text: root.active-model; color: AntigravityTheme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                                        AntigravityIcon { name: root.show-model-menu ? "chevron-up" : "chevron-down"; icon-size: 10px; icon-color: AntigravityTheme.text-muted; }
+                                    }
+                                }
+                            }
+
+                            // Right Action Button: Red square (Stop) or Circular arrow (Send)
+                            if root.is-generating: Rectangle {
+                                width: 28px;
+                                height: 28px;
+                                border-radius: 6px;
+                                background: AntigravityTheme.status-error;
+                                stop-t := TouchArea { clicked => { root.stop-generation(); } }
+                                HorizontalLayout {
+                                    alignment: center;
+                                    AntigravityIcon { name: "stop"; icon-size: 14px; icon-color: #ffffff; }
+                                }
+                            }
+
+                            if !root.is-generating: Rectangle {
+                                width: 28px;
+                                height: 28px;
+                                border-radius: 14px;
+                                background: root.prompt-text != "" ? AntigravityTheme.accent-blue : AntigravityTheme.background-surface-hover;
+                                send-t := TouchArea {
+                                    clicked => {
+                                        if root.prompt-text != "" {
+                                            root.send-message(root.prompt-text);
+                                            root.prompt-text = "";
+                                            root.show-slash-menu = false;
+                                            root.show-mention-menu = false;
+                                            root.show-model-menu = false;
+                                        }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    alignment: center;
+                                    AntigravityIcon {
+                                        name: "send";
+                                        icon-size: 13px;
+                                        icon-color: root.prompt-text != "" ? #ffffff : AntigravityTheme.text-muted;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

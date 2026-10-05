@@ -1,0 +1,678 @@
+import { AntigravityTheme } from "theme.slint";
+import { AntigravityIcon } from "components/icon.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export struct DiffLineItem {
+    line-number: int,
+    prefix: string, // "+", "-", " "
+    content: string,
+}
+
+export struct AuxTabItem {
+    id: string,          // "overview", "diff:<file>", "tasks", "process", "plan", "walkthrough"
+    title: string,       // "Overview", "app.slint", "Tasks", "Background Process", "Plan", "Walkthrough"
+    tab-type: string,    // "overview", "diff", "tasks", "process", "plan", "walkthrough"
+    can-close: bool,     // false for "overview", true for dynamic tabs
+    icon-name: string,   // "users", "diff", "clock", "cpu", "file-text", "check"
+}
+
+export component AuxiliaryPane inherits Rectangle {
+    in-out property <string> active-tab: "council";
+    in property <bool> is-collapsed: false;
+
+    // Dynamic Tab Model (Overview is static and cannot be closed)
+    in-out property <[AuxTabItem]> tabs: [
+        { id: "council", title: "Overview", tab-type: "overview", can-close: false, icon-name: "users" }
+    ];
+
+    // Subagents / Worker stats
+    in property <string> boss-name: "Qwen 2.5 Coder 1.5B";
+    in property <string> boss-status: "ACTIVE";
+    in property <string> m1-status: "ACTIVE";
+    in property <string> m2-status: "ACTIVE";
+    in property <string> ast-status: "READY";
+    in property <string> worker-state: "Idle";
+    in property <int> active-subagents-count: 1;
+
+    // Artifacts stats
+    in property <string> artifact-title: "Implementation Plan";
+    in property <string> artifact-summary: "Kingdom AI Studio Implementation Plan";
+
+    // Diffs stats
+    in property <string> diff-file: "src/gui/ui/app.slint";
+    in property <[DiffLineItem]> diff-lines: [
+        { line-number: 14, prefix: " ", content: "    min-width: 1100px;" },
+        { line-number: 15, prefix: "-", content: "    // Dual titlebars" },
+        { line-number: 15, prefix: "+", content: "    // Single unified Studio topbar" },
+        { line-number: 16, prefix: "+", content: "    UnifiedTopBar {" },
+        { line-number: 17, prefix: "+", content: "        height: 34px;" },
+        { line-number: 18, prefix: " ", content: "    }" }
+    ];
+
+    // Hardware Telemetry
+    in property <float> cpu-progress: 0.25;
+    in property <string> cpu-text: "25.0%";
+    in property <float> ram-progress: 0.36;
+    in property <string> ram-text: "5.8 / 16.0 GB";
+    in property <float> vram-progress: 0.35;
+    in property <string> vram-text: "2.14 / 6.00 GB";
+    in property <float> speed-tokens-sec: 34.2;
+    in property <int> cache-entries: 142;
+    in property <int> cache-hits: 28;
+    in property <float> cache-hit-ratio: 68.5;
+
+    callback tab-selected(string);
+    callback tab-closed(string);
+    callback open-tab(string, string, string, bool, string); // (id, title, tab-type, can-close, icon-name)
+    callback tab-changed(string);
+    callback purge-cache-clicked();
+    callback refresh-diff-clicked();
+    callback execute-plan-clicked();
+    callback toggle-collapse();
+
+    width: root.is-collapsed ? 0px : 330px;
+    background: AntigravityTheme.background-surface;
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // =====================================================================
+        // TOP DYNAMIC TABS STRIP (Overview is Static; Dynamic Tabs Closable)
+        // =====================================================================
+        Rectangle {
+            height: 38px;
+            background: AntigravityTheme.background-surface;
+
+            ScrollView {
+                HorizontalLayout {
+                    padding-left: AntigravityTheme.spacing-sm;
+                    padding-right: AntigravityTheme.spacing-sm;
+                    padding-top: 6px;
+                    padding-bottom: 6px;
+                    spacing: 4px;
+                    alignment: start;
+
+                    for tab in root.tabs: Rectangle {
+                        height: 26px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: root.active-tab == tab.id ? AntigravityTheme.background-active : (tab-t.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+
+                        tab-t := TouchArea {
+                            clicked => {
+                                root.active-tab = tab.id;
+                                root.tab-selected(tab.id);
+                                root.tab-changed(tab.id);
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: tab.can-close ? 4px : 8px;
+                            spacing: 5px;
+                            alignment: center;
+
+                            AntigravityIcon {
+                                name: tab.icon-name;
+                                icon-size: 13px;
+                                icon-color: root.active-tab == tab.id ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                            }
+
+                            Text {
+                                text: tab.title;
+                                color: root.active-tab == tab.id ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 12px;
+                                font-weight: root.active-tab == tab.id ? 600 : 500;
+                                vertical-alignment: center;
+                                max-width: 95px;
+                                overflow: elide;
+                            }
+
+                            // Close Button for Dynamic Tabs (Static Overview has can-close: false)
+                            if tab.can-close: Rectangle {
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: close-t.has-hover ? AntigravityTheme.background-card : transparent;
+
+                                close-t := TouchArea {
+                                    clicked => {
+                                        root.tab-closed(tab.id);
+                                    }
+                                }
+
+                                HorizontalLayout {
+                                    alignment: center;
+                                    AntigravityIcon {
+                                        name: "close";
+                                        icon-size: 10px;
+                                        icon-color: close-t.has-hover ? AntigravityTheme.status-error : AntigravityTheme.text-muted;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Divider
+        Rectangle {
+            height: 1px;
+            background: AntigravityTheme.border-subtle;
+        }
+
+        // =====================================================================
+        // VIEW 1: OVERVIEW (Static Default Dashboard - Always Accessible)
+        // =====================================================================
+        if (root.active-tab == "overview" || root.active-tab == "council"): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding-left: AntigravityTheme.spacing-md;
+                padding-right: AntigravityTheme.spacing-md;
+                padding-top: AntigravityTheme.spacing-sm;
+                padding-bottom: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-md;
+
+                // 1. SUBAGENTS / INFERENCE ENGINE CARD -> Click to open 'Background Process' tab
+                VerticalLayout {
+                    spacing: 6px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Subagents (" + root.active-subagents-count + ")"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        AntigravityIcon { name: "chevron-down"; icon-size: 12px; icon-color: AntigravityTheme.text-muted; }
+                    }
+
+                    Rectangle {
+                        height: 52px;
+                        background: sub-t.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+                        border-radius: AntigravityTheme.radius-sm;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        sub-t := TouchArea {
+                            clicked => {
+                                root.open-tab("process", "Background Process", "process", true, "cpu");
+                                root.active-tab = "process";
+                            }
+                        }
+
+                        VerticalLayout {
+                            padding-left: AntigravityTheme.spacing-sm;
+                            padding-right: AntigravityTheme.spacing-sm;
+                            alignment: center;
+                            spacing: 2px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Inference Engine (" + root.boss-name + ")"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                                HorizontalLayout {
+                                    spacing: 4px;
+                                    alignment: center;
+                                    AntigravityIcon {
+                                        name: root.worker-state == "Generating" ? "zap" : "check";
+                                        icon-size: 11px;
+                                        icon-color: root.worker-state == "Generating" ? AntigravityTheme.accent-cyan : AntigravityTheme.status-success;
+                                    }
+                                    Text {
+                                        text: root.worker-state == "Generating" ? "Running" : "Ready";
+                                        color: root.worker-state == "Generating" ? AntigravityTheme.accent-cyan : AntigravityTheme.status-success;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Text { text: "Active thread: In-Process Vulkan Accelerator -> View Details"; color: AntigravityTheme.text-muted; font-size: 11px; }
+                        }
+                    }
+                }
+
+                // 2. FILES CHANGED -> Click to open 'Diff' tab
+                VerticalLayout {
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Files Changed"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        AntigravityIcon { name: "chevron-down"; icon-size: 12px; icon-color: AntigravityTheme.text-muted; }
+                    }
+
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: f-t.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        f-t := TouchArea {
+                            clicked => {
+                                root.open-tab("diff:" + root.diff-file, root.diff-file, "diff", true, "diff");
+                                root.active-tab = "diff:" + root.diff-file;
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: center;
+                                AntigravityIcon { name: "diff"; icon-size: 13px; icon-color: AntigravityTheme.accent-cyan; }
+                                Text { text: root.diff-file; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                            }
+
+                            Text { text: "View Diff"; color: AntigravityTheme.accent-blue; font-size: 11px; vertical-alignment: center; }
+                        }
+                    }
+                }
+
+                // 3. ARTIFACTS / PLANS -> Click to open 'Implementation Plan' or 'Walkthrough'
+                VerticalLayout {
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Artifacts"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                        AntigravityIcon { name: "chevron-down"; icon-size: 12px; icon-color: AntigravityTheme.text-muted; }
+                    }
+
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: a1-t.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        a1-t := TouchArea {
+                            clicked => {
+                                root.open-tab("plan", root.artifact-title, "plan", true, "file-text");
+                                root.active-tab = "plan";
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: center;
+                                AntigravityIcon { name: "file-text"; icon-size: 13px; icon-color: AntigravityTheme.accent-blue; }
+                                Text { text: root.artifact-title; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                            }
+
+                            Text { text: "Open Plan"; color: AntigravityTheme.accent-blue; font-size: 11px; vertical-alignment: center; }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: w1-t.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        w1-t := TouchArea {
+                            clicked => {
+                                root.open-tab("walkthrough", "Walkthrough", "walkthrough", true, "check");
+                                root.active-tab = "walkthrough";
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: center;
+                                AntigravityIcon { name: "check"; icon-size: 13px; icon-color: AntigravityTheme.status-success; }
+                                Text { text: "Verified Walkthrough"; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                            }
+
+                            Text { text: "View"; color: AntigravityTheme.accent-blue; font-size: 11px; vertical-alignment: center; }
+                        }
+                    }
+                }
+
+                // 4. BACKGROUND TASKS -> Click to open 'Tasks' tab
+                VerticalLayout {
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: "Background Tasks (Active Watchdog)"; color: AntigravityTheme.text-secondary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                    }
+
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-xs;
+                        background: t-card-t.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+                        border-width: 1px;
+                        border-color: AntigravityTheme.border-subtle;
+
+                        t-card-t := TouchArea {
+                            clicked => {
+                                root.open-tab("tasks", "Tasks", "tasks", true, "clock");
+                                root.active-tab = "tasks";
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: center;
+                                AntigravityIcon { name: "clock"; icon-size: 13px; icon-color: AntigravityTheme.text-muted; }
+                                Text { text: "Telemetry & Git Sync Watchdog"; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                            }
+
+                            Text { text: "Open"; color: AntigravityTheme.accent-blue; font-size: 11px; vertical-alignment: center; }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // VIEW 2: DIFF VIEW (Dynamic Tab for any open file diff)
+        // =====================================================================
+        if (root.active-tab == "diffs" || root.active-tab == "review" || root.active-tab == "diff:" + root.diff-file): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-sm;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: root.diff-file; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                    Rectangle {
+                        width: 60px; height: 24px; border-radius: AntigravityTheme.radius-xs; background: AntigravityTheme.background-card; border-width: 1px; border-color: AntigravityTheme.border-strong;
+                        TouchArea { clicked => { root.refresh-diff-clicked(); } }
+                        Text { text: "Refresh"; color: AntigravityTheme.text-secondary; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                }
+
+                Rectangle {
+                    background: AntigravityTheme.background-input;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-xs;
+                        spacing: 1px;
+
+                        for line in root.diff-lines: Rectangle {
+                            height: 20px;
+                            background: line.prefix == "+" ? AntigravityTheme.diff-add-bg : (line.prefix == "-" ? AntigravityTheme.diff-del-bg : transparent);
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                Text {
+                                    text: line.line-number;
+                                    color: AntigravityTheme.text-muted;
+                                    font-size: 10px;
+                                    width: 24px;
+                                    horizontal-alignment: end;
+                                    vertical-alignment: center;
+                                }
+                                Text {
+                                    text: line.prefix;
+                                    color: line.prefix == "+" ? AntigravityTheme.diff-add-text : (line.prefix == "-" ? AntigravityTheme.diff-del-text : AntigravityTheme.text-muted);
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    width: 10px;
+                                    vertical-alignment: center;
+                                }
+                                Text {
+                                    text: line.content;
+                                    color: line.prefix == "+" ? AntigravityTheme.diff-add-text : (line.prefix == "-" ? AntigravityTheme.diff-del-text : AntigravityTheme.text-secondary);
+                                    font-size: 10px;
+                                    overflow: elide;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // VIEW 3: TASKS VIEW (Dynamic Tab for Background Watchdogs & Crons)
+        // =====================================================================
+        if (root.active-tab == "tasks"): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-md;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Scheduled Tasks & Watchdogs"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; }
+                    AntigravityIcon { name: "clock"; icon-size: 14px; icon-color: AntigravityTheme.accent-blue; }
+                }
+
+                Rectangle {
+                    background: AntigravityTheme.background-card;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        spacing: 6px;
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Telemetry & VRAM Watchdog"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                            Text { text: "ACTIVE"; color: AntigravityTheme.status-success; font-size: 10px; font-weight: 700; }
+                        }
+                        Text { text: "Interval: */5 * * * * (Every 5 mins)"; color: AntigravityTheme.text-muted; font-size: 11px; }
+                        Text { text: "Prompt: Audit VRAM ceiling <= 6.00 GB and flush expired KV cache"; color: AntigravityTheme.text-secondary; font-size: 11px; wrap: word-wrap; }
+                    }
+                }
+
+                Rectangle {
+                    background: AntigravityTheme.background-card;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        spacing: 6px;
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Workspace Git Sync"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                            Text { text: "SCHEDULED"; color: AntigravityTheme.accent-cyan; font-size: 10px; font-weight: 700; }
+                        }
+                        Text { text: "Schedule: 0 * * * * (Hourly)"; color: AntigravityTheme.text-muted; font-size: 11px; }
+                        Text { text: "Prompt: Verify git status and AST integrity of changed files"; color: AntigravityTheme.text-secondary; font-size: 11px; wrap: word-wrap; }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // VIEW 4: PROCESS VIEW (Dynamic Tab for Subagent & Inference Telemetry)
+        // =====================================================================
+        if (root.active-tab == "process" || root.active-tab == "telemetry"): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-md;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Background Process Telemetry"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; }
+                    AntigravityIcon { name: "cpu"; icon-size: 14px; icon-color: AntigravityTheme.accent-cyan; }
+                }
+
+                Rectangle {
+                    background: AntigravityTheme.background-card;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        spacing: AntigravityTheme.spacing-sm;
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Host CPU Utilization"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                            Text { text: root.cpu-text; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                        }
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "System RAM"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                            Text { text: root.ram-text; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 600; }
+                        }
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Vulkan VRAM Ceiling"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                            Text { text: root.vram-text; color: AntigravityTheme.accent-cyan; font-size: 12px; font-weight: 600; }
+                        }
+
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Text { text: "Inference Speed"; color: AntigravityTheme.text-secondary; font-size: 12px; }
+                            Text { text: root.speed-tokens-sec + " tokens/s"; color: AntigravityTheme.status-success; font-size: 12px; font-weight: 600; }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // VIEW 5: IMPLEMENTATION PLAN VIEW (Dynamic Tab for Plan Artifact)
+        // =====================================================================
+        if (root.active-tab == "artifacts" || root.active-tab == "artifact" || root.active-tab == "plan"): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-md;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: root.artifact-title; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                    AntigravityIcon { name: "file-text"; icon-size: 14px; icon-color: AntigravityTheme.accent-blue; }
+                }
+
+                VerticalLayout {
+                    spacing: 4px;
+                    Text { text: "Goal Description"; color: AntigravityTheme.text-primary; font-size: 15px; font-weight: 700; }
+                    Text {
+                        text: root.artifact-summary;
+                        color: AntigravityTheme.text-secondary;
+                        font-size: 12px;
+                        wrap: word-wrap;
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 6px;
+                    Text { text: "Target File: " + root.diff-file; color: AntigravityTheme.text-secondary; font-size: 12.5px; font-weight: 600; }
+
+                    Rectangle {
+                        height: 24px;
+                        HorizontalLayout {
+                            spacing: 6px; alignment: start;
+                            Text { text: "[ACTIVE]"; color: AntigravityTheme.accent-blue; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                            Text { text: root.diff-file; color: AntigravityTheme.text-primary; font-size: 12px; vertical-alignment: center; }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 32px;
+                    border-radius: AntigravityTheme.radius-sm;
+                    background: AntigravityTheme.accent-blue;
+                    TouchArea { clicked => { root.execute-plan-clicked(); } }
+                    Text { text: "Proceed & Execute Plan"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                }
+            }
+        }
+
+        // =====================================================================
+        // VIEW 6: WALKTHROUGH VIEW (Dynamic Tab for Verified Walkthrough)
+        // =====================================================================
+        if (root.active-tab == "walkthrough"): ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: AntigravityTheme.spacing-md;
+                spacing: AntigravityTheme.spacing-md;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Verified Walkthrough"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                    AntigravityIcon { name: "check"; icon-size: 14px; icon-color: AntigravityTheme.status-success; }
+                }
+
+                Rectangle {
+                    background: AntigravityTheme.background-card;
+                    border-radius: AntigravityTheme.radius-sm;
+                    border-width: 1px;
+                    border-color: AntigravityTheme.border-subtle;
+
+                    VerticalLayout {
+                        padding: AntigravityTheme.spacing-md;
+                        spacing: 8px;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            AntigravityIcon { name: "check"; icon-size: 13px; icon-color: AntigravityTheme.status-success; }
+                            Text { text: "Native Windows Titlebar Restored"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 500; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            AntigravityIcon { name: "check"; icon-size: 13px; icon-color: AntigravityTheme.status-success; }
+                            Text { text: "Topbar File / View / Window Menus Dynamic"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 500; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            AntigravityIcon { name: "check"; icon-size: 13px; icon-color: AntigravityTheme.status-success; }
+                            Text { text: "Left Sidebar Hierarchical Projects Explorer"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 500; }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: start;
+                            AntigravityIcon { name: "check"; icon-size: 13px; icon-color: AntigravityTheme.status-success; }
+                            Text { text: "Right Auxiliary Dynamic Closable Tabs"; color: AntigravityTheme.text-primary; font-size: 12px; font-weight: 500; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

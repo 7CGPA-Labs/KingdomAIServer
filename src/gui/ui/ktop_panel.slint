@@ -1,6 +1,7 @@
 import { AntigravityTheme } from "theme.slint";
 import { ProgressMeter } from "components/progress_meter.slint";
 import { StatusBadge } from "components/badge.slint";
+import { AntigravityIcon } from "components/icon.slint";
 
 export component KTopDashboardView inherits Rectangle {
     in property <float> cpu-pct: 24.5;
@@ -24,11 +25,17 @@ export component KTopDashboardView inherits Rectangle {
 
             VerticalLayout {
                 spacing: 2px;
-                Text {
-                    text: "📊 K-Top Silicon & Telemetry Dashboard";
-                    color: AntigravityTheme.text-primary;
-                    font-size: 18px;
-                    font-weight: 800;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    AntigravityIcon { name: "cpu"; icon-size: 18px; icon-color: AntigravityTheme.accent-cyan; }
+                    Text {
+                        text: "K-Top Silicon & Telemetry Dashboard";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
                     text: "Real-time htop-style telemetry for on-device compute, memory bounds, and throughput.";
@@ -98,7 +105,12 @@ export component KTopDashboardView inherits Rectangle {
                     padding: AntigravityTheme.spacing-md;
                     spacing: AntigravityTheme.spacing-sm;
 
-                    Text { text: "⚡ HARDWARE & RUNTIME METRICS"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        AntigravityIcon { name: "zap"; icon-size: 12px; icon-color: AntigravityTheme.accent-cyan; }
+                        Text { text: "HARDWARE & RUNTIME METRICS"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                    }
 
                     HorizontalLayout {
                         alignment: space-between;
@@ -137,7 +149,12 @@ export component KTopDashboardView inherits Rectangle {
                     padding: AntigravityTheme.spacing-md;
                     spacing: AntigravityTheme.spacing-sm;
 
-                    Text { text: "🛡️ VRAM SAFETY & LATENCY GAUGES"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        AntigravityIcon { name: "shield"; icon-size: 12px; icon-color: AntigravityTheme.status-success; }
+                        Text { text: "VRAM SAFETY & LATENCY GAUGES"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                    }
 
                     HorizontalLayout {
                         alignment: space-between;

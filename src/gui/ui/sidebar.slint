@@ -1,0 +1,265 @@
+import { AntigravityTheme } from "theme.slint";
+import { AntigravityIcon } from "components/icon.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ProjectItem } from "projects_panel.slint";
+
+export struct SessionItem {
+    id: string,
+    title: string,
+    timestamp: string,
+}
+
+export struct ProjectConversationItem {
+    id: string,
+    title: string,
+    timestamp: string,
+    is-active: bool,
+}
+
+export struct ProjectExplorerItem {
+    id: string,
+    name: string,
+    path: string,
+    is-expanded: bool,
+    is-active: bool,
+    conversations: [ProjectConversationItem],
+}
+
+export component LeftSidebar inherits Rectangle {
+    in-out property <string> active-nav: "chat";
+    in property <string> active-workspace: "KingdomAIServer";
+    in property <string> active-conversation-id: "conv-1";
+    in property <bool> is-generating: false;
+
+    // Backward-compatible properties
+    in property <[SessionItem]> sessions: [];
+    in property <[ProjectItem]> projects: [];
+
+    // Hierarchical Projects Explorer Data
+    in-out property <[ProjectExplorerItem]> project-tree: [
+        {
+            id: "proj-1",
+            name: "KingdomAIServer",
+            path: "C:/Users/gagan/Projects/KingdomAIServer",
+            is-expanded: true,
+            is-active: true,
+            conversations: [
+                { id: "conv-1", title: "Active pair programming session", timestamp: "Active", is-active: true },
+                { id: "conv-2", title: "Topbar & dynamic tabs migration", timestamp: "10m", is-active: false },
+                { id: "conv-3", title: "VRAM watchdog & memory ceiling", timestamp: "2h", is-active: false },
+                { id: "conv-4", title: "Tree-sitter AST intelligence", timestamp: "1d", is-active: false }
+            ]
+        },
+        {
+            id: "proj-2",
+            name: "7CGPA-Labs-Core",
+            path: "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+            is-expanded: true,
+            is-active: false,
+            conversations: [
+                { id: "conv-5", title: "Semantic search embeddings", timestamp: "3d", is-active: false },
+                { id: "conv-6", title: "Model quantization benchmarks", timestamp: "1w", is-active: false }
+            ]
+        },
+        {
+            id: "proj-3",
+            name: "Cloud-Orchestrator",
+            path: "C:/Users/gagan/Projects/Cloud-Orchestrator",
+            is-expanded: false,
+            is-active: false,
+            conversations: [
+                { id: "conv-7", title: "Microservices deployment DAG", timestamp: "2w", is-active: false }
+            ]
+        }
+    ];
+
+    callback nav-selected(string);
+    callback new-chat-clicked();
+    callback select-workspace-clicked();
+    callback session-selected(string);
+    callback conversation-selected(string, string, string, string); // (proj-id, conv-id, proj-name, conv-title)
+    callback toggle-project-expand(string); // (proj-id)
+    callback open-settings-clicked();
+    callback toggle-collapse-clicked();
+
+    width: 250px;
+    background: AntigravityTheme.background-surface;
+
+    VerticalLayout {
+        padding-top: AntigravityTheme.spacing-sm;
+        padding-bottom: AntigravityTheme.spacing-md;
+        padding-left: AntigravityTheme.spacing-md;
+        padding-right: AntigravityTheme.spacing-md;
+        spacing: AntigravityTheme.spacing-md;
+
+        // 1. + Add Projects Pill Button
+        Rectangle {
+            height: 36px;
+            border-radius: AntigravityTheme.radius-sm;
+            background: add-proj-touch.has-hover ? AntigravityTheme.background-surface-hover : AntigravityTheme.background-card;
+            border-width: 1px;
+            border-color: AntigravityTheme.border-strong;
+
+            add-proj-touch := TouchArea {
+                clicked => { root.select-workspace-clicked(); }
+            }
+
+            HorizontalLayout {
+                padding-left: AntigravityTheme.spacing-md;
+                padding-right: AntigravityTheme.spacing-md;
+                alignment: start;
+                spacing: AntigravityTheme.spacing-sm;
+
+                AntigravityIcon {
+                    name: "plus";
+                    icon-size: 14px;
+                    icon-color: AntigravityTheme.text-primary;
+                }
+
+                Text {
+                    text: "Add Projects";
+                    color: AntigravityTheme.text-primary;
+                    font-size: 13px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        // 2. Projects Section Header (Filter icon ONLY, NO plus icon)
+        HorizontalLayout {
+            alignment: space-between;
+            padding-left: AntigravityTheme.spacing-xs;
+            padding-right: AntigravityTheme.spacing-xs;
+
+            Text {
+                text: "Projects";
+                color: AntigravityTheme.text-muted;
+                font-size: 11px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                width: 20px;
+                height: 20px;
+                background: transparent;
+                HorizontalLayout {
+                    alignment: center;
+                    AntigravityIcon {
+                        name: "filter";
+                        icon-size: 13px;
+                        icon-color: AntigravityTheme.text-muted;
+                    }
+                }
+            }
+        }
+
+        // 3. Scrollable Hierarchical Project Tree with Nested Conversations
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: 8px;
+                padding-right: 4px;
+
+                for proj in root.project-tree: VerticalLayout {
+                    spacing: 2px;
+
+                    // Project Folder Row
+                    Rectangle {
+                        height: 28px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: proj-touch.has-hover ? AntigravityTheme.background-surface-hover : (proj.name == root.active-workspace ? AntigravityTheme.background-surface : transparent);
+
+                        proj-touch := TouchArea {
+                            clicked => {
+                                root.toggle-project-expand(proj.id);
+                            }
+                        }
+
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-xs;
+                            padding-right: AntigravityTheme.spacing-xs;
+                            spacing: 6px;
+                            alignment: start;
+
+                            AntigravityIcon {
+                                name: proj.is-expanded ? "chevron-down" : "chevron-right";
+                                icon-size: 11px;
+                                icon-color: AntigravityTheme.text-muted;
+                            }
+
+                            AntigravityIcon {
+                                name: "folder";
+                                icon-size: 14px;
+                                icon-color: proj.name == root.active-workspace ? AntigravityTheme.accent-blue : AntigravityTheme.text-secondary;
+                            }
+
+                            Text {
+                                text: proj.name;
+                                color: proj.name == root.active-workspace ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 12px;
+                                font-weight: proj.name == root.active-workspace ? 600 : 500;
+                                overflow: elide;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Nested Conversations Under Project
+                    if proj.is-expanded: VerticalLayout {
+                        spacing: 1px;
+
+                        for conv in proj.conversations: Rectangle {
+                            height: 26px;
+                            border-radius: AntigravityTheme.radius-sm;
+                            background: conv.id == root.active-conversation-id ? AntigravityTheme.background-active : (conv-touch.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+
+                            conv-touch := TouchArea {
+                                clicked => {
+                                    root.conversation-selected(proj.id, conv.id, proj.name, conv.title);
+                                    root.session-selected(conv.id);
+                                    root.nav-selected("chat");
+                                }
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 20px;
+                                padding-right: AntigravityTheme.spacing-xs;
+                                spacing: 6px;
+                                alignment: start;
+
+                                Rectangle {
+                                    width: 5px;
+                                    height: 5px;
+                                    border-radius: 2.5px;
+                                    y: (parent.height - self.height) / 2;
+                                    background: conv.id == root.active-conversation-id ? AntigravityTheme.accent-blue : (conv.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted);
+                                }
+
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: conv.title;
+                                    color: conv.id == root.active-conversation-id ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                    font-size: 12px;
+                                    font-weight: conv.id == root.active-conversation-id ? 600 : 400;
+                                    overflow: elide;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: conv.timestamp;
+                                    color: conv.is-active ? AntigravityTheme.accent-cyan : AntigravityTheme.text-muted;
+                                    font-size: 10px;
+                                    font-weight: conv.is-active ? 600 : 400;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

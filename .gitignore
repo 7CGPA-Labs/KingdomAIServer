@@ -41,3 +41,6 @@ models/*.bin
 Thumbs.db
 .vscode/
 .idea/
+
+# Scratch & Local Experimentation
+scratch/

@@ -177,29 +177,30 @@ KingdomAIServer/
 ├── pyproject.toml                 # Updated dependencies (adds slint, removes uvicorn/fastapi)
 ├── requirements.txt               # Updated requirements list
 ├── main.py                        # V3 Entrypoint (boots Slint GUI application)
-│
-├── ui/                            # Slint Declarative UI Component Tree
-│   ├── app.slint                  # Master window definition & shell layout
-│   ├── theme.slint                # Antigravity Dark Theme (Slate/Cyan/Magenta palette)
-│   ├── sidebar.slint              # Left navigation sidebar & project switcher
-│   ├── chat_canvas.slint          # Chat message stream, prompt input, slash popup
-│   ├── auxiliary_pane.slint       # Right dock: Council status, Diffs, Artifacts
-│   ├── ktop_panel.slint           # Real-time resource gauges & telemetry meters
-│   ├── models_hub.slint           # Visual model catalog, downloader & switcher
-│   ├── status_bar.slint           # Persistent bottom telemetry and silicon chips
-│   └── components/                # Reusable Slint UI widgets
-│       ├── progress_meter.slint   # Custom animated bar gauge
-│       ├── badge.slint            # Status indicator badge (Active/Standby/Missing)
-│       ├── code_block.slint       # Syntax-styled code container with copy button
-│       └── modal.slint            # Dialog overlay for settings and downloads
-│
 ├── src/
-│   ├── gui/                       # GUI Controller & Bridge Layer
+│   ├── gui/                       # Unified Desktop GUI Architecture
 │   │   ├── __init__.py
 │   │   ├── app_controller.py      # Master Slint Python controller
 │   │   ├── worker.py              # Background LLM streaming thread worker
 │   │   ├── telemetry_bridge.py    # Periodic poller pushing metrics to Slint
-│   │   └── models_adapter.py      # Adapts UPGRADE_MODELS catalog to Slint models
+│   │   ├── models_adapter.py      # Adapts UPGRADE_MODELS catalog to Slint models
+│   │   └── ui/                    # Slint Declarative UI Component Tree
+│   │       ├── app.slint          # Master window definition & shell layout
+│   │       ├── theme.slint        # Antigravity Dark Theme (Slate/Cyan/Magenta palette)
+│   │       ├── sidebar.slint      # Left navigation sidebar & project switcher
+│   │       ├── chat_canvas.slint  # Chat message stream, prompt input, slash popup
+│   │       ├── auxiliary_pane.slint # Right dock: Council status, Diffs, Artifacts
+│   │       ├── ktop_panel.slint   # Real-time resource gauges & telemetry meters
+│   │       ├── models_hub.slint   # Visual model catalog, downloader & switcher
+│   │       ├── settings_modal.slint # Settings and configurations dialog
+│   │       ├── tasks_panel.slint  # Scheduled tasks & background operations
+│   │       ├── skills_panel.slint # Extensible agent skills manager
+│   │       ├── projects_panel.slint # Active workspace project explorer
+│   │       └── components/        # Reusable Slint UI widgets
+│   │           ├── progress_meter.slint # Custom animated bar gauge
+│   │           ├── badge.slint    # Status indicator badge (Active/Standby/Missing)
+│   │           ├── code_card.slint # Syntax-styled code container with copy button
+│   │           └── icon.slint     # SVG vector icon registry
 │   │
 │   ├── core/                      # Direct In-Process Inference Core (Preserved & Enhanced)
 │   │   ├── local_llm.py           # LlamaCppOrchestrator (GGUF weights & generation)
@@ -315,17 +316,17 @@ class SlintBridge:
 2. Remove server dependencies: `uvicorn`, `fastapi`, `starlette`.
 3. Verify local Python environment can compile and display a basic Slint preview window.
 
-### Phase 2: Slint Markup & Theme Implementation (`ui/`)
-1. Create `ui/theme.slint`: Define color tokens (Slate dark background, Accent cyan, Magenta, emerald green).
-2. Create `ui/components/`: Reusable bar meters, minister badges, code cards.
-3. Build `ui/sidebar.slint`: Workspaces, conversations, models, and telemetry tabs.
-4. Build `ui/chat_canvas.slint`: Scrollable conversation list, prompt input box, floating `/` popup menu.
-5. Build `ui/auxiliary_pane.slint`: Council ministers status, live K-Top hardware gauges, cache DB inspector, diff viewer.
-6. Assemble `ui/app.slint`: Integrate all panels into the master window shell.
+### Phase 2: Slint Markup & Theme Implementation (`src/gui/ui/`)
+1. Create `src/gui/ui/theme.slint`: Define color tokens (Slate dark background, Accent cyan, Magenta, emerald green).
+2. Create `src/gui/ui/components/`: Reusable bar meters, minister badges, code cards.
+3. Build `src/gui/ui/sidebar.slint`: Workspaces, conversations, models, and telemetry tabs.
+4. Build `src/gui/ui/chat_canvas.slint`: Scrollable conversation list, prompt input box, floating `/` popup menu.
+5. Build `src/gui/ui/auxiliary_pane.slint`: Council ministers status, live K-Top hardware gauges, cache DB inspector, diff viewer.
+6. Assemble `src/gui/ui/app.slint`: Integrate all panels into the master window shell.
 
 ### Phase 3: GUI Application Controller (`src/gui/`)
 1. Implement `AppController` in `src/gui/app_controller.py`:
-   * Load `ui/app.slint`.
+   * Load `src/gui/ui/app.slint`.
    * Bind prompt submission callback.
    * Bind slash command actions (`/top`, `/models`, `/switch`, `/health`, etc.).
    * Bind workspace folder picker dialog.

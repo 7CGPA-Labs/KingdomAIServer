@@ -47,6 +47,9 @@ if ($ScriptDir -and (Test-Path "$ScriptDir\bin\kingdom.pyz")) {
     if (Test-Path "$ScriptDir\ui") {
         Copy-Item -Path "$ScriptDir\ui" -Destination $InstallDir -Recurse -Force
     }
+    if (Test-Path "$ScriptDir\src") {
+        Copy-Item -Path "$ScriptDir\src" -Destination $InstallDir -Recurse -Force
+    }
     if (Test-Path "$ScriptDir\config") {
         Copy-Item -Path "$ScriptDir\config" -Destination $InstallDir -Recurse -Force
     }
@@ -83,6 +86,9 @@ if (-not $Deployed) {
                     Copy-Item -Path "$extractRoot\bin\*" -Destination "$BinDir" -Recurse -Force
                     if (Test-Path "$extractRoot\ui") {
                         Copy-Item -Path "$extractRoot\ui" -Destination "$InstallDir" -Recurse -Force
+                    }
+                    if (Test-Path "$extractRoot\src") {
+                        Copy-Item -Path "$extractRoot\src" -Destination "$InstallDir" -Recurse -Force
                     }
                     if (Test-Path "$extractRoot\config") {
                         Copy-Item -Path "$extractRoot\config" -Destination "$InstallDir" -Recurse -Force

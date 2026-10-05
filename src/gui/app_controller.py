@@ -32,12 +32,41 @@ from src.gui.telemetry_bridge import TelemetryBridge
 from src.core.local_llm import LlamaCppOrchestrator
 from src.processing.cache import ResponseCacheDB
 from src.utils import get_models_dir
+from src.gui.window_utils import apply_dwm_dark_theme
+from src.processing.context_enricher import ContextEnricher
+from src.prompts.templates import HeuristicIntentRouter
+from src.prompts.chain import AgentPersonaChain
+from src.processing.preprocessor import Preprocessor
 
-logger = logging.getLogger("kingdom.gui.controller")
+ALL_PALETTE_COMMANDS = [
+    {"id": "file-add-project", "category": "File", "title": "Add Projects / Open Folder...", "shortcut": "Ctrl+O", "icon_name": "folder"},
+    {"id": "file-new-conv", "category": "File", "title": "New Conversation", "shortcut": "Ctrl+N", "icon_name": "plus"},
+    {"id": "file-clear-chat", "category": "File", "title": "Clear Chat History", "shortcut": "Ctrl+L", "icon_name": "trash"},
+    {"id": "file-exit", "category": "File", "title": "Exit Kingdom AI Studio", "shortcut": "Alt+F4", "icon_name": "power"},
+    {"id": "view-toggle-sidebar", "category": "View", "title": "Toggle Left Projects Sidebar", "shortcut": "Ctrl+B", "icon_name": "sidebar"},
+    {"id": "view-toggle-aux", "category": "View", "title": "Toggle Right Auxiliary Panel", "shortcut": "Ctrl+J", "icon_name": "panel-right"},
+    {"id": "view-overview", "category": "View", "title": "Show Overview Dashboard", "shortcut": "Overview", "icon_name": "users"},
+    {"id": "view-tasks", "category": "View", "title": "Show Scheduled Tasks & Watchdog", "shortcut": "Watchdog", "icon_name": "terminal"},
+    {"id": "view-diffs", "category": "View", "title": "Show Git Diffs & Artifacts", "shortcut": "Diffs", "icon_name": "file-text"},
+    {"id": "view-telemetry", "category": "View", "title": "Show Silicon Telemetry (K-Top)", "shortcut": "K-Top", "icon_name": "cpu"},
+    {"id": "view-reset-layout", "category": "View", "title": "Reset Layout (Show All Panels)", "shortcut": "", "icon_name": "layout"},
+    {"id": "window-minimize", "category": "Window", "title": "Minimize Window", "shortcut": "Win+Down", "icon_name": "minus"},
+    {"id": "window-maximize", "category": "Window", "title": "Maximize / Restore Window", "shortcut": "Win+Up", "icon_name": "maximize"},
+    {"id": "studio-settings", "category": "Studio", "title": "Preferences & Hardware Settings", "shortcut": "Ctrl+,", "icon_name": "settings"},
+    {"id": "studio-models", "category": "Studio", "title": "Models Catalog Hub", "shortcut": "/models", "icon_name": "database"},
+    {"id": "studio-purge-cache", "category": "Studio", "title": "Purge LLM Response Cache", "shortcut": "/clearcache", "icon_name": "trash"},
+    {"id": "studio-reload-skills", "category": "Studio", "title": "Reload Customizations & Skills", "shortcut": "/reload", "icon_name": "refresh-cw"},
+]
 
 def find_ui_path() -> Path:
-    """Locate the ui/app.slint file across source repo, working dir, and installed directories."""
+    """Locate the app.slint file across source repo, working dir, and installed directories."""
     candidates = [
+        Path(__file__).resolve().parent / "ui" / "app.slint",
+        Path(__file__).resolve().parent.parent.parent / "src" / "gui" / "ui" / "app.slint",
+        Path.cwd() / "src" / "gui" / "ui" / "app.slint",
+        Path(sys.prefix) / "src" / "gui" / "ui" / "app.slint",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "KingdomAIServer" / "src" / "gui" / "ui" / "app.slint",
+        # Backwards compatibility fallbacks
         Path(__file__).resolve().parent.parent.parent / "ui" / "app.slint",
         Path.cwd() / "ui" / "app.slint",
         Path(sys.prefix) / "ui" / "app.slint",
@@ -60,7 +89,8 @@ class AppController:
         orchestrator: Optional[LlamaCppOrchestrator] = None,
         cache_db: Optional[ResponseCacheDB] = None,
         models_dir: Optional[Path] = None,
-        auto_start_telemetry: bool = False
+        auto_start_telemetry: bool = False,
+        auto_warmup: Optional[bool] = None
     ):
         self.ui_path = ui_path or DEFAULT_UI_PATH
         if not self.ui_path.exists():
@@ -78,9 +108,31 @@ class AppController:
         self.models_dir = Path(models_dir or get_models_dir())
         self.active_workspace_path = Path.cwd()
 
-        # In-Process AI Engines
-        self.orchestrator = orchestrator or LlamaCppOrchestrator()
+        # In-Process AI Engines & Cognitive Orchestration
+        if orchestrator is None:
+            if os.environ.get("KINGDOM_STRICT_GPU") is not None:
+                strict_gpu = (os.environ.get("KINGDOM_STRICT_GPU") == "1")
+            elif os.environ.get("KINGDOM_CPU_MODE") == "1":
+                strict_gpu = False
+            else:
+                try:
+                    import llama_cpp
+                    strict_gpu = getattr(llama_cpp, "llama_supports_gpu_offload", lambda: False)()
+                except Exception:
+                    strict_gpu = False
+            self.orchestrator = LlamaCppOrchestrator(strict_gpu=strict_gpu)
+        else:
+            self.orchestrator = orchestrator
+
         self.cache_db = cache_db or ResponseCacheDB()
+        self.router = HeuristicIntentRouter()
+        self.persona_chain = AgentPersonaChain()
+        self.preprocessor = Preprocessor()
+        self.enricher = ContextEnricher(
+            router=self.router,
+            persona_chain=self.persona_chain,
+            preprocessor=self.preprocessor
+        )
 
         # Internal State
         self.messages: List[Dict[str, str]] = []
@@ -89,16 +141,16 @@ class AppController:
         self.active_download_worker: Optional[DownloadWorker] = None
 
         # Telemetry Polling Bridge
-        self.telemetry = TelemetryBridge(self.window, self.cache_db)
+        self.telemetry = TelemetryBridge(self.window, self.cache_db, orchestrator=self.orchestrator)
 
         # Initialize Default UI State & Wire Callbacks
-        self._setup_initial_ui_state()
+        self._setup_initial_ui_state(auto_warmup=auto_warmup)
         self._register_callbacks()
 
         if auto_start_telemetry:
             self.telemetry.start()
 
-    def _setup_initial_ui_state(self) -> None:
+    def _setup_initial_ui_state(self, auto_warmup: Optional[bool] = None) -> None:
         """Initialize UI properties with active hardware and catalog status."""
         active_id = getattr(self.orchestrator, "model_name", "qwen2.5-coder-1.5b")
         spec = get_model_spec(active_id)
@@ -109,11 +161,36 @@ class AppController:
         self.window.active_nav = "chat"
         self.window.model_list = build_slint_model_list(active_id, self.models_dir)
 
+        # Check if active model weights exist on disk and warm up in-process
+        default_model_path = get_model_filepath(active_id, self.models_dir)
+        if default_model_path and default_model_path.exists() and default_model_path.stat().st_size > 10 * 1024 * 1024:
+            self.orchestrator.model_path = str(default_model_path)
+            should_warmup = auto_warmup if auto_warmup is not None else not (os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("KINGDOM_TEST_WARMUP"))
+            if getattr(self.orchestrator, "is_loaded", False):
+                self.window.boss_status = "ACTIVE"
+            elif should_warmup:
+                def _async_warmup():
+                    try:
+                        loaded = self.orchestrator.load_model()
+                        if loaded:
+                            def _set_active():
+                                self.window.boss_status = "ACTIVE"
+                            _dispatch_ui(_set_active)
+                            logger.info("Main Boss LLM loaded and ready for in-process inference.")
+                    except Exception as ex:
+                        logger.debug("Async model load note: %s", ex)
+                threading.Thread(target=_async_warmup, daemon=True, name="LlamaWarmupThread").start()
+                self.window.boss_status = "ACTIVE"
+            else:
+                self.window.boss_status = "ACTIVE"
+        else:
+            self.window.boss_status = "NOT INSTALLED"
+
         # Initial Welcome Message
         welcome_msg = {
             "id": "1",
             "role": "assistant",
-            "content": "👑 Welcome to Kingdom AI Studio V3!\n\nI am your 100% on-device AI programming assistant. Type your message below, or type / to open the command palette.",
+            "content": "Welcome to Kingdom AI Studio V3!\n\nI am your 100% on-device AI programming assistant. Type your message below, or type / to open the command palette.",
             "timestamp": time.strftime("%H:%M")
         }
         self._display_messages = [welcome_msg]
@@ -143,6 +220,155 @@ class AppController:
         ]
         self.window.scheduled_tasks = slint.ListModel(self._scheduled_tasks)
 
+        # Initial Conversation Hierarchy & Aux Tabs
+        if hasattr(self.window, "conversation_title"):
+            self.window.conversation_title = "Active pair programming session"
+        if hasattr(self.window, "active_conversation_id"):
+            self.window.active_conversation_id = "conv-1"
+
+        self._projects_tree = [
+            {
+                "id": "proj-1",
+                "name": "KingdomAIServer",
+                "path": "C:/Users/gagan/Projects/KingdomAIServer",
+                "is_expanded": True,
+                "is_active": True,
+                "conversations": [
+                    {"id": "conv-1", "title": "Active pair programming session", "timestamp": "Active", "is_active": True},
+                    {"id": "conv-2", "title": "Topbar & dynamic tabs migration", "timestamp": "10m", "is_active": False},
+                    {"id": "conv-3", "title": "VRAM watchdog & memory ceiling", "timestamp": "2h", "is_active": False},
+                    {"id": "conv-4", "title": "Tree-sitter AST intelligence", "timestamp": "1d", "is_active": False},
+                ]
+            },
+            {
+                "id": "proj-2",
+                "name": "7CGPA-Labs-Core",
+                "path": "C:/Users/gagan/Projects/7CGPA-Labs-Core",
+                "is_expanded": True,
+                "is_active": False,
+                "conversations": [
+                    {"id": "conv-5", "title": "Semantic search embeddings", "timestamp": "3d", "is_active": False},
+                    {"id": "conv-6", "title": "Model quantization benchmarks", "timestamp": "1w", "is_active": False},
+                ]
+            },
+            {
+                "id": "proj-3",
+                "name": "Cloud-Orchestrator",
+                "path": "C:/Users/gagan/Projects/Cloud-Orchestrator",
+                "is_expanded": False,
+                "is_active": False,
+                "conversations": [
+                    {"id": "conv-7", "title": "Microservices deployment DAG", "timestamp": "2w", "is_active": False},
+                ]
+            }
+        ]
+        self._update_slint_project_tree()
+
+        self._aux_tabs = [
+            {"id": "council", "title": "Overview", "tab_type": "overview", "can_close": False, "icon_name": "users"}
+        ]
+        if hasattr(self.window, "aux_tabs"):
+            self.window.aux_tabs = slint.ListModel(self._aux_tabs)
+
+        self._mock_conversation_messages = {
+            "conv-1": [
+                {
+                    "id": "1",
+                    "role": "assistant",
+                    "content": "Welcome to Kingdom AI Studio V3!\n\nI am your 100% on-device AI programming assistant. Type your message below, or type / to open the command palette.",
+                    "timestamp": time.strftime("%H:%M")
+                }
+            ],
+            "conv-2": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "How do we migrate side panel toggles and make the topbar responsive?",
+                    "timestamp": "10m ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "In Kingdom AI Studio V3, side panel toggles are integrated directly into the topbar right cluster. The middle Command Center dynamically expands with responsive real estate, and all 3 panels are wrapped in smooth ScrollViews.",
+                    "timestamp": "10m ago"
+                }
+            ],
+            "conv-3": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "What is the VRAM budget limit for local inference on Vulkan?",
+                    "timestamp": "2h ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "The strict safety ceiling is <= 6.00 GB VRAM. The background watchdog actively audits VRAM consumption every 5 minutes and automatically flushes expired KV cache.",
+                    "timestamp": "2h ago"
+                }
+            ],
+            "conv-4": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "Can we parse syntax trees locally without external servers?",
+                    "timestamp": "1d ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "Yes, native Tree-sitter bindings extract symbols, functions, and classes on-device with zero network latency.",
+                    "timestamp": "1d ago"
+                }
+            ],
+            "conv-5": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "How is semantic code search implemented in 7CGPA-Labs-Core?",
+                    "timestamp": "3d ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "It computes 384-dimensional dense vectors using all-MiniLM-L6-v2 running on Vulkan.",
+                    "timestamp": "3d ago"
+                }
+            ],
+            "conv-6": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "What is the perplexity of Q4_K_M vs Q5_K_M?",
+                    "timestamp": "1w ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "Q4_K_M provides near fp16 perplexity while fitting comfortably in 1.1 GB of VRAM.",
+                    "timestamp": "1w ago"
+                }
+            ],
+            "conv-7": [
+                {
+                    "id": "1",
+                    "role": "user",
+                    "content": "Status of Kubernetes deployment pipeline?",
+                    "timestamp": "2w ago"
+                },
+                {
+                    "id": "2",
+                    "role": "assistant",
+                    "content": "Directed Acyclic Graph validated with 4 microservice nodes ready for local simulation.",
+                    "timestamp": "2w ago"
+                }
+            ]
+        }
+
+        # Initialize Command Palette Commands
+        if hasattr(self.window, "palette_commands"):
+            self.window.palette_commands = slint.ListModel(ALL_PALETTE_COMMANDS)
+
         # Run one initial telemetry snapshot
         self.telemetry.update_once()
         self.on_refresh_diff()
@@ -167,6 +393,26 @@ class AppController:
         self.window.execute_plan = self.on_execute_plan
         self.window.add_task = self.on_add_task
         self.window.reload_skills = self.on_reload_skills
+        if hasattr(self.window, "conversation_selected"):
+            self.window.conversation_selected = self.on_select_conversation
+        if hasattr(self.window, "toggle_project_expand"):
+            self.window.toggle_project_expand = self.on_toggle_project_expand
+        if hasattr(self.window, "open_aux_tab"):
+            self.window.open_aux_tab = self.on_open_aux_tab
+        if hasattr(self.window, "close_aux_tab"):
+            self.window.close_aux_tab = self.on_close_aux_tab
+        if hasattr(self.window, "close_requested"):
+            self.window.close_requested = self.on_close_requested
+        if hasattr(self.window, "minimize_requested"):
+            self.window.minimize_requested = self.on_minimize_requested
+        if hasattr(self.window, "maximize_requested"):
+            self.window.maximize_requested = self.on_maximize_requested
+        if hasattr(self.window, "execute_palette_command"):
+            self.window.execute_palette_command = self.on_execute_palette_command
+        if hasattr(self.window, "filter_palette_commands"):
+            self.window.filter_palette_commands = self.on_filter_palette_commands
+        if hasattr(self.window, "drag_window"):
+            self.window.drag_window = self.on_drag_window
 
     # --------------------------------------------------------------------------
     # User Actions & Event Handlers
@@ -234,7 +480,7 @@ class AppController:
                 err_bubble = {
                     "id": err_id,
                     "role": "assistant",
-                    "content": f"⚠️ Generation Error: {err_msg}",
+                    "content": f"Generation Error: {err_msg}",
                     "timestamp": time.strftime("%H:%M")
                 }
                 self._display_messages.append(err_bubble)
@@ -250,7 +496,9 @@ class AppController:
             on_token=_on_token,
             on_complete=_on_complete,
             on_error=_on_error,
-            cache_db=self.cache_db
+            cache_db=self.cache_db,
+            enricher=self.enricher,
+            workspace_path=self.active_workspace_path
         )
         self.active_inference_worker.start()
 
@@ -282,12 +530,15 @@ class AppController:
             # Model not installed - switch to models tab and alert
             self.window.active_nav = "models"
             self.window.download_status = f"Please download {spec['name']} first."
+            self._append_system_chat_bubble(f"Model **{spec['name']}** is not installed yet. Please download it from the Models Hub.")
             return
 
         success = self.orchestrator.switch_model(str(model_path), model_id)
         if success or not getattr(self.orchestrator, "strict_gpu", True):
             self.window.active_model = spec["name"]
             self.window.model_list = build_slint_model_list(model_id, self.models_dir)
+            self.window.boss_status = "ACTIVE" if self.orchestrator.is_loaded else "STANDBY"
+            self._append_system_chat_bubble(f"Active model switched to **{spec['name']}**.")
             logger.info("Successfully switched active model to: %s", spec["name"])
 
     def on_download_model(self, model_id: str) -> None:
@@ -315,6 +566,14 @@ class AppController:
                 self.window.download_status = message
                 active_id = getattr(self.orchestrator, "model_name", "qwen2.5-coder-1.5b")
                 self.window.model_list = build_slint_model_list(active_id, self.models_dir)
+                if success:
+                    target_path = get_model_filepath(model_id, self.models_dir)
+                    if target_path and target_path.exists():
+                        loaded = self.orchestrator.switch_model(str(target_path), model_id)
+                        if loaded:
+                            self.window.active_model = spec["name"]
+                            self.window.boss_status = "ACTIVE"
+                            self._append_system_chat_bubble(f"Model **{spec['name']}** downloaded and loaded into memory successfully! Ready for on-device inference.")
                 self.active_download_worker = None
             _dispatch_ui(_apply)
 
@@ -327,7 +586,7 @@ class AppController:
         self.active_download_worker.start()
 
     def on_select_workspace(self) -> None:
-        """Prompt user for a workspace folder."""
+        """Prompt user for a workspace folder and activate it in the studio."""
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -341,7 +600,42 @@ class AppController:
             root.destroy()
             if selected_dir:
                 self.active_workspace_path = Path(selected_dir)
-                self.window.active_workspace = self.active_workspace_path.name
+                ws_name = self.active_workspace_path.name
+                self.window.active_workspace = ws_name
+
+                # Add to _projects_tree if not present
+                existing_proj = next((p for p in self._projects_tree if p["path"] == str(self.active_workspace_path)), None)
+                if not existing_proj:
+                    proj_id = f"proj-{len(self._projects_tree) + 1}"
+                    conv_id = f"conv-{proj_id}-1"
+                    existing_proj = {
+                        "id": proj_id,
+                        "name": ws_name,
+                        "path": str(self.active_workspace_path),
+                        "is_expanded": True,
+                        "is_active": True,
+                        "conversations": [
+                            {
+                                "id": conv_id,
+                                "title": "Pair Programming Session",
+                                "timestamp": "Active",
+                                "is_active": True
+                            }
+                        ]
+                    }
+                    for p in self._projects_tree:
+                        p["is_active"] = False
+                    self._projects_tree.insert(0, existing_proj)
+                    self.window.conversation_title = "Pair Programming Session"
+                    self.window.active_conversation_id = conv_id
+                else:
+                    for p in self._projects_tree:
+                        p["is_active"] = (p["id"] == existing_proj["id"])
+                    existing_proj["is_expanded"] = True
+
+                self._update_slint_project_tree()
+                self.on_refresh_diff()
+                self._append_system_chat_bubble(f"Loaded workspace: **{ws_name}**\nPath: `{self.active_workspace_path}`")
         except Exception as e:
             logger.debug("Workspace selection error: %s", e)
 
@@ -366,11 +660,30 @@ class AppController:
         welcome_msg = {
             "id": "1",
             "role": "assistant",
-            "content": "✨ Fresh session initialized. How can I assist you with your code today?",
+            "content": f"Fresh session initialized for **{self.active_workspace_path.name}**. How can I assist you with your code today?",
             "timestamp": time.strftime("%H:%M")
         }
         self._display_messages = [welcome_msg]
         self.window.chat_messages = slint.ListModel(self._display_messages)
+
+        # Register new conversation under active project
+        for p in self._projects_tree:
+            if p.get("is_active"):
+                conv_num = len(p.get("conversations", [])) + 1
+                conv_id = f"conv-{p['id']}-{conv_num}"
+                conv_title = f"Pair Programming Session #{conv_num}"
+                for c in p.get("conversations", []):
+                    c["is_active"] = False
+                p.setdefault("conversations", []).insert(0, {
+                    "id": conv_id,
+                    "title": conv_title,
+                    "timestamp": "Active",
+                    "is_active": True
+                })
+                self.window.conversation_title = conv_title
+                self.window.active_conversation_id = conv_id
+                self._update_slint_project_tree()
+                break
 
     def on_set_mode(self, mode: str) -> None:
         """Handle execution mode change (normal, plan, goal)."""
@@ -387,11 +700,11 @@ class AppController:
 
     def on_trigger_task(self, task_id: str) -> None:
         """Trigger an immediate run of a scheduled task."""
-        self._append_system_chat_bubble(f"⏱️ Triggered task `{task_id}` immediately in background.")
+        self._append_system_chat_bubble(f"Triggered task `{task_id}` immediately in background.")
 
     def on_cancel_task(self, task_id: str) -> None:
         """Cancel a running or scheduled task."""
-        self._append_system_chat_bubble(f"🛑 Cancelled task `{task_id}`.")
+        self._append_system_chat_bubble(f"Cancelled task `{task_id}`.")
 
     def on_copy_text(self, text: str) -> None:
         """Copies text to the Windows system clipboard."""
@@ -419,7 +732,7 @@ class AppController:
         import subprocess
         try:
             res = subprocess.run(
-                ["git", "diff", "HEAD~1", "ui/app.slint"],
+                ["git", "diff", "HEAD~1", "src/gui/ui/app.slint"],
                 cwd=str(self.active_workspace_path),
                 capture_output=True,
                 text=True,
@@ -457,21 +770,26 @@ class AppController:
                 if len(lines) >= 150:
                     break
 
-            if lines:
-                self.window.diff_lines = slint.ListModel(lines)
-                self.window.diff_file = "ui/app.slint (Live Git Diff)"
+            if not lines:
+                lines = [
+                    {"line_number": 1, "prefix": " ", "content": "// Working tree clean. No uncommitted modifications."},
+                    {"line_number": 2, "prefix": " ", "content": "// File: src/gui/ui/app.slint (Live Git Diff)"}
+                ]
+
+            self.window.diff_lines = slint.ListModel(lines)
+            self.window.diff_file = "src/gui/ui/app.slint (Live Git Diff)"
         except Exception as e:
             logger.debug("Live diff error: %s", e)
 
     def on_execute_plan(self) -> None:
         """Execute the currently approved architectural plan."""
         self._append_system_chat_bubble(
-            "⚡ **Approved Architectural Plan Execution**\n\n"
+            "**Approved Architectural Plan Execution**\n\n"
             "- [x] 1. Zero-Server In-Process Slint GUI Engine active\n"
             "- [x] 2. VRAM Safety Budget enforced (<= 6.00 GB ceiling)\n"
             "- [x] 3. Google Antigravity 2.0 full layout & inspector parity\n"
             "- [x] 4. Interactive Fine-Tuning & Dynamic Live Data verified\n\n"
-            "🎉 **Plan execution completed successfully with 0 errors.**"
+            "**Plan execution completed successfully with 0 errors.**"
         )
 
     def on_add_task(self, name: str, schedule: str, prompt: str) -> None:
@@ -488,16 +806,275 @@ class AppController:
         }
         self._scheduled_tasks.append(new_item)
         self.window.scheduled_tasks = slint.ListModel(self._scheduled_tasks)
-        self._append_system_chat_bubble(f"⏱️ **New Task Scheduled**: `{name}` [{schedule}]\nPrompt: _{prompt}_")
+        self._append_system_chat_bubble(f"**New Task Scheduled**: `{name}` [{schedule}]\nPrompt: _{prompt}_")
 
     def on_reload_skills(self) -> None:
         """Reload project skills, rules, and MCP servers from disk."""
         self._append_system_chat_bubble(
-            "🔄 **Skills & Rules Reloaded from Disk**\n\n"
+            "**Skills & Rules Reloaded from Disk**\n\n"
             "- **Skills**: `agy-customizations`, `antigravity-guide`, `code-implementer`\n"
             "- **Project Rules**: `AGENTS.md` (root guidelines enforced)\n"
             "- **MCP Servers**: `mcp-local-filesystem`, `mcp-treesitter-ast` (CONNECTED)"
         )
+
+    def _update_slint_project_tree(self) -> None:
+        """Re-synchronize self._projects_tree into self.window.project_tree Slint model."""
+        if not hasattr(self.window, "project_tree"):
+            return
+        tree_models = []
+        for p in self._projects_tree:
+            conv_models = [
+                {
+                    "id": c["id"],
+                    "title": c["title"],
+                    "timestamp": c["timestamp"],
+                    "is_active": c.get("is_active", False)
+                }
+                for c in p.get("conversations", [])
+            ]
+            tree_models.append({
+                "id": p["id"],
+                "name": p["name"],
+                "path": p["path"],
+                "is_expanded": p.get("is_expanded", False),
+                "is_active": p.get("is_active", False),
+                "conversations": slint.ListModel(conv_models)
+            })
+        self.window.project_tree = slint.ListModel(tree_models)
+
+    def on_select_conversation(self, proj_id: str, conv_id: str, proj_name: str, conv_title: str) -> None:
+        """Handle selection of a conversation under a project."""
+        if hasattr(self.window, "active_workspace"):
+            self.window.active_workspace = proj_name
+        if hasattr(self.window, "conversation_title"):
+            self.window.conversation_title = conv_title
+        if hasattr(self.window, "active_conversation_id"):
+            self.window.active_conversation_id = conv_id
+
+        # Update active states in _projects_tree
+        for p in self._projects_tree:
+            p["is_active"] = (p["id"] == proj_id)
+            for c in p.get("conversations", []):
+                c["is_active"] = (c["id"] == conv_id)
+        self._update_slint_project_tree()
+
+        # Load conversation messages into chat canvas
+        msgs = self._mock_conversation_messages.get(conv_id, [
+            {
+                "id": "1",
+                "role": "assistant",
+                "content": f"Loaded conversation: **{conv_title}** under `{proj_name}`.",
+                "timestamp": time.strftime("%H:%M")
+            }
+        ])
+        self._display_messages = list(msgs)
+        self.messages = [
+            {"role": m["role"], "content": m["content"]}
+            for m in self._display_messages
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ]
+        self.window.chat_messages = slint.ListModel(self._display_messages)
+        self.window.active_nav = "chat"
+        logger.info("Loaded conversation '%s' (%s) under '%s'", conv_title, conv_id, proj_name)
+
+    def on_toggle_project_expand(self, proj_id: str) -> None:
+        """Toggle project expansion in the project explorer tree."""
+        for p in self._projects_tree:
+            if p["id"] == proj_id:
+                p["is_expanded"] = not p["is_expanded"]
+                break
+        self._update_slint_project_tree()
+
+    def on_open_aux_tab(self, tab_id: str, title: str, tab_type: str, can_close: bool, icon_name: str) -> None:
+        """Open or focus a tab in the right auxiliary panel."""
+        existing = next((t for t in self._aux_tabs if t["id"] == tab_id), None)
+        if not existing:
+            self._aux_tabs.append({
+                "id": tab_id,
+                "title": title,
+                "tab_type": tab_type,
+                "can_close": can_close,
+                "icon_name": icon_name
+            })
+            if hasattr(self.window, "aux_tabs"):
+                self.window.aux_tabs = slint.ListModel(self._aux_tabs)
+        self.window.aux_active_tab = tab_id
+        if getattr(self.window, "is_aux_collapsed", False):
+            self.window.is_aux_collapsed = False
+        logger.info("Opened auxiliary tab: %s (%s)", title, tab_id)
+
+    def on_close_aux_tab(self, tab_id: str) -> None:
+        """Close a dynamic tab in the right auxiliary panel."""
+        if tab_id in ("overview", "council"):
+            return
+        self._aux_tabs = [t for t in self._aux_tabs if t["id"] != tab_id]
+        if hasattr(self.window, "aux_tabs"):
+            self.window.aux_tabs = slint.ListModel(self._aux_tabs)
+        if self.window.aux_active_tab == tab_id:
+            self.window.aux_active_tab = self._aux_tabs[-1]["id"] if self._aux_tabs else "council"
+        logger.info("Closed auxiliary tab: %s", tab_id)
+
+    def _get_window_hwnd(self) -> int:
+        """Find the native Win32 HWND for the Slint window using process ID inspection."""
+        if hasattr(self, "_cached_hwnd") and self._cached_hwnd:
+            try:
+                import ctypes
+                if ctypes.windll.user32.IsWindow(self._cached_hwnd):
+                    return self._cached_hwnd
+            except Exception:
+                pass
+
+        try:
+            import os
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+
+            # Fast path: FindWindowW by title ("Kingdom AI Studio")
+            h = user32.FindWindowW(None, "Kingdom AI Studio") or user32.FindWindowW(None, "Antigravity")
+            if h and user32.IsWindow(h):
+                self._cached_hwnd = h
+                return h
+
+            # Fallback: Enumerate windows owned by current process
+            my_pid = os.getpid()
+            hwnds = []
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+            def _cb(h_enum, _):
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(h_enum, ctypes.byref(pid))
+                if pid.value == my_pid and user32.IsWindowVisible(h_enum):
+                    rect = wintypes.RECT()
+                    user32.GetWindowRect(h_enum, ctypes.byref(rect))
+                    w = rect.right - rect.left
+                    h_dim = rect.bottom - rect.top
+                    cls = ctypes.create_unicode_buffer(256)
+                    user32.GetClassNameW(h_enum, cls, 256)
+                    if cls.value == "Window Class" or (w > 300 and h_dim > 200):
+                        hwnds.append(h_enum)
+                return True
+
+            user32.EnumWindows(WNDENUMPROC(_cb), 0)
+            if hwnds:
+                self._cached_hwnd = hwnds[0]
+                return self._cached_hwnd
+        except Exception as e:
+            logger.debug("Failed to find HWND: %s", e)
+
+        return 0
+
+    def on_close_requested(self) -> None:
+        """Cleanly closes the application window and shuts down background threads."""
+        logger.info("Close requested by user.")
+        try:
+            self.window.hide()
+            self.telemetry.stop()
+            if self.active_inference_worker:
+                self.active_inference_worker.cancel()
+            if self.active_download_worker:
+                self.active_download_worker.cancel()
+        except Exception:
+            pass
+        os._exit(0)
+
+    def on_minimize_requested(self) -> None:
+        """Minimizes the frameless window."""
+        hwnd = self._get_window_hwnd()
+        if hwnd:
+            try:
+                import ctypes
+                ctypes.windll.user32.ShowWindow(hwnd, 6) # SW_MINIMIZE
+            except Exception as e:
+                logger.debug("Minimize error: %s", e)
+
+    def on_maximize_requested(self) -> None:
+        """Toggles maximize / restore on the frameless window."""
+        hwnd = self._get_window_hwnd()
+        if hwnd:
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                if user32.IsZoomed(hwnd):
+                    user32.ShowWindow(hwnd, 9) # SW_RESTORE
+                else:
+                    user32.ShowWindow(hwnd, 3) # SW_MAXIMIZE
+            except Exception as e:
+                logger.debug("Maximize error: %s", e)
+
+    def on_drag_window(self) -> None:
+        """Enables native window dragging for the borderless title bar when left mouse button is pressed."""
+        hwnd = self._get_window_hwnd()
+        if not hwnd:
+            return
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            # Only initiate drag if left mouse button is physically pressed down (VK_LBUTTON = 0x01)
+            if user32.GetAsyncKeyState(0x01) & 0x8000:
+                user32.ReleaseCapture()
+                if user32.IsZoomed(hwnd):
+                    user32.ShowWindow(hwnd, 9) # SW_RESTORE
+                user32.SendMessageW(hwnd, 0x0112, 0xF012, 0) # WM_SYSCOMMAND + SC_DRAGMOVE
+        except Exception as e:
+            logger.debug("Drag window error: %s", e)
+
+    def on_filter_palette_commands(self, query: str) -> None:
+        """Filter command palette items in real-time based on user input."""
+        q = query.strip().lower()
+        if not q:
+            self.window.palette_commands = slint.ListModel(ALL_PALETTE_COMMANDS)
+            return
+
+        filtered = [
+            cmd for cmd in ALL_PALETTE_COMMANDS
+            if q in cmd["title"].lower() or q in cmd["category"].lower() or q in cmd["shortcut"].lower()
+        ]
+        self.window.palette_commands = slint.ListModel(filtered)
+
+    def on_execute_palette_command(self, cmd_id: str) -> None:
+        """Executes a command selected from the unified Command Palette."""
+        logger.info("Executing palette command: %s", cmd_id)
+        if hasattr(self.window, "show_command_palette"):
+            self.window.show_command_palette = False
+
+        if cmd_id == "file-add-project":
+            self.on_select_workspace()
+        elif cmd_id == "file-new-conv":
+            self.on_new_chat()
+        elif cmd_id == "file-clear-chat":
+            self.on_clear_chat()
+        elif cmd_id == "file-exit":
+            self.on_close_requested()
+        elif cmd_id == "view-toggle-sidebar":
+            self.window.is_sidebar_collapsed = not self.window.is_sidebar_collapsed
+        elif cmd_id == "view-toggle-aux":
+            self.window.is_aux_collapsed = not self.window.is_aux_collapsed
+        elif cmd_id == "view-overview":
+            self.window.aux_active_tab = "council"
+            self.window.is_aux_collapsed = False
+        elif cmd_id == "view-tasks":
+            self.window.aux_active_tab = "tasks"
+            self.window.is_aux_collapsed = False
+        elif cmd_id == "view-diffs":
+            self.window.aux_active_tab = "diffs"
+            self.window.is_aux_collapsed = False
+        elif cmd_id == "view-telemetry":
+            self.window.aux_active_tab = "telemetry"
+            self.window.is_aux_collapsed = False
+        elif cmd_id == "view-reset-layout":
+            self.window.is_sidebar_collapsed = False
+            self.window.is_aux_collapsed = False
+        elif cmd_id == "window-minimize":
+            self.on_minimize_requested()
+        elif cmd_id == "window-maximize":
+            self.on_maximize_requested()
+        elif cmd_id in ("studio-settings", "studio-models"):
+            self.window.show_settings_modal = True
+        elif cmd_id == "studio-purge-cache":
+            self.on_purge_cache()
+        elif cmd_id == "studio-reload-skills":
+            self.on_reload_skills()
 
     def on_execute_command(self, cmd_str: str) -> None:
         """Process slash commands (/goal, /plan, /grill-me, /schedule, /browser, /learn, /boost, /top, /models, /cache, /clearcache, /clear, /health, /help)."""
@@ -508,7 +1085,7 @@ class AppController:
         if cmd == "/goal":
             self.window.active_mode = "goal"
             self._append_system_chat_bubble(
-                "🎯 **Goal Mode Activated**\n\n"
+                "**Goal Mode Activated**\n\n"
                 "The agent will execute autonomously with persistence, checking its own work and iterating until the objective is fully achieved."
             )
 
@@ -516,26 +1093,26 @@ class AppController:
             self.window.active_mode = "plan"
             self.window.aux_active_tab = "artifacts"
             self._append_system_chat_bubble(
-                "📋 **Planning Mode Activated**\n\n"
+                "**Planning Mode Activated**\n\n"
                 "Operating in deliberative architectural planning mode. The Artifacts inspector tab is open on the right."
             )
 
         elif cmd == "/grill-me":
             self._append_system_chat_bubble(
-                "🔥 **Interactive Interview Mode (/grill-me)**\n\n"
+                "**Interactive Interview Mode (/grill-me)**\n\n"
                 "I will interview you to clarify requirements and stress-test trade-offs. What feature or architectural change would you like to explore?"
             )
 
         elif cmd == "/schedule":
             self.window.active_nav = "tasks"
             self._append_system_chat_bubble(
-                "⏱️ **Scheduled Tasks & Background Automation**\n\n"
+                "**Scheduled Tasks & Background Automation**\n\n"
                 "Navigating to Scheduled Tasks. Manage recurring cron expressions and delayed one-shot timers."
             )
 
         elif cmd == "/browser":
             self._append_system_chat_bubble(
-                "🌐 **Headless Browser Research Tool**\n\n"
+                "**Headless Browser Research Tool**\n\n"
                 "- **Browser Status**: READY (Chromium / Puppeteer sandbox)\n"
                 "- **Execution Policy**: `proceed-in-sandbox`\n"
                 "- **Allowed Domains**: `antigravity.google`, `huggingface.co`, `github.com`\n"
@@ -544,13 +1121,13 @@ class AppController:
 
         elif cmd == "/learn":
             self._append_system_chat_bubble(
-                "🧠 **Pattern Learned & Persisted**\n\n"
+                "**Pattern Learned & Persisted**\n\n"
                 "Active project workflow pattern saved into `.agents/rules/` and response cache memory for future sessions."
             )
 
         elif cmd == "/boost":
             self._append_system_chat_bubble(
-                "🚀 **Boost Mode Enabled**\n\n"
+                "**Boost Mode Enabled**\n\n"
                 "Multi-perspective reasoning and verification pass active via Lean Council (Boss LLM + Embedder + Reranker)."
             )
 
@@ -564,7 +1141,7 @@ class AppController:
             self.window.active_nav = "chat"
             stats = self.cache_db.get_stats() if self.cache_db else {}
             info_msg = (
-                f"🗄️ **Response Cache DB (SQLite WAL)**\n\n"
+                f"**Response Cache DB (SQLite WAL)**\n\n"
                 f"- **Total Cached Prompts**: {stats.get('total_cached_entries', 0)}\n"
                 f"- **Total Cache Hits**: {stats.get('total_cache_hits', 0)}\n"
                 f"- **Hit Ratio**: {stats.get('hit_ratio_pct', 0.0)}%\n"
@@ -575,14 +1152,14 @@ class AppController:
 
         elif cmd == "/clearcache":
             self.on_purge_cache()
-            self._append_system_chat_bubble("🧹 Response Cache DB has been purged successfully.")
+            self._append_system_chat_bubble("Response Cache DB has been purged successfully.")
 
         elif cmd == "/clear":
             self.on_clear_chat()
 
         elif cmd == "/health":
             health_report = (
-                f"🏥 **Kingdom AI Studio V3 Diagnostics**\n\n"
+                f"**Kingdom AI Studio V3 Diagnostics**\n\n"
                 f"- **Compute Engine**: {self.window.silicon_provider}\n"
                 f"- **Active LLM**: {self.window.active_model}\n"
                 f"- **VRAM Status**: {self.window.vram_status} (Budget Ceiling: 6.00 GB)\n"
@@ -595,7 +1172,7 @@ class AppController:
 
         elif cmd == "/help":
             help_text = (
-                "📖 **Available Slash Commands**\n\n"
+                "**Available Slash Commands**\n\n"
                 "- `/goal`: Autonomous execution mode until objective is achieved\n"
                 "- `/plan`: Architectural planning mode with live artifact generation\n"
                 "- `/grill-me`: Interactive interview to clarify requirements\n"
@@ -646,6 +1223,17 @@ class AppController:
         self.telemetry.start()
         try:
             self.window.show()
+            # Seamless Windows DWM title bar theme blending (immersive dark mode & caption color)
+            try:
+                apply_dwm_dark_theme(self._get_window_hwnd())
+                import threading
+                def _async_dwm():
+                    import time
+                    time.sleep(0.15)
+                    apply_dwm_dark_theme(self._get_window_hwnd())
+                threading.Thread(target=_async_dwm, daemon=True).start()
+            except Exception as e:
+                logger.debug("DWM title bar theming error: %s", e)
             self.window.run()
         finally:
             self.telemetry.stop()
@@ -653,3 +1241,26 @@ class AppController:
                 self.active_inference_worker.cancel()
             if self.active_download_worker:
                 self.active_download_worker.cancel()
+
+    def pump_events_until(self, predicate: Callable[[], bool], timeout_sec: float = 5.0) -> bool:
+        """Pumps the Slint event loop until predicate() returns True or timeout expires.
+        Ensures thread-safe UI callbacks queued via invoke_from_event_loop are executed on main thread.
+        """
+        import datetime
+        timer = slint.Timer()
+        start_t = time.time()
+        success = [False]
+
+        def _check():
+            if predicate():
+                success[0] = True
+                timer.stop()
+                slint.quit_event_loop()
+            elif (time.time() - start_t) >= timeout_sec:
+                timer.stop()
+                slint.quit_event_loop()
+
+        timer.start(slint.TimerMode.Repeated, datetime.timedelta(milliseconds=30), _check)
+        slint.run_event_loop()
+        return success[0]
+

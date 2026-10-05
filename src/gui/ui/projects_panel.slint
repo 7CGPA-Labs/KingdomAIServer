@@ -1,6 +1,7 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
 import { ScrollView } from "std-widgets.slint";
+import { AntigravityIcon } from "components/icon.slint";
 
 export struct ProjectItem {
     id: string,
@@ -46,11 +47,17 @@ export component ProjectsPanel inherits Rectangle {
 
             VerticalLayout {
                 spacing: 2px;
-                Text {
-                    text: "📁 Projects & Workspaces";
-                    color: AntigravityTheme.text-primary;
-                    font-size: 18px;
-                    font-weight: 800;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    AntigravityIcon { name: "folder"; icon-size: 18px; icon-color: AntigravityTheme.accent-blue; }
+                    Text {
+                        text: "Projects & Workspaces";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
                     text: "Manage and switch active codebase workspaces, Git branches, and repository contexts.";
@@ -69,13 +76,17 @@ export component ProjectsPanel inherits Rectangle {
                     clicked => { root.open-folder-clicked(); }
                 }
 
-                Text {
-                    text: "📂 Open Folder...";
-                    color: #000000;
-                    font-size: 12px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    AntigravityIcon { name: "folder"; icon-size: 14px; icon-color: #000000; }
+                    Text {
+                        text: "Open Folder...";
+                        color: #000000;
+                        font-size: 12px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }
@@ -139,12 +150,17 @@ export component ProjectsPanel inherits Rectangle {
                                             y: (parent.height - self.height) / 2;
                                         }
 
-                                        Text {
-                                            text: "⎇ " + proj.branch;
-                                            color: AntigravityTheme.accent-magenta;
-                                            font-size: 11px;
-                                            font-weight: 600;
-                                            vertical-alignment: center;
+                                        HorizontalLayout {
+                                            spacing: 4px;
+                                            alignment: center;
+                                            AntigravityIcon { name: "git-branch"; icon-size: 11px; icon-color: AntigravityTheme.accent-magenta; }
+                                            Text {
+                                                text: proj.branch;
+                                                color: AntigravityTheme.accent-magenta;
+                                                font-size: 11px;
+                                                font-weight: 600;
+                                                vertical-alignment: center;
+                                            }
                                         }
                                     }
 

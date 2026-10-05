@@ -40,6 +40,7 @@ from src.rag.retriever import BGEReranker
 from src.processing.cache import ResponseCacheDB
 from src.rag.vector_store import VectorStore
 from src.processing.prefill import prefill_response_cache, prefill_vector_store, warmup_llm_engine
+from src.processing.context_enricher import ContextEnricher
 from src.utils.request_tracker import tracker
 import uuid
 
@@ -59,10 +60,19 @@ reranker = BGEReranker()
 persona_chain = AgentPersonaChain()
 cache_db = ResponseCacheDB()
 vector_store = VectorStore()
+enricher = ContextEnricher(
+    router=router,
+    persona_chain=persona_chain,
+    preprocessor=preprocessor,
+    embedder=embedder,
+    reranker=reranker,
+    vector_store=vector_store
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Prefills Response Cache, Cognitive Vector DB, and warms up the LLM engine on boot."""
+    logger.warning("[DEPRECATION] Kingdom AI Headless OpenAI REST Server is decommissioned in V3 in favor of in-process Slint Native Desktop GUI (main.py).")
     try:
         cache_count = prefill_response_cache(cache_db)
         logger.info("[Prefill] Response Cache pre-seeded: %s common developer queries cached", cache_count)
@@ -227,9 +237,10 @@ INFO_TEMPLATE = """
 <body>
     <div class="container">
         <h1>👑 Kingdom AI Server V2</h1>
-        <div class="status">● System Active & Ready</div>
+        <div class="status" style="background-color: #f59e0b;">● DEPRECATED IN V3 — Replaced by Slint Native Desktop GUI</div>
         
-        <div class="metric"><span class="label">Architecture</span><span class="value">Headless OpenAI Gateway</span></div>
+        <div class="metric"><span class="label">Recommended Interface</span><span class="value">Kingdom AI Studio V3 (python main.py)</span></div>
+        <div class="metric"><span class="label">Architecture</span><span class="value">Legacy Headless OpenAI Gateway</span></div>
         <div class="metric"><span class="label">VRAM Ceiling</span><span class="value">{{ vram_ceiling }} MB</span></div>
         <div class="metric"><span class="label">Active GPU Provider</span><span class="value">{{ gpu_provider }}</span></div>
         <div class="metric"><span class="label">Main Model Loaded</span><span class="value">{{ is_loaded }}</span></div>
@@ -309,67 +320,7 @@ BUILTIN_AGENT_TOOLS = [
 
 def enrich_chat_context(msgs: List[Dict[str, str]]) -> tuple[List[Dict[str, str]], Dict[str, Any], float]:
     """Enrich chat messages with intent routing, persona guidelines, RAG context, and preprocessor security audits."""
-    last_user_msg = ""
-    for m in reversed(msgs):
-        if m.get("role") == "user":
-            last_user_msg = m.get("content", "")
-            break
-
-    # 1. Intent routing
-    route_info = router.route_intent(last_user_msg)
-    target_agent = route_info.get("target_agent", "MAIN_BOSS")
-    intent = route_info.get("intent", "GENERAL_CHAT")
-
-    # 2. Persona spec
-    persona_spec = persona_chain.get_persona_spec(target_agent)
-    recommended_temp = persona_spec.get("temperature", 0.7)
-    system_notes = []
-
-    if persona_spec.get("system_prompt"):
-        system_notes.append(persona_spec["system_prompt"])
-
-    # 3. Security vulnerability analysis injection
-    if intent == "SECURITY_AUDIT" or "/security" in last_user_msg.lower() or "audit security" in last_user_msg.lower():
-        findings = preprocessor.scan_security_issues(last_user_msg)
-        if findings:
-            findings_summary = "\n".join([
-                f"- Line {f['line_number']}: {f['description']} (Severity: {f['severity']})"
-                for f in findings[:5]
-            ])
-            system_notes.append(f"Static Vulnerability Analysis Findings:\n{findings_summary}")
-
-    # 4. RAG context enrichment
-    if target_agent == "MINISTER_1_2_RAG" or "@workspace" in last_user_msg.lower():
-        try:
-            clean_query = last_user_msg.replace("@workspace", "").replace("/search", "").strip()
-            if clean_query:
-                query_vec = embedder.embed_query(clean_query)
-                candidates = vector_store.search_similar(query_vec, top_k=5)
-                if candidates:
-                    context_chunks = reranker.rerank(clean_query, candidates, top_k=3)
-                    if context_chunks:
-                        context_text = "\n".join(c.get("content", "") for c in context_chunks)
-                        system_notes.append(f"Relevant workspace context from repository:\n{context_text}")
-        except Exception:
-            pass
-
-    # 5. Context trimming for oversized code inputs
-    enriched_msgs = []
-    for m in msgs:
-        content = m.get("content", "")
-        if len(content.splitlines()) > 150 and any(kw in content for kw in ("```", "def ", "class ", "function ")):
-            content = preprocessor.trim_context(content, max_lines=120)
-        enriched_msgs.append({"role": m.get("role", "user"), "content": content})
-
-    # 6. Apply system instructions
-    if system_notes:
-        combined_sys = "\n\n".join(system_notes)
-        if enriched_msgs and enriched_msgs[0].get("role") == "system":
-            enriched_msgs[0]["content"] = combined_sys + "\n\n" + enriched_msgs[0]["content"]
-        else:
-            enriched_msgs.insert(0, {"role": "system", "content": combined_sys})
-
-    return enriched_msgs, route_info, recommended_temp
+    return enricher.enrich_chat_context(msgs)
 
 # =============================================================================
 # ENDPOINT 1: /v1/chat/completions — Multi-turn Chat for Continue.dev

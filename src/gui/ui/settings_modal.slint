@@ -1,0 +1,763 @@
+import { AntigravityTheme } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+import { ModelCardItem } from "models_hub.slint";
+import { SkillCardItem } from "skills_panel.slint";
+import { ProgressMeter } from "components/progress_meter.slint";
+import { AntigravityIcon } from "components/icon.slint";
+
+export component SettingsModal inherits Rectangle {
+    in-out property <bool> is-open: false;
+    in-out property <string> active-category: "models"; // "models", "council", "customizations", "permissions", "appearance", "account", "general"
+    in-out property <bool> telemetry-enabled: true;
+    in-out property <bool> verbose-chat: true;
+    in-out property <string> user-email: "gaganjchandra2379@gmail.com";
+
+    // Hardware & Telemetry (K-Top Integration)
+    in property <string> silicon-provider: "Vulkan / GPU Accelerated (Intel Iris Xe)";
+    in property <string> vram-status: "2.14 / 6.00 GB";
+    in property <float> cpu-progress: 0.25;
+    in property <string> cpu-text: "25.0%";
+    in property <float> ram-progress: 0.36;
+    in property <string> ram-text: "5.8 / 16.0 GB";
+    in property <float> vram-progress: 0.35;
+    in property <float> speed-tokens-sec: 34.2;
+    in property <int> cache-entries: 142;
+    in property <int> cache-hits: 28;
+    in property <float> cache-hit-ratio: 68.5;
+
+    // Models & Weights (Models Hub Integration)
+    in property <string> active-model: "Qwen 2.5 Coder 1.5B";
+    in property <[ModelCardItem]> models: [
+        { id: "qwen2.5-coder-1.5b", name: "Qwen 2.5 Coder 1.5B", repo-id: "Qwen/Qwen2.5-Coder-1.5B-GGUF", approx-size-mb: 1100, vram-required-mb: 1100, is-installed: true, is-active: true, actual-disk-mb: 1115.3 },
+        { id: "qwen2.5-coder-3b", name: "Qwen 2.5 Coder 3B", repo-id: "Qwen/Qwen2.5-Coder-3B-GGUF", approx-size-mb: 2000, vram-required-mb: 2900, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "qwen2.5-coder-7b", name: "Qwen 2.5 Coder 7B", repo-id: "Qwen/Qwen2.5-Coder-7B-GGUF", approx-size-mb: 4700, vram-required-mb: 5200, is-installed: false, is-active: false, actual-disk-mb: 0.0 },
+        { id: "deepseek-coder-1.3b", name: "DeepSeek Coder 1.3B", repo-id: "deepseek-ai/deepseek-coder-1.3b", approx-size-mb: 950, vram-required-mb: 1050, is-installed: false, is-active: false, actual-disk-mb: 0.0 }
+    ];
+    in property <bool> is-downloading: false;
+    in property <float> download-progress: 0.0;
+    in property <string> download-status: "Ready";
+
+    // Customizations & Skills (Skills & MCP Integration)
+    in property <[SkillCardItem]> skills: [
+        { id: "skill-agy", name: "agy-customizations", category: "skill", scope: "Global", status: "ACTIVE", description: "Studio Customization System guide for skills, rules, and MCP.", tools-count: 4 },
+        { id: "skill-guide", name: "antigravity-guide", category: "skill", scope: "Global", status: "ACTIVE", description: "Comprehensive reference and slash commands.", tools-count: 6 },
+        { id: "skill-code", name: "code-implementer", category: "skill", scope: "Workspace", status: "ACTIVE", description: "High-precision code refactorer and implementation agent.", tools-count: 5 },
+        { id: "rule-root", name: "AGENTS.md", category: "rule", scope: "Workspace", status: "LOADED", description: "Workspace guidelines: pytest verification, VRAM <= 6.00 GB ceiling.", tools-count: 0 },
+        { id: "mcp-fs", name: "mcp-local-filesystem", category: "mcp", scope: "Global", status: "CONNECTED", description: "Local stdio file system operations provider.", tools-count: 8 }
+    ];
+
+    // Council Ministers Status (Council Architecture Integration)
+    in property <string> boss-status: "ACTIVE";
+    in property <string> m1-status: "ACTIVE";
+    in property <string> m2-status: "ACTIVE";
+    in property <string> ast-status: "READY";
+
+    // Workspace & Projects
+    in property <string> active-workspace: "KingdomAIServer";
+
+    callback close-modal();
+    callback switch-model(string);
+    callback download-model(string);
+    callback reload-skills();
+    callback purge-cache();
+    callback select-workspace();
+
+    background: AntigravityTheme.background-overlay;
+
+    // Click backdrop to dismiss
+    TouchArea {
+        clicked => { root.close-modal(); }
+    }
+
+    // Modal Card
+    Rectangle {
+        width: 860px;
+        height: 620px;
+        background: AntigravityTheme.background-modal;
+        border-radius: AntigravityTheme.radius-lg;
+        border-width: 1px;
+        border-color: AntigravityTheme.border-strong;
+        clip: true;
+
+        TouchArea { } // Prevent backdrop clicks through modal
+
+        HorizontalLayout {
+            spacing: 0px;
+
+            // -------------------------------------------------------------
+            // Left Categories Navigation Sidebar
+            // -------------------------------------------------------------
+            Rectangle {
+                width: 220px;
+                background: AntigravityTheme.background-surface;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-md;
+                    spacing: 2px;
+
+                    // Models & Hardware (L126 & L127)
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "models" ? AntigravityTheme.background-active : (t-mod.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-mod := TouchArea { clicked => { root.active-category = "models"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "box"; icon-size: 14px; icon-color: root.active-category == "models" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Models & Hardware";
+                                color: root.active-category == "models" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "models" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Council Architecture (L95)
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "council" ? AntigravityTheme.background-active : (t-coun.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-coun := TouchArea { clicked => { root.active-category = "council"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "users"; icon-size: 14px; icon-color: root.active-category == "council" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Council Architecture";
+                                color: root.active-category == "council" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "council" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Customizations & Skills (L125)
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "customizations" ? AntigravityTheme.background-active : (t-cust.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-cust := TouchArea { clicked => { root.active-category = "customizations"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "puzzle"; icon-size: 14px; icon-color: root.active-category == "customizations" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Customizations";
+                                color: root.active-category == "customizations" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "customizations" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Permissions
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "permissions" ? AntigravityTheme.background-active : (t-perm.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-perm := TouchArea { clicked => { root.active-category = "permissions"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "shield"; icon-size: 14px; icon-color: root.active-category == "permissions" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Permissions";
+                                color: root.active-category == "permissions" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "permissions" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Appearance
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "appearance" ? AntigravityTheme.background-active : (t-appr.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-appr := TouchArea { clicked => { root.active-category = "appearance"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "palette"; icon-size: 14px; icon-color: root.active-category == "appearance" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Appearance";
+                                color: root.active-category == "appearance" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "appearance" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Account
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "account" ? AntigravityTheme.background-active : (t-acc.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-acc := TouchArea { clicked => { root.active-category = "account"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "user"; icon-size: 14px; icon-color: root.active-category == "account" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "Account";
+                                color: root.active-category == "account" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "account" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // General
+                    Rectangle {
+                        height: 32px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: root.active-category == "general" ? AntigravityTheme.background-active : (t-gen.has-hover ? AntigravityTheme.background-surface-hover : transparent);
+                        t-gen := TouchArea { clicked => { root.active-category = "general"; } }
+                        HorizontalLayout {
+                            padding-left: AntigravityTheme.spacing-md;
+                            spacing: 8px;
+                            AntigravityIcon { name: "settings"; icon-size: 14px; icon-color: root.active-category == "general" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary; }
+                            Text {
+                                text: "General";
+                                color: root.active-category == "general" ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                font-size: 13px;
+                                font-weight: root.active-category == "general" ? 600 : 400;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    // Active Workspace shortcut
+                    Rectangle {
+                        height: 36px;
+                        border-radius: AntigravityTheme.radius-sm;
+                        background: AntigravityTheme.background-card;
+                        p-btn := TouchArea { clicked => { root.select-workspace(); } }
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: start;
+                            AntigravityIcon { name: "folder"; icon-size: 13px; icon-color: AntigravityTheme.accent-blue; }
+                            Text {
+                                text: root.active-workspace;
+                                color: AntigravityTheme.text-primary;
+                                font-size: 11px;
+                                font-weight: 600;
+                                overflow: elide;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // -------------------------------------------------------------
+            // Right Content Area
+            // -------------------------------------------------------------
+            Rectangle {
+                horizontal-stretch: 1;
+                background: AntigravityTheme.background-canvas;
+
+                VerticalLayout {
+                    padding: AntigravityTheme.spacing-xl;
+                    spacing: AntigravityTheme.spacing-lg;
+
+                    // Content Header
+                    HorizontalLayout {
+                        alignment: space-between;
+
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: root.active-category == "models" ? "Models & Silicon Hardware" :
+                                      (root.active-category == "council" ? "Lean Council Architecture" :
+                                      (root.active-category == "customizations" ? "Skills, Rules & MCP Tools" :
+                                      (root.active-category == "permissions" ? "Execution & Sandboxing Permissions" :
+                                      (root.active-category == "appearance" ? "Appearance Preferences" :
+                                      (root.active-category == "account" ? "Account & Subscription" : "General Settings")))));
+                                color: AntigravityTheme.text-primary;
+                                font-size: 18px;
+                                font-weight: 700;
+                            }
+                            Text {
+                                text: root.active-category == "models" ? "Manage local GGUF weights, Vulkan hardware compute, and VRAM memory safety." :
+                                      (root.active-category == "council" ? "Inspect in-process Boss LLM and Council Minister statuses." :
+                                      (root.active-category == "customizations" ? "Inspect active persona skills, AGENTS.md rules, and MCP providers." :
+                                      (root.active-category == "permissions" ? "Configure file access rules, network access, and sandbox command isolation." :
+                                      (root.active-category == "appearance" ? "Configure theme display and conversation streaming density." : "Manage preferences."))));
+                                color: AntigravityTheme.text-secondary;
+                                font-size: 12px;
+                            }
+                        }
+
+                        // Close 'X' Button
+                        Rectangle {
+                            width: 28px;
+                            height: 28px;
+                            border-radius: AntigravityTheme.radius-sm;
+                            background: close-t.has-hover ? AntigravityTheme.background-surface-hover : transparent;
+                            close-t := TouchArea { clicked => { root.close-modal(); } }
+                            HorizontalLayout {
+                                alignment: center;
+                                AntigravityIcon {
+                                    name: "close";
+                                    icon-size: 13px;
+                                    icon-color: close-t.has-hover ? AntigravityTheme.text-primary : AntigravityTheme.text-secondary;
+                                }
+                            }
+                        }
+                    }
+
+                    // Content Scroll View
+                    ScrollView {
+                        vertical-stretch: 1;
+
+                        // -----------------------------------------------------
+                        // 1. MODELS & HARDWARE (Models Hub + K-Top Telemetry)
+                        // -----------------------------------------------------
+                        if root.active-category == "models": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-lg;
+                            padding-right: 8px;
+
+                            // K-Top Live Telemetry Card
+                            Rectangle {
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-md;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+
+                                VerticalLayout {
+                                    padding: AntigravityTheme.spacing-md;
+                                    spacing: AntigravityTheme.spacing-sm;
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        Text { text: "SILICON TELEMETRY & HARDWARE GAUGES"; color: AntigravityTheme.text-muted; font-size: 10px; font-weight: 700; }
+                                        Text { text: root.silicon-provider; color: AntigravityTheme.accent-cyan; font-size: 11px; font-weight: 700; }
+                                    }
+
+                                    ProgressMeter {
+                                        label: "CPU Load";
+                                        progress: root.cpu-progress;
+                                        value-text: root.cpu-text;
+                                        bar-color: AntigravityTheme.accent-cyan;
+                                    }
+
+                                    ProgressMeter {
+                                        label: "RAM Utilization";
+                                        progress: root.ram-progress;
+                                        value-text: root.ram-text;
+                                        bar-color: AntigravityTheme.accent-magenta;
+                                    }
+
+                                    ProgressMeter {
+                                        label: "VRAM Memory Ceiling (<= 6.00 GB)";
+                                        progress: root.vram-progress;
+                                        value-text: root.vram-status;
+                                        bar-color: AntigravityTheme.status-success;
+                                    }
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        Text { text: "Speed: " + Math.round(root.speed-tokens-sec) + " tok/s"; color: AntigravityTheme.status-success; font-size: 11px; font-weight: 600; }
+                                        Text { text: "Cache Hits: " + root.cache-hits + " (" + Math.round(root.cache-hit-ratio) + "%)"; color: AntigravityTheme.accent-cyan; font-size: 11px; font-weight: 600; }
+                                    }
+                                }
+                            }
+
+                            // Model Catalog & Hot-Swapping Section
+                            Text { text: "Local Model Catalog (GGUF Q4_K_M)"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 700; }
+
+                            for m in root.models: Rectangle {
+                                height: 58px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: m.is-active ? AntigravityTheme.accent-blue : AntigravityTheme.border-subtle;
+
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md;
+                                    padding-right: AntigravityTheme.spacing-md;
+                                    alignment: space-between;
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        spacing: 2px;
+
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            Text { text: m.name; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; }
+                                            if m.is-active: HorizontalLayout {
+                                                spacing: 4px;
+                                                alignment: center;
+                                                Rectangle { width: 6px; height: 6px; border-radius: 3px; background: AntigravityTheme.accent-blue; }
+                                                Text { text: "ACTIVE"; color: AntigravityTheme.accent-blue; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                                            }
+                                            if m.is-installed && !m.is-active: Text { text: "INSTALLED"; color: AntigravityTheme.status-success; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+                                        }
+
+                                        Text { text: m.repo-id + " • Size: " + m.approx-size-mb + " MB • VRAM: " + m.vram-required-mb + " MB"; color: AntigravityTheme.text-muted; font-size: 10px; }
+                                    }
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            alignment: center;
+
+                                            if m.is-installed && !m.is-active: Rectangle {
+                                                width: 72px; height: 26px; border-radius: AntigravityTheme.radius-xs; background: AntigravityTheme.accent-blue;
+                                                TouchArea { clicked => { root.switch-model(m.id); } }
+                                                Text { text: "Activate"; color: #ffffff; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+
+                                            if !m.is-installed: Rectangle {
+                                                width: 72px; height: 26px; border-radius: AntigravityTheme.radius-xs; background: AntigravityTheme.background-surface-hover; border-width: 1px; border-color: AntigravityTheme.border-strong;
+                                                TouchArea { clicked => { root.download-model(m.id); } }
+                                                Text { text: "Download"; color: AntigravityTheme.text-primary; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 2. LEAN COUNCIL ARCHITECTURE (L95)
+                        // -----------------------------------------------------
+                        if root.active-category == "council": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            Text { text: "In-Process Lean Council Ministers"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 700; }
+
+                            // Boss LLM
+                            Rectangle {
+                                height: 56px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md; padding-right: AntigravityTheme.spacing-md; alignment: space-between;
+                                    VerticalLayout {
+                                        alignment: center; spacing: 2px;
+                                        HorizontalLayout {
+                                            spacing: 6px; alignment: center;
+                                            AntigravityIcon { name: "crown"; icon-size: 14px; icon-color: AntigravityTheme.accent-blue; }
+                                            Text { text: "Boss LLM (" + root.active-model + ")"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                                        }
+                                        Text { text: "Primary code generation and reasoning engine on Vulkan backend."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 60px; height: 22px; border-radius: 11px; background: AntigravityTheme.status-success.transparentize(80%);
+                                            Text { text: root.boss-status; color: AntigravityTheme.status-success; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Minister 1
+                            Rectangle {
+                                height: 56px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md; padding-right: AntigravityTheme.spacing-md; alignment: space-between;
+                                    VerticalLayout {
+                                        alignment: center; spacing: 2px;
+                                        HorizontalLayout {
+                                            spacing: 6px; alignment: center;
+                                            AntigravityIcon { name: "cpu"; icon-size: 14px; icon-color: AntigravityTheme.accent-cyan; }
+                                            Text { text: "Minister 1: BGE Embedder"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                                        }
+                                        Text { text: "Fast in-memory semantic vector embedding generator (384-d, 35 MB)."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 60px; height: 22px; border-radius: 11px; background: AntigravityTheme.status-success.transparentize(80%);
+                                            Text { text: root.m1-status; color: AntigravityTheme.status-success; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Minister 2
+                            Rectangle {
+                                height: 56px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md; padding-right: AntigravityTheme.spacing-md; alignment: space-between;
+                                    VerticalLayout {
+                                        alignment: center; spacing: 2px;
+                                        HorizontalLayout {
+                                            spacing: 6px; alignment: center;
+                                            AntigravityIcon { name: "search"; icon-size: 14px; icon-color: AntigravityTheme.accent-cyan; }
+                                            Text { text: "Minister 2: BGE Reranker"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                                        }
+                                        Text { text: "Precision context ranker ensuring relevant symbols are fed to prompt (110 MB)."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 60px; height: 22px; border-radius: 11px; background: AntigravityTheme.status-success.transparentize(80%);
+                                            Text { text: root.m2-status; color: AntigravityTheme.status-success; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Native AST
+                            Rectangle {
+                                height: 56px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md; padding-right: AntigravityTheme.spacing-md; alignment: space-between;
+                                    VerticalLayout {
+                                        alignment: center; spacing: 2px;
+                                        HorizontalLayout {
+                                            spacing: 6px; alignment: center;
+                                            AntigravityIcon { name: "git-branch"; icon-size: 14px; icon-color: AntigravityTheme.accent-magenta; }
+                                            Text { text: "Native AST Tree-sitter"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                                        }
+                                        Text { text: "Syntactic structure parser and symbol graph extractor."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 60px; height: 22px; border-radius: 11px; background: AntigravityTheme.status-success.transparentize(80%);
+                                            Text { text: root.ast-status; color: AntigravityTheme.status-success; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 3. CUSTOMIZATIONS & SKILLS (L125)
+                        // -----------------------------------------------------
+                        if root.active-category == "customizations": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text { text: "Active Skills, Rules & MCP Providers"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 700; vertical-alignment: center; }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Rectangle {
+                                        width: 140px; height: 26px; border-radius: AntigravityTheme.radius-xs; background: AntigravityTheme.background-card; border-width: 1px; border-color: AntigravityTheme.border-strong;
+                                        TouchArea { clicked => { root.reload-skills(); } }
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            spacing: 6px;
+                                            AntigravityIcon { name: "refresh"; icon-size: 12px; icon-color: AntigravityTheme.text-secondary; }
+                                            Text { text: "Reload from Disk"; color: AntigravityTheme.text-secondary; font-size: 11px; font-weight: 600; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            for s in root.skills: Rectangle {
+                                height: 52px;
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-sm;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+
+                                HorizontalLayout {
+                                    padding-left: AntigravityTheme.spacing-md; padding-right: AntigravityTheme.spacing-md; alignment: space-between;
+                                    VerticalLayout {
+                                        alignment: center; spacing: 2px;
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            Text { text: s.name; color: AntigravityTheme.text-primary; font-size: 12.5px; font-weight: 600; }
+                                            Text { text: "[" + s.category + "]"; color: AntigravityTheme.accent-cyan; font-size: 10px; vertical-alignment: center; }
+                                            Text { text: s.scope; color: AntigravityTheme.text-muted; font-size: 10px; vertical-alignment: center; }
+                                        }
+                                        Text { text: s.description; color: AntigravityTheme.text-muted; font-size: 11px; overflow: elide; max-width: 480px; }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        Rectangle {
+                                            width: 58px; height: 20px; border-radius: 10px; background: AntigravityTheme.status-success.transparentize(80%);
+                                            Text { text: s.status; color: AntigravityTheme.status-success; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 4. PERMISSIONS & SANDBOX
+                        // -----------------------------------------------------
+                        if root.active-category == "permissions": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            Text { text: "Tool Execution & Safety Rules"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 700; }
+
+                            Rectangle {
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-md;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                VerticalLayout {
+                                    padding: AntigravityTheme.spacing-md; spacing: AntigravityTheme.spacing-md;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            Text { text: "Tool Execution Sandbox"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 500; }
+                                            Text { text: "proceed-in-sandbox (Safe Isolation for shell commands)."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Text { text: "ACTIVE"; color: AntigravityTheme.status-success; font-size: 11px; font-weight: 700; }
+                                        }
+                                    }
+                                    Rectangle { height: 1px; background: AntigravityTheme.border-subtle; }
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            Text { text: "Non-Workspace File Access"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 500; }
+                                            Text { text: "Strictly require confirmation before modifying external paths."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Text { text: "CONFIRM"; color: AntigravityTheme.status-warning; font-size: 11px; font-weight: 700; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 5. APPEARANCE
+                        // -----------------------------------------------------
+                        if root.active-category == "appearance": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            Rectangle {
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-md;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                VerticalLayout {
+                                    padding: AntigravityTheme.spacing-md; spacing: AntigravityTheme.spacing-md;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            Text { text: "Verbose Agent Chat"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 500; }
+                                            Text { text: "Display intermediate reasoning steps and tool execution chips."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 40px; height: 22px; border-radius: 11px; background: root.verbose-chat ? AntigravityTheme.accent-blue : AntigravityTheme.border-strong;
+                                                TouchArea { clicked => { root.verbose-chat = !root.verbose-chat; } }
+                                                Rectangle { width: 16px; height: 16px; border-radius: 8px; background: #ffffff; x: root.verbose-chat ? 21px : 3px; y: 3px; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 6. ACCOUNT
+                        // -----------------------------------------------------
+                        if root.active-category == "account": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            Rectangle {
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-md;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                VerticalLayout {
+                                    padding: AntigravityTheme.spacing-md; spacing: AntigravityTheme.spacing-md;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            Text { text: "Plan: Kingdom AI Studio Pro (On-Device)"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 600; }
+                                            Text { text: "100% In-Process, Zero-Server architecture with hardware-accelerated Vulkan compute."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 76px; height: 28px; border-radius: AntigravityTheme.radius-sm; background: AntigravityTheme.accent-blue;
+                                                Text { text: "Pro"; color: #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // -----------------------------------------------------
+                        // 7. GENERAL
+                        // -----------------------------------------------------
+                        if root.active-category == "general": VerticalLayout {
+                            spacing: AntigravityTheme.spacing-md;
+                            padding-right: 8px;
+
+                            Rectangle {
+                                background: AntigravityTheme.background-card;
+                                border-radius: AntigravityTheme.radius-md;
+                                border-width: 1px;
+                                border-color: AntigravityTheme.border-subtle;
+                                VerticalLayout {
+                                    padding: AntigravityTheme.spacing-md; spacing: AntigravityTheme.spacing-md;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        VerticalLayout {
+                                            spacing: 2px;
+                                            Text { text: "SQLite WAL Response Cache"; color: AntigravityTheme.text-primary; font-size: 13px; font-weight: 500; }
+                                            Text { text: "Stores prompt responses for zero-latency instant replays."; color: AntigravityTheme.text-muted; font-size: 11px; }
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            Rectangle {
+                                                width: 90px; height: 26px; border-radius: AntigravityTheme.radius-xs; background: AntigravityTheme.status-error;
+                                                TouchArea { clicked => { root.purge-cache(); } }
+                                                Text { text: "Purge Cache"; color: #ffffff; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

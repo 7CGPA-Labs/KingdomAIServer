@@ -30,7 +30,7 @@ def create_release_archive():
         shutil.rmtree(zipapp_stage)
     zipapp_stage.mkdir(parents=True)
 
-    for item in ["src", "config", "ui"]:
+    for item in ["src", "config"]:
         target = project_root / item
         if target.exists():
             shutil.copytree(target, zipapp_stage / item)

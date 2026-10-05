@@ -1,6 +1,7 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
 import { ScrollView } from "std-widgets.slint";
+import { AntigravityIcon } from "components/icon.slint";
 
 export struct ScheduledTaskItem {
     id: string,
@@ -69,11 +70,17 @@ export component TasksPanel inherits Rectangle {
 
             VerticalLayout {
                 spacing: 2px;
-                Text {
-                    text: "⏱️ Scheduled Tasks & Background Automation";
-                    color: AntigravityTheme.text-primary;
-                    font-size: 18px;
-                    font-weight: 800;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    AntigravityIcon { name: "clock"; icon-size: 18px; icon-color: AntigravityTheme.accent-blue; }
+                    Text {
+                        text: "Scheduled Tasks & Background Automation";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
                     text: "Manage recurring cron jobs, delayed one-shot timers, and autonomous background workers.";
@@ -95,13 +102,21 @@ export component TasksPanel inherits Rectangle {
                     }
                 }
 
-                Text {
-                    text: root.is-creating ? "✕ Close Form" : "+ New Schedule";
-                    color: #000000;
-                    font-size: 12px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    AntigravityIcon {
+                        name: root.is-creating ? "close" : "plus";
+                        icon-size: 13px;
+                        icon-color: #000000;
+                    }
+                    Text {
+                        text: root.is-creating ? "Close Form" : "New Schedule";
+                        color: #000000;
+                        font-size: 12px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }
@@ -234,13 +249,17 @@ export component TasksPanel inherits Rectangle {
                             }
                         }
 
-                        Text {
-                            text: "✓ Save Task";
-                            color: #000000;
-                            font-size: 12px;
-                            font-weight: 700;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 6px;
+                            AntigravityIcon { name: "check"; icon-size: 13px; icon-color: #000000; }
+                            Text {
+                                text: "Save Task";
+                                color: #000000;
+                                font-size: 12px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
                         }
                     }
                 }

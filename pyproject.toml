@@ -28,6 +28,9 @@ dependencies = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"gui" = ["ui/*.slint", "ui/components/*.slint", "ui/assets/icons/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"

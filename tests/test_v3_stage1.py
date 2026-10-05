@@ -13,17 +13,17 @@ def test_slint_package_import():
     assert hasattr(slint, "ListModel")
 
 def test_slint_theme_compilation():
-    """Assert ui/theme.slint compiles cleanly without syntax errors."""
+    """Assert src/gui/ui/theme.slint compiles cleanly without syntax errors."""
     import slint
-    theme_path = Path(__file__).resolve().parent.parent / "ui" / "theme.slint"
+    theme_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "theme.slint"
     assert theme_path.exists()
     ns = slint.load_file(str(theme_path))
     assert hasattr(ns, "ThemePreview")
 
 def test_slint_badge_component():
-    """Assert ui/components/badge.slint compiles and instantiates StatusBadge."""
+    """Assert src/gui/ui/components/badge.slint compiles and instantiates StatusBadge."""
     import slint
-    badge_path = Path(__file__).resolve().parent.parent / "ui" / "components" / "badge.slint"
+    badge_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "components" / "badge.slint"
     assert badge_path.exists()
     ns = slint.load_file(str(badge_path))
     assert hasattr(ns, "StatusBadge")
@@ -31,9 +31,9 @@ def test_slint_badge_component():
     assert badge.text == "ACTIVE"
 
 def test_slint_app_shell_compilation_and_bindings():
-    """Assert ui/app.slint compiles and provides two-way reactive property bindings."""
+    """Assert src/gui/ui/app.slint compiles and provides two-way reactive property bindings."""
     import slint
-    app_path = Path(__file__).resolve().parent.parent / "ui" / "app.slint"
+    app_path = Path(__file__).resolve().parent.parent / "src" / "gui" / "ui" / "app.slint"
     assert app_path.exists()
     ns = slint.load_file(str(app_path))
     assert hasattr(ns, "MainWindow")

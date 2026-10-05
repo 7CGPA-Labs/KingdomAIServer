@@ -1,6 +1,7 @@
 import { AntigravityTheme } from "theme.slint";
 import { StatusBadge } from "components/badge.slint";
 import { ProgressMeter } from "components/progress_meter.slint";
+import { AntigravityIcon } from "components/icon.slint";
 
 export struct ModelCardItem {
     id: string,
@@ -40,11 +41,17 @@ export component ModelsHubView inherits Rectangle {
 
             VerticalLayout {
                 spacing: 2px;
-                Text {
-                    text: "📦 Models Hub & Weight Manager";
-                    color: AntigravityTheme.text-primary;
-                    font-size: 18px;
-                    font-weight: 800;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    AntigravityIcon { name: "box"; icon-size: 18px; icon-color: AntigravityTheme.accent-blue; }
+                    Text {
+                        text: "Models Hub & Weight Manager";
+                        color: AntigravityTheme.text-primary;
+                        font-size: 18px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
                 }
                 Text {
                     text: "Download, verify, and hot-swap on-device GGUF models within <= 6.00 GB VRAM limit.";
@@ -160,21 +167,30 @@ export component ModelsHubView inherits Rectangle {
                                 clicked => { root.download-model(model.id); }
                             }
 
-                            Text {
-                                text: "⬇ Download";
-                                color: dl-touch.has-hover ? #ffffff : AntigravityTheme.accent-magenta;
-                                font-size: 12px;
-                                font-weight: 700;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 6px;
+                                AntigravityIcon { name: "download"; icon-size: 13px; icon-color: dl-touch.has-hover ? #ffffff : AntigravityTheme.accent-magenta; }
+                                Text {
+                                    text: "Download";
+                                    color: dl-touch.has-hover ? #ffffff : AntigravityTheme.accent-magenta;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
                             }
                         }
 
-                        if model.is-installed: Text {
-                            text: "📦 " + Math.round(model.actual-disk-mb) + " MB";
-                            color: AntigravityTheme.text-muted;
-                            font-size: 11px;
-                            vertical-alignment: center;
+                        if model.is-installed: HorizontalLayout {
+                            spacing: 4px;
+                            alignment: center;
+                            AntigravityIcon { name: "box"; icon-size: 11px; icon-color: AntigravityTheme.text-muted; }
+                            Text {
+                                text: Math.round(model.actual-disk-mb) + " MB";
+                                color: AntigravityTheme.text-muted;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
                         }
                     }
                 }

@@ -30,7 +30,9 @@ class InferenceWorker:
         on_error: Callable[[str], None],
         cache_db: Optional[Any] = None,
         max_tokens: int = 1024,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        enricher: Optional[Any] = None,
+        workspace_path: Optional[Path] = None,
     ):
         self.orchestrator = orchestrator
         self.messages = messages
@@ -40,6 +42,8 @@ class InferenceWorker:
         self.cache_db = cache_db
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.enricher = enricher
+        self.workspace_path = workspace_path
 
         self._stop_requested = False
         self._thread: Optional[threading.Thread] = None
@@ -60,13 +64,26 @@ class InferenceWorker:
         token_count = 0
 
         try:
+            # 1. Orchestrate & Enrich Context (Intent routing, Personas, Security scans)
+            effective_msgs = list(self.messages)
+            effective_temp = self.temperature
+            if self.enricher:
+                try:
+                    effective_msgs, route_info, recommended_temp = self.enricher.enrich_chat_context(
+                        self.messages, workspace_path=self.workspace_path
+                    )
+                    if self.temperature == 0.7 and recommended_temp is not None:
+                        effective_temp = recommended_temp
+                except Exception as ee:
+                    logger.debug("Context enrichment notice: %s", ee)
+
             last_prompt = ""
-            for m in reversed(self.messages):
+            for m in reversed(effective_msgs):
                 if m.get("role") == "user":
                     last_prompt = m.get("content", "")
                     break
 
-            # 1. Instant Cache Check (< 0.05 ms latency)
+            # 2. Instant Cache Check (< 0.05 ms latency)
             cache_key = None
             if self.cache_db and last_prompt:
                 try:
@@ -74,7 +91,7 @@ class InferenceWorker:
                     cache_key = self.cache_db.compute_cache_key(
                         model=model_name,
                         prompt=last_prompt,
-                        temperature=self.temperature,
+                        temperature=effective_temp,
                         max_tokens=self.max_tokens
                     )
                     cached = self.cache_db.get(cache_key)
@@ -87,11 +104,11 @@ class InferenceWorker:
                 except Exception as ce:
                     logger.debug("Cache lookup non-fatal error: %s", ce)
 
-            # 2. In-Process Token Streaming via LlamaCppOrchestrator
+            # 3. In-Process Token Streaming via LlamaCppOrchestrator
             stream = self.orchestrator.stream_chat_completion(
-                messages=self.messages,
+                messages=effective_msgs,
                 max_tokens=self.max_tokens,
-                temperature=self.temperature
+                temperature=effective_temp
             )
 
             for chunk in stream:

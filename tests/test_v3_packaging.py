@@ -22,8 +22,8 @@ def test_v3_release_package_contents():
         # Check required components in release structure
         assert any("bin/kingdom.pyz" in name for name in namelist)
         assert any("bin/kingdom_studio.cmd" in name for name in namelist)
-        assert any("ui/app.slint" in name for name in namelist)
-        assert any("ui/theme.slint" in name for name in namelist)
+        assert any("src/gui/ui/app.slint" in name or "ui/app.slint" in name for name in namelist)
+        assert any("src/gui/ui/theme.slint" in name or "ui/theme.slint" in name for name in namelist)
         assert any("Deploy-KingdomServer.ps1" in name for name in namelist)
 
         # Inspect kingdom_studio.cmd content
@@ -47,6 +47,7 @@ def test_v3_zipapp_bundle_contents(tmp_path):
         assert "__main__.py" in namelist
         assert any("src/gui/app_controller.py" in name for name in namelist)
         assert any("src/core/local_llm.py" in name for name in namelist)
+        assert any("src/gui/ui/app.slint" in name for name in namelist)
 
         # Verify default entrypoint boots studio
         main_code = zf.read("__main__.py").decode("utf-8")
