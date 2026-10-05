@@ -104,7 +104,14 @@ class TelemetryBridge:
             if threading.current_thread() is threading.main_thread():
                 _apply()
             else:
-                slint.native.invoke_from_event_loop(_apply)
+                invoke_fn = getattr(slint, "invoke_from_event_loop", None) or getattr(getattr(slint, "native", None), "invoke_from_event_loop", None)
+                if invoke_fn:
+                    try:
+                        invoke_fn(_apply)
+                        return
+                    except Exception:
+                        pass
+                _apply()
         except Exception as e:
             logger.debug("Telemetry snapshot failed: %s", e)
 

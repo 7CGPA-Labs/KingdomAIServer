@@ -15,11 +15,20 @@ import slint
 logger = logging.getLogger("kingdom.gui.controller")
 
 def _dispatch_ui(callback: Callable[[], None]) -> None:
-    """Dispatches a callback to the Slint UI thread safely."""
+    """Dispatches a callback to the Slint UI thread safely across Slint versions."""
     if threading.current_thread() is threading.main_thread():
         callback()
-    else:
-        slint.native.invoke_from_event_loop(callback)
+        return
+
+    invoke_fn = getattr(slint, "invoke_from_event_loop", None) or getattr(getattr(slint, "native", None), "invoke_from_event_loop", None)
+    if invoke_fn:
+        try:
+            invoke_fn(callback)
+            return
+        except Exception:
+            pass
+    callback()
+
 
 from src.gui.models_adapter import (
     STUDIO_MODELS_CATALOG,
