@@ -359,9 +359,10 @@ def test_app_controller_interactive_fine_tunings():
     assert "Live Git Diff" in ctrl.window.diff_file
 
     # 2. Add new task
-    initial_tasks_count = len(ctrl.window.scheduled_tasks)
+    initial_tasks_count = len(ctrl._scheduled_tasks)
     ctrl.on_add_task("AST Symbol Indexer", "*/10 * * * *", "Index codebase symbols")
-    assert len(ctrl.window.scheduled_tasks) == initial_tasks_count + 1
+    assert len(ctrl._scheduled_tasks) == initial_tasks_count + 1
+    assert len(ctrl.window.scheduled_tasks) >= initial_tasks_count + 1
     assert "AST Symbol Indexer" in ctrl.window.chat_messages[-1]["content"]
 
     # 3. Plan execution

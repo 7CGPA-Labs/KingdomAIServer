@@ -1252,21 +1252,29 @@ class AppController:
         """Pumps the Slint event loop until predicate() returns True or timeout expires.
         Ensures thread-safe UI callbacks queued via invoke_from_event_loop are executed on main thread.
         """
-        import datetime
-        timer = slint.Timer()
         start_t = time.time()
-        success = [False]
+        if hasattr(slint, "run_event_loop") and hasattr(slint, "Timer"):
+            import datetime
+            timer = slint.Timer()
+            success = [False]
 
-        def _check():
-            if predicate():
-                success[0] = True
-                timer.stop()
-                slint.quit_event_loop()
-            elif (time.time() - start_t) >= timeout_sec:
-                timer.stop()
-                slint.quit_event_loop()
+            def _check():
+                if predicate():
+                    success[0] = True
+                    timer.stop()
+                    slint.quit_event_loop()
+                elif (time.time() - start_t) >= timeout_sec:
+                    timer.stop()
+                    slint.quit_event_loop()
 
-        timer.start(slint.TimerMode.Repeated, datetime.timedelta(milliseconds=30), _check)
-        slint.run_event_loop()
-        return success[0]
+            timer.start(slint.TimerMode.Repeated, datetime.timedelta(milliseconds=30), _check)
+            slint.run_event_loop()
+            return success[0]
+        else:
+            # Fallback for Slint runtimes without module-level run_event_loop
+            while time.time() - start_t < timeout_sec:
+                if predicate():
+                    return True
+                time.sleep(0.05)
+            return predicate()
 
